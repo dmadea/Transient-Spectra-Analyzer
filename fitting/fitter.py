@@ -1,0 +1,323 @@
+import numpy as np
+import lmfit
+from scipy.linalg import lstsq
+from copy import deepcopy
+from scipy.optimize import nnls as _nnls
+from numba import njit
+
+from .constraints import ConstraintNonneg
+
+@njit(fastmath=True, parallel=True)
+def _res_varpro(C, D):
+    """Calculates residuals efficiently  by (I - CC+)D.
+    Projector CC+ is calculated by SVD: CC+ = U @ U.T.
+
+    Removal of the columns of U that does not correspond to data is needed
+    (those columns whose corresponding singular values ar    e
+    lower
+    than
+    tolerance)"""
+
+    U, S, VT = np.linalg.svd(C, full_matrices=False)
+
+    Sr = S[S > S[0] * 1e-10]
+    Ur = U[:, :Sr.shape[0]]
+
+    R = (np.eye(C.shape[0]) - Ur.dot(Ur.T)).dot(D)
+
+    return R.flatten()
+
+def mse(C, ST, D_actual, D_calculated):
+    """ Mean square error """
+    return ((D_actual - D_calculated) ** 2).sum() / D_actual.size
+
+
+def NNLS(A, B):
+    """solve least squares solution for X: AX=B by non-negative least squares"""
+
+    if B.ndim == 2:
+        N = B.shape[-1]
+    else:
+        N = 0
+
+    X = np.zeros((A.shape[-1], N))
+    residual = np.zeros((N))
+
+    # nnls is Ax = b; thus, need to iterate along
+    # columns of B
+    if N == 0:
+        X, residual = _nnls(A, B)
+    else:
+        for i in range(N):
+            X[:, i], residual[i] = _nnls(A, B[:, i])
+
+    return X, residual
+
+
+def OLS(A, B):
+    """solve least squares solution for X: AX=B by ordinary least squares"""
+
+    X, residual, rank, svs = lstsq(A, B)
+    return X, residual
+
+
+class Fitter:
+    """
+    Multivariate Curve Resolution - Alternating Regression
+    Purely soft modeling or hard modeling - fitting model applied to C or ST
+    or combination of these methods
+
+    D = CS^T
+
+    """
+
+    def __init__(self, times=None, wls=None, D: np.ndarray = None, **kwargs):
+
+        self.times = times
+        self.wls = wls
+        self.D = D
+
+        self.t_dim = None
+        self.w_dim = None
+
+        # number of components - target
+        self.n = None
+
+        # fitting algorithm - only for hard modeling
+        self.fit_alg = 'leastsq'
+
+        self.max_iter = 10
+        self.c_model = None
+
+        self.C_est = None  # initial C matrix
+        self.ST_est = None  # initial ST matrix
+        self.au = None  # for augmented matrix
+
+        self.c_constraints = None  # constraints on C matrix profiles
+        self.st_constraints = None  # constraints on ST matrix profiles
+
+        self.C_matrix_constraints = None
+        # for MCR algorithm
+        self.C_regressor = 'ols'  # can be 'ols' for ordinary least squares or 'nnls' for non-negative LS
+        self.S_regressor = 'ols'
+
+        self.c_fix = None
+        self.st_fix = None
+
+        self.ST_opt = None
+        self.C_opt = None
+        self.last_result = None  # last fitting result
+        self.minimizer = None
+        self.lof = 0  # lack of fit
+
+        self.update_options(**kwargs)
+
+    def update_options(self, **kwargs):
+        for key, value in kwargs.items():
+            if not hasattr(self, key):
+                raise TypeError(f'Argument {key} is not valid.')
+            self.__setattr__(key, value)
+
+        self.t_dim = self.times.shape[0] if self.times is not None else None  # number of points in time dimension
+        self.w_dim = self.wls.shape[0] if self.wls is not None else None  # number of points in wavelength dimension
+
+        self.ST_opt = self.ST_est
+        self.C_opt = self.C_est
+
+    def _C_regressor(self, A, B):
+        return NNLS(A, B) if self.C_regressor.lower() == 'nnls' else OLS(A, B)
+
+    def _S_regressor(self, A, B):
+        return NNLS(A, B) if self.S_regressor.lower() == 'nnls' else OLS(A, B)
+
+    # C MCR half fit
+    def calc_C(self):
+        if self.D is None or self.ST_opt is None:
+            raise ValueError("Matrix D or spectra matrix S^T cannot be None.")
+
+        self.C_opt = self._C_regressor(self.ST_opt.T, self.D.T)[0].T
+
+        # Apply fixed C's
+        if self.c_fix:
+            self.C_opt[:, self.c_fix] = self.C_est[:, self.c_fix]
+
+        if self.c_constraints is not None:
+            # Apply c-constraints
+            for i in range(self.n):
+                for constr in self.c_constraints[i]:
+                    self.C_opt[:, i] = constr.transform(self.C_opt[:, i])
+
+        if self.C_matrix_constraints is not None:
+            for constr in self.C_matrix_constraints:
+                self.C_opt = constr.transform(self.C_opt)
+
+        # Apply fixed C's
+        if self.c_fix:
+            self.C_opt[:, self.c_fix] = self.C_est[:, self.c_fix]
+
+    # ST MCR half fit
+    def calc_ST(self):
+        if self.D is None or self.C_opt is None:
+            raise ValueError("Matrix D or concentration matrix C cannot be None.")
+
+        self.ST_opt = self._S_regressor(self.C_opt, self.D)[0]
+
+        # Apply fixed ST's
+        if self.st_fix:
+            self.ST_opt[self.st_fix] = self.ST_est[self.st_fix]
+
+        if self.st_constraints is not None:
+            # Apply st-constraints
+            for i in range(self.n):
+                for constr in self.st_constraints[i]:
+                    self.ST_opt[i] = constr.transform(self.ST_opt[i])
+
+        # Apply fixed ST's
+        if self.st_fix:
+            self.ST_opt[self.st_fix] = self.ST_est[self.st_fix]
+
+    # only for hard modeling, the simplest case - this is what specfit can only do
+    # Var Pro algorithm
+    def H_fit(self, c_model, ST_est, C_est, st_fix, c_fix, **kwargs):
+        self.update_options(**kwargs)
+
+        # self.fit_alg = fit_alg if fit_alg is not None else self.fit_alg
+        self.c_model = c_model
+        # self.n = n if n is not None else self.n
+        # self.st_fix = st_fix if st_fix is not None else self.st_fix
+        # self.c_fix = c_fix if c_fix is not None else self.c_fix
+
+        _C_opt = C_est.copy() if C_est is not None else np.zeros_like(C_est)
+        _ST_opt = ST_est.copy() if ST_est is not None else np.zeros_like(ST_est)
+
+        def residuals(params):
+            # needed to use nonlocal because of nested functions, https://stackoverflow.com/questions/5218895/python-nested-functions-variable-scoping
+            nonlocal _ST_opt, _C_opt
+            _C_opt = self.c_model.calc_C(params, _C_opt)
+            if c_fix:
+                _C_opt[:, c_fix] = C_est[:, c_fix]
+            # if we don't fix all spectral components or don't provide any spectra, calculate them by lstsq
+            if not st_fix or len(st_fix) < self.n:
+                _ST_opt = lstsq(_C_opt, self.D)[0]
+            # apply fixed spectra
+            if st_fix:
+                _ST_opt[st_fix] = ST_est[st_fix]
+
+            # set spectra matrix to model as a parameter
+            setattr(self.c_model, 'wavelengths', self.wls)
+            setattr(self.c_model, 'ST', _ST_opt)
+
+            R = np.dot(_C_opt, _ST_opt) - self.D  # calculate residuals
+            return R
+
+        self.minimizer = lmfit.Minimizer(residuals, self.c_model.params)
+        self.last_result = self.minimizer.minimize(method=self.fit_alg)  # minimize the residuals
+
+        self.c_model.params = self.last_result.params
+
+        self.C_opt = _C_opt
+        self.ST_opt = _ST_opt
+
+        return True
+
+    def var_pro(self, C_est=None, c_fix=None, **kwargs):
+        self.update_options(**kwargs)
+
+        _C_opt = C_est.copy() if C_est is not None else np.zeros_like(C_est)
+        # _ST_opt = ST_est.copy() if ST_est is not None else np.zeros_like(ST_est)
+
+        def residuals(params):
+            # needed to use nonlocal because of nested functions, https://stackoverflow.com/questions/5218895/python-nested-functions-variable-scoping
+            nonlocal _C_opt
+            _C_opt = self.c_model.calc_C(params, _C_opt)
+            if c_fix:
+                _C_opt[:, c_fix] = C_est[:, c_fix]
+
+            # calculate the residual matrix by varpro (I - CC+)D
+            return _res_varpro(_C_opt, self.D)
+
+        self.minimizer = lmfit.Minimizer(residuals, self.c_model.params)
+        self.last_result = self.minimizer.minimize(method=self.fit_alg)  # minimize the residuals
+
+        self.c_model.params = self.last_result.params
+
+        self.C_opt = _C_opt
+        self.ST_opt = lstsq(_C_opt, self.D)[0]
+
+        return True
+
+    def _set_C_indiv(self, Ci, i, j=0):
+        assert self.au is not None
+        idx_0, idx_1 = self.au._C_indiv_range(i, j=j)
+        self.C_opt[idx_0:idx_1, :] = Ci
+
+    # optimization of C profiles according to kinetic model in HS-MCR-AR
+    def _C_fit_opt(self):
+        # C optimized by kinetic model
+
+        i = 2  # for specific kinetic model
+        idx_0, idx_1 = self.au._C_indiv_range(i)
+
+        _C_est = self.C_opt[idx_0:idx_1, :] if self.au else self.C_opt
+        _C_fit = self.C_est[idx_0:idx_1, :].copy() if self.au else self.C_est.copy()
+
+        def residuals(params):
+            nonlocal _C_fit, _C_est
+            _C_fit = self.c_model.calc_C(params, _C_fit)
+            if self.c_fix:
+                _C_fit[:, self.c_fix] = self.C_est[:, self.c_fix]
+
+            R = (_C_est - _C_fit).flatten()
+
+            return R
+
+        self.minimizer = lmfit.Minimizer(residuals, self.c_model.params)
+        self.last_result = self.minimizer.minimize(method=self.fit_alg)  # minimize the residuals
+
+        self.c_model.params = self.last_result.params
+
+        if self.au:
+            self.C_opt[idx_0:idx_1, :] = _C_fit
+        else:
+            self.C_opt = _C_fit
+
+        # self.C_opt = _C_fit
+
+    # general case that include both possibilities - pure MCR fit with constraints
+    # and no hard modeling involved or HS-MCR - MCR with concentrations hard constraints
+    def HS_MCR_fit(self, **kwargs):
+
+        self.update_options(**kwargs)
+
+        # Ensure only C or ST provided
+        if (self.C_est is None) & (self.ST_est is None):
+            raise TypeError('C or ST estimate must be provided')
+
+        # if ST estimate is not provided, calculate ST from C estimate by lstsq
+
+        if self.ST_est is None:
+            self.ST_opt = lstsq(self.C_est, self.D)[0]
+
+        assert self.n == self.ST_opt.shape[0]
+
+        # st and c constraints are lists of lists of constraints for each C and ST component
+        if self.st_constraints is not None:
+            assert len(self.st_constraints) == self.n
+        if self.c_constraints is not None:
+            assert len(self.c_constraints) == self.n
+
+        for i in range(self.max_iter):
+
+            self.calc_C()
+
+            # perform hard modeling for C if model is provided only to C_opt optimized in previous step
+
+            if self.c_model:
+                setattr(self.c_model, 'ST', self.ST_opt)
+                self._C_fit_opt()
+
+                # self.H_fit(self.c_model, self.ST_opt, self.C_est, [i for i in range(self.n)], self.c_fix)
+
+            self.calc_ST()
+
+        return True
