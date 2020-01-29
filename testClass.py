@@ -48,7 +48,7 @@ class fMain(QMainWindow):
 
         self.setWindowTitle("Transient Spectra Analyzer")
 
-        self.resize(1000, 600)
+        self.resize(1800, 1000)
 
         self.console = Console(self)
 
@@ -102,9 +102,6 @@ class fMain(QMainWindow):
         #
         #
         # self.tabWidget.addTab(self.area, "Data")
-
-
-
 
 
         self.tSVD = QtWidgets.QWidget()

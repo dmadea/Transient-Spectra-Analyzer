@@ -19,10 +19,10 @@ from lmfit import Parameters, fit_report, fit_report, ci_report
 import lmfit
 
 from gui_console import Console
-
-from pymcr.mcr import McrAR
-from pymcr.regressors import OLS, NNLS
-from pymcr.constraints import ConstraintNonneg, ConstraintNorm
+#
+# from pymcr.mcr import McrAR
+# from pymcr.regressors import OLS, NNLS
+# from pymcr.constraints import ConstraintNonneg, ConstraintNorm
 
 from logger import Logger
 from matplotlib.ticker import Locator
