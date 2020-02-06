@@ -828,6 +828,180 @@ class Bridge_Splitting_Simple(_Model):
         return self.get_conc_matrix(C_out, self._connectivity)
 
 
+
+
+
+
+
+
+
+
+class Half_Bilirubin_Multiset(_Model):
+    n = 3
+    name = 'Half-Bilirubin Multiset Model'
+
+    def __init__(self, times=None, ST=None, wavelengths=None, aug_matrix=None):
+        super(Half_Bilirubin_Multiset, self).__init__(times)
+
+        self.species_names = np.array(list('ZEH'), dtype=np.str)
+        self.wavelengths = wavelengths
+        self.ST = ST
+
+        fname = r'C:\Users\dominik\Documents\Projects\Bilirubin\UV-Vis data\em sources.txt'
+        data = np.loadtxt(fname, dtype=np.float64, delimiter='\t', skiprows=1)
+        self.I_source = data[:, 3]
+
+        fname = r'C:\Users\dominik\Documents\Projects\Bilirubin\UV-Vis data\q rel cut.txt'
+        data = np.loadtxt(fname, dtype=np.float64, delimiter='\t', skiprows=1)
+        self.Diode_q_rel = data[:, 1]
+
+        self.aug_matrix = aug_matrix
+
+        self.description = ""
+
+    def init_params(self):
+        self.params = Parameters()
+        self.params.add('IZ', value=38.1e-6, min=0, max=np.inf, vary=False)  # molar photon flux in mol s-1
+        self.params.add('IE', value=37.7e-6, min=0, max=np.inf, vary=False)  # molar photon flux in mol s-1
+
+        self.params.add('V', value=3e-3, min=0, max=np.inf, vary=False)  # volume in mL
+        self.params.add('w_irr', value=400, min=0, max=np.inf, vary=False)  # irradiating wavelength
+
+        self.params.add('c0Z', value=2.90881898e-05, min=0, max=np.inf, vary=True)
+        self.params.add('c0E', value=2.90881898e-05, min=0, max=np.inf, vary=True)
+
+        # amount of Z in the mixture, 1: only Z, 0:, only E
+        self.params.add('xZ_Z', value=1, min=0, max=1, vary=False)
+        self.params.add('xZ_E', value=0.2, min=0, max=1, vary=False)
+
+        self.params.add('Phi_ZE', value=0.25, min=0, max=1)
+        self.params.add('Phi_EZ', value=0.23, min=0, max=1)
+        self.params.add('Phi_EHL', value=0.01, min=0, max=1)
+        self.params.add('Phi_ZHL', value=0.0, min=0, max=1, vary=False)
+        self.params.add('Phi_HLE', value=0, min=0, max=1, vary=False)
+
+
+    @staticmethod
+    def fk_factor(x, c=np.log(10), tol=1e-2):
+        # exp(-xc) = 1 - xc + (xc)^2 / 2 - (xc)^3 / 6 ...
+        # (1 - exp(-xc)) / x  ~  c - xc^2 / 2 for low x
+        return np.where(x <= tol, c - x * c * c / 2 + x * x * c * c * c / 6, (1 - np.exp(-x * c)) / x)
+
+    @staticmethod
+    def Phi(phis, wavelengths, lambda_C=400):
+        assert isinstance(phis, (list, np.ndarray))
+        return sum(par * ((lambda_C - wavelengths) / 100) ** i for i, par in enumerate(phis))
+
+    @staticmethod
+    def simulate(q0, V, c0, eps, K, times, wavelengths, l=1, I_source=None, w_irr=None):
+        """
+        c0 is concentration vector at time, defined in times arary as first element (initial condition), eps is vector of molar abs. coefficients,
+        I_source is spectrum of irradiaiton source if this was used,
+        if not, w_irr as irradiaton wavelength must be specified, K is transfer matrix, l is length of a cuvette, default 1 cm
+        times are times for which to simulate the kinetics
+        """
+        n = eps.shape[0]  # eps are epsilons - n x w matrix, where n is number of species and w is number of wavelengths
+        # assert n == K.shape[0] == K.shape[1]
+        c0 = np.asarray(c0)
+
+        if I_source is None and w_irr is None:
+            raise ValueError("Either specify I_source or irradiation wavelength w_irr!")
+
+        integrate = I_source is not None
+
+        eps_w_irr = np.zeros(eps.shape[0])  # define epsilons only at irradiaton wavelength
+        if not integrate:
+            w_idx = find_nearest_idx(wavelengths, w_irr)
+            for i in range(n):
+                eps_w_irr[i] = eps[i][w_idx]
+        else:
+            I_source /= np.trapz(I_source, x=wavelengths)  # normalize irr source spectrum
+            K = np.transpose(K, (2, 0, 1))
+
+        ln10 = np.log(10)
+
+        def dc_dt(c, t):
+
+            c_eps = c[..., None] * eps if integrate else (c * eps_w_irr)[..., None]  # hadamard product
+
+            c_dot_eps = c_eps.sum(axis=0)
+
+            x_abs = c_eps * Half_Bilirubin_Multiset.fk_factor(c_dot_eps, c=l * ln10) * (I_source if integrate else 1)
+
+            # w x n x n   x   w x n x 1
+            product = np.matmul(K, x_abs.T[..., None])  # w x n x 1
+
+            return q0 / V * (np.trapz(product, x=wavelengths, axis=0) if integrate else product).squeeze()
+
+        result = odeint(dc_dt, c0, times)
+
+        return result
+
+    def calc_C(self, params=None, C_out=None):
+        super(Half_Bilirubin_Multiset, self).calc_C(params)
+
+        if self.ST is None:
+            raise ValueError("Spectra matrix must not be none.")
+
+        IZ, IE, V, w_irr, c0Z, c0E, xZ_Z, xZ_E, Phi_ZE, Phi_EZ, Phi_EHL, Phi_ZHL, Phi_HLE  = [par[1].value for par in self.params.items()]
+
+        Phi_ZE = self.Phi([Phi_ZE], 400, self.wavelengths)
+        Phi_EZ = self.Phi([Phi_EZ], 400, self.wavelengths)
+        Phi_EHL = self.Phi([Phi_EHL], 400, self.wavelengths)
+        Phi_ZHL = self.Phi([Phi_ZHL], 400, self.wavelengths)
+        Phi_HLE = self.Phi([Phi_HLE], 400, self.wavelengths)
+
+        _0 = np.zeros(self.wavelengths.shape) if isinstance(Phi_ZE, np.ndarray) else 0
+
+        K = np.asarray([[-Phi_ZE - Phi_ZHL, Phi_EZ, _0],
+                        [Phi_ZE, -Phi_EZ - Phi_EHL, Phi_HLE],
+                        [Phi_ZHL, Phi_EHL, -Phi_HLE]])
+
+        # n = K.shape[0]
+
+        _overlap = np.trapz(self.Diode_q_rel * self.I_source, x=self.wavelengths)
+
+        q_tot_Z, q_tot_E = IZ * _overlap, IE * _overlap
+
+
+        #Z
+
+        Z_start, Z_end = self.aug_matrix._C_indiv_range(0)
+        times_Z = self.aug_matrix.matrices[0, 0].times
+
+        x0 = np.linspace(0, times_Z[0], num=10)
+
+        _init_x = self.simulate(q_tot_Z, V, [xZ_Z * c0Z, (1-xZ_Z)*c0Z, 0], self.ST, K, x0, self.wavelengths, l=1,
+                               I_source=self.I_source, w_irr=w_irr)[-1, :]
+
+        self.C[Z_start:Z_end, :] = self.simulate(q_tot_Z, V, _init_x, self.ST, K, times_Z, self.wavelengths, l=1,
+                               I_source=self.I_source, w_irr=w_irr)
+
+        # E
+
+        E_start, E_end = self.aug_matrix._C_indiv_range(1)
+        times_E = self.aug_matrix.matrices[1, 0].times
+
+        x0 = np.linspace(0, times_E[0], num=10)
+
+        _init_x = self.simulate(q_tot_E, V, [xZ_E * c0E, (1 - xZ_E) * c0E, 0], self.ST, K, x0, self.wavelengths, l=1,
+                                I_source=self.I_source, w_irr=w_irr)[-1, :]
+
+        self.C[E_start:E_end, :] = self.simulate(q_tot_E, V, _init_x, self.ST, K, times_E, self.wavelengths, l=1,
+                               I_source=self.I_source, w_irr=w_irr)
+
+        # self.C = np.heaviside(self.times, 1)[..., None] * result
+
+        return self.get_conc_matrix(C_out, self._connectivity)
+
+
+
+
+
+
+
+
+
 def plot_figures(model):
     plt.figure(1)
     n = model.n

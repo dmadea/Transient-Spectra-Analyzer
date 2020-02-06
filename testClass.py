@@ -182,32 +182,6 @@ class fMain(QMainWindow):
         Console.push_variables({'U': self.matrix.U, 'S': self.matrix.S, 'V_T': self.matrix.V_T})
 
 
-
-    # def reconstruct_matrix(self, sing_values_num):
-    #     A = self.LFP_matrix.data
-    #
-    #     # # create m x n Sigma matrix
-    #     # Sigma = np.zeros((A.shape[0], A.shape[1]))
-    #     # # populate Sigma with n x n diagonal matrix
-    #     # Sigma[:A.shape[1], :A.shape[1]] = np.diag(self.S)
-    #
-    #     # this code does the above commented version in one line
-    #     Sigma = diagsvd(self.S, A.shape[0], A.shape[1])
-    #
-    #     # reduce the matrix, Sigma becomes m x sing_values_num matrix
-    #     S_red = Sigma[:, :sing_values_num]
-    #     # reduce the matrix, V_T becomes sing_values_num matrix x n matrix
-    #     V_T_red = self.V_T[:sing_values_num, :]
-    #
-    #     A_red = self.U @ S_red @ V_T_red
-    #
-    #     return A_red
-    #
-
-
-
-
-
     def update_recent_files(self):
         num = min(len(Settings.recent_project_filepaths), len(self.menuBar().recent_file_actions))
 

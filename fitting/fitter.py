@@ -255,11 +255,14 @@ class Fitter:
     def _C_fit_opt(self):
         # C optimized by kinetic model
 
-        i = 2  # for specific kinetic model
-        idx_0, idx_1 = self.au._C_indiv_range(i)
+        # i = 2  # for specific kinetic model
+        # idx_0, idx_1 = self.au._C_indiv_range(i)
 
-        _C_est = self.C_opt[idx_0:idx_1, :] if self.au else self.C_opt
-        _C_fit = self.C_est[idx_0:idx_1, :].copy() if self.au else self.C_est.copy()
+        # _C_est = self.C_opt[idx_0:idx_1, :] if self.au else self.C_opt
+        # _C_fit = self.C_est[idx_0:idx_1, :].copy() if self.au else self.C_est.copy()
+
+        _C_est = self.C_opt
+        _C_fit = self.C_est.copy()
 
         def residuals(params):
             nonlocal _C_fit, _C_est
@@ -267,7 +270,7 @@ class Fitter:
             if self.c_fix:
                 _C_fit[:, self.c_fix] = self.C_est[:, self.c_fix]
 
-            R = (_C_est - _C_fit).flatten()
+            R = _C_est - _C_fit
 
             return R
 
@@ -275,13 +278,13 @@ class Fitter:
         self.last_result = self.minimizer.minimize(method=self.fit_alg)  # minimize the residuals
 
         self.c_model.params = self.last_result.params
+        #
+        # if self.au:
+        #     self.C_opt[idx_0:idx_1, :] = _C_fit
+        # else:
+        #     self.C_opt = _C_fit
 
-        if self.au:
-            self.C_opt[idx_0:idx_1, :] = _C_fit
-        else:
-            self.C_opt = _C_fit
-
-        # self.C_opt = _C_fit
+        self.C_opt = _C_fit
 
     # general case that include both possibilities - pure MCR fit with constraints
     # and no hard modeling involved or HS-MCR - MCR with concentrations hard constraints

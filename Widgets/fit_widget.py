@@ -34,7 +34,7 @@ from fitting.constraints import ConstraintClosure
 
 
 class FitWidget(QWidget, Ui_Form):
-    max_params = 10
+    max_params = 20
     max_species = 10
 
     instance = None
@@ -445,15 +445,17 @@ class FitWidget(QWidget, Ui_Form):
         if self.matrix is None:
             return
 
-        t = self._au[2, 0].times if self._au else self.matrix.times
+        # t = self._au[2, 0].times if self._au else self.matrix.times
 
-        self.current_model.init_times(t)
+        self.current_model.init_times(self.matrix.times)
         self.update_params()
 
         # set spectra matrix to model as a parameter
         wls = self._au[0, 0].wavelengths if self._au else self.matrix.wavelengths
         setattr(self.current_model, 'wavelengths', wls)
         setattr(self.current_model, 'ST', self._ST)
+        if self._au:
+            setattr(self.current_model, 'aug_matrix', self._au)
 
         # get the conectivity with kinetic model
         n = int(self.sbN.value())  # number of species

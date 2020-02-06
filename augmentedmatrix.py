@@ -419,6 +419,39 @@ def setup2(t1=1000):
     return au
 
 
+def setup3():
+    fw = FitWidget.instance
+    pw = PlotWidget.instance
+
+    path = r"C:\Users\dominik\Documents\Projects\Bilirubin\UV-Vis data"
+    paths = []
+
+    # paths.append(path + r"\Z 330 nm\cut.txt")
+    # paths.append(path + r"\Z 375 nm\cut.txt")
+    paths.append(path + r"\Z 400 nm\cut.txt")
+    # paths.append(path + r"\Z 450 nm\cut.txt")
+    # paths.append(path + r"\Z 480 nm\cut.txt")
+
+    # paths.append(path + r"\E 330 nm\cut.txt")
+    paths.append(path + r"\E 400 nm\cut.txt")
+    # paths.append(path + r"\E 480 nm\cut.txt")
+
+    au = AugmentedMatrix(len(paths), 1)
+
+    for i in range(len(paths)):
+        au.load_matrix(i, 0, paths[i])
+        # au[i, 0].crop_data(0, t1)
+
+    m = au.get_aug_LFP_matrix()
+
+    pw.plot_matrix(m)
+    fw.matrix = m
+    fw._au = au
+    Console.push_variables({'matrix': m})
+
+    return au
+
+
 if __name__ == "__main__":
     m = AugmentedMatrix(2, 1)
 
