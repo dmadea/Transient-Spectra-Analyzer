@@ -423,16 +423,19 @@ def setup3():
     fw = FitWidget.instance
     pw = PlotWidget.instance
 
-    path = r"C:\Users\dominik\Documents\Projects\Bilirubin\UV-Vis data"
+    path = r"C:\Users\Dominik\Documents\MUNI\Organic Photochemistry\Projects\2019-Bilirubin project\UV-VIS\QY measurement\Photodiode\new setup"
     paths = []
 
-    # paths.append(path + r"\Z 330 nm\cut.txt")
+    paths.append(path + r"\Z 330 nm\cut.txt")
     # paths.append(path + r"\Z 375 nm\cut.txt")
+
+    paths.append(path + r"\E 330 nm\cut.txt")
+
+
     paths.append(path + r"\Z 400 nm\cut.txt")
     # paths.append(path + r"\Z 450 nm\cut.txt")
     # paths.append(path + r"\Z 480 nm\cut.txt")
 
-    # paths.append(path + r"\E 330 nm\cut.txt")
     paths.append(path + r"\E 400 nm\cut.txt")
     # paths.append(path + r"\E 480 nm\cut.txt")
 

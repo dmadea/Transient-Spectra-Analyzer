@@ -650,7 +650,7 @@ class Half_Bilirubin_1st_Model(_Model):
         times are times for which to simulate the kinetics
         """
         n = eps.shape[0]  # eps are epsilons - n x w matrix, where n is number of species and w is number of wavelengths
-        assert n == K.shape[0] == K.shape[1]
+        # assert n == K.shape[0] == K.shape[1]
         c0 = np.asarray(c0)
 
         if I_source is None and w_irr is None:
@@ -709,19 +709,21 @@ class Half_Bilirubin_1st_Model(_Model):
 
         q0, V, w_irr, c0, xZ, Phi_ZE, Phi_EZ, Phi_EHL, Phi_HLBl = [par[1].value for par in self.params.items()]
 
-        # K = np.asarray([[-Phi_ZE, Phi_EZ, 0],
-        #                 [Phi_ZE, -Phi_EZ - Phi_EHL, 0],
-        #                 [0, Phi_EHL, 0]])
+        K = np.asarray([[-Phi_ZE, Phi_EZ, 0],
+                        [Phi_ZE, -Phi_EZ - Phi_EHL, 0],
+                        [0, Phi_EHL, 0]])
 
-        K = np.asarray([[-Phi_ZE, Phi_EZ, 0, 0],
-                        [Phi_ZE, -Phi_EZ - Phi_EHL, 0, 0],
-                        [0, Phi_EHL, - Phi_HLBl, 0],
-                        [0, 0, Phi_HLBl, 0]])
+        # K = np.asarray([[-Phi_ZE, Phi_EZ, 0, 0],
+        #                 [Phi_ZE, -Phi_EZ - Phi_EHL, 0, 0],
+        #                 [0, Phi_EHL, - Phi_HLBl, 0],
+        #                 [0, 0, Phi_HLBl, 0]])
 
         n = K.shape[0]
 
+        c0_vec = [c0*xZ, (1-xZ)*c0] + (n - 2) * [0]
+
         x0 = np.linspace(0, self.times[0], num=10)
-        _init_x = self.simulate(q0, V, [c0*xZ, (1-xZ)*c0, 0, 0], self.ST[:n, :], K, x0, self.wavelengths, l=1,
+        _init_x = self.simulate(q0, V, c0_vec, self.ST[:n, :], K, x0, self.wavelengths, l=1,
                                I_source=self.I_source, w_irr=w_irr)[-1, :]
 
         # _init_x = odeint(solve, [c0 * xZ, c0 * (1 - xZ), 0, 0], x0)[-1, :]  # take the row in the result matrix
@@ -831,11 +833,6 @@ class Bridge_Splitting_Simple(_Model):
 
 
 
-
-
-
-
-
 class Half_Bilirubin_Multiset(_Model):
     n = 3
     name = 'Half-Bilirubin Multiset Model'
@@ -847,12 +844,19 @@ class Half_Bilirubin_Multiset(_Model):
         self.wavelengths = wavelengths
         self.ST = ST
 
-        fname = r'C:\Users\dominik\Documents\Projects\Bilirubin\UV-Vis data\em sources.txt'
-        data = np.loadtxt(fname, dtype=np.float64, delimiter='\t', skiprows=1)
-        self.I_source = data[:, 3]
+        path = r"C:\Users\Dominik\Documents\MUNI\Organic Photochemistry\Projects\2019-Bilirubin project\UV-VIS\QY measurement\Photodiode\new setup"
 
-        fname = r'C:\Users\dominik\Documents\Projects\Bilirubin\UV-Vis data\q rel cut.txt'
-        data = np.loadtxt(fname, dtype=np.float64, delimiter='\t', skiprows=1)
+        fname = path + r'\em sources.txt'
+        data = np.loadtxt(fname, delimiter='\t', skiprows=1)
+
+        self.I_330 = data[:, 1] / np.trapz(data[:, 1], x=self.wavelengths)
+        self.I_375 = data[:, 2] / np.trapz(data[:, 2], x=self.wavelengths)
+        self.I_400 = data[:, 3] / np.trapz(data[:, 3], x=self.wavelengths)
+        self.I_450 = data[:, 4] / np.trapz(data[:, 4], x=self.wavelengths)
+        self.I_480 = data[:, 5] / np.trapz(data[:, 5], x=self.wavelengths)
+
+        fname = path + r'\q rel cut.txt'
+        data = np.loadtxt(fname, delimiter='\t', skiprows=1)
         self.Diode_q_rel = data[:, 1]
 
         self.aug_matrix = aug_matrix
@@ -861,24 +865,31 @@ class Half_Bilirubin_Multiset(_Model):
 
     def init_params(self):
         self.params = Parameters()
-        self.params.add('IZ', value=38.1e-6, min=0, max=np.inf, vary=False)  # molar photon flux in mol s-1
-        self.params.add('IE', value=37.7e-6, min=0, max=np.inf, vary=False)  # molar photon flux in mol s-1
+        # self.params.add('IZ', value=38.1e-6, min=0, max=np.inf, vary=False)  # molar photon flux in mol s-1
+        # self.params.add('IE', value=37.7e-6, min=0, max=np.inf, vary=False)  # molar photon flux in mol s-1
+        #
+        # self.params.add('V', value=3e-3, min=0, max=np.inf, vary=False)  # volume in L
+        # self.params.add('w_irr', value=400, min=0, max=np.inf, vary=False)  # irradiating wavelength
 
-        self.params.add('V', value=3e-3, min=0, max=np.inf, vary=False)  # volume in mL
-        self.params.add('w_irr', value=400, min=0, max=np.inf, vary=False)  # irradiating wavelength
+        self.params.add('c0Z330', value=4.915e-05, min=0, max=np.inf, vary=True)
+        self.params.add('c0E330', value=4.143e-05, min=0, max=np.inf, vary=True)
 
-        self.params.add('c0Z', value=2.90881898e-05, min=0, max=np.inf, vary=True)
-        self.params.add('c0E', value=2.90881898e-05, min=0, max=np.inf, vary=True)
+        self.params.add('c0Z400', value=4.915e-05, min=0, max=np.inf, vary=True)
+        self.params.add('c0E400', value=4.143e-05, min=0, max=np.inf, vary=True)
 
         # amount of Z in the mixture, 1: only Z, 0:, only E
         self.params.add('xZ_Z', value=1, min=0, max=1, vary=False)
-        self.params.add('xZ_E', value=0.2, min=0, max=1, vary=False)
+        self.params.add('xZ_E', value=0.1, min=0, max=1, vary=False)
 
         self.params.add('Phi_ZE', value=0.25, min=0, max=1)
         self.params.add('Phi_EZ', value=0.23, min=0, max=1)
         self.params.add('Phi_EHL', value=0.01, min=0, max=1)
         self.params.add('Phi_ZHL', value=0.0, min=0, max=1, vary=False)
         self.params.add('Phi_HLE', value=0, min=0, max=1, vary=False)
+
+        self.params.add('Phi_ZE_1', value=0.01, min=-1, max=1)
+        self.params.add('Phi_EZ_1', value=0.01, min=-1, max=1)
+        self.params.add('Phi_EHL_1', value=0.01, min=-1, max=1)
 
 
     @staticmethod
@@ -943,11 +954,13 @@ class Half_Bilirubin_Multiset(_Model):
         if self.ST is None:
             raise ValueError("Spectra matrix must not be none.")
 
-        IZ, IE, V, w_irr, c0Z, c0E, xZ_Z, xZ_E, Phi_ZE, Phi_EZ, Phi_EHL, Phi_ZHL, Phi_HLE  = [par[1].value for par in self.params.items()]
+        c0Z330, c0E330, c0Z400, c0E400, xZ_Z, xZ_E, Phi_ZE, Phi_EZ, Phi_EHL, Phi_ZHL, Phi_HLE, Phi_ZE_1, Phi_EZ_1, Phi_EHL_1 = [par[1].value for par in self.params.items()]
 
-        Phi_ZE = self.Phi([Phi_ZE], 400, self.wavelengths)
-        Phi_EZ = self.Phi([Phi_EZ], 400, self.wavelengths)
-        Phi_EHL = self.Phi([Phi_EHL], 400, self.wavelengths)
+        IZ330, IE330, IZ400, IE400, V = 16.7e-6, 17e-6, 38.1e-6, 37.7e-6, 3e-3
+
+        Phi_ZE = self.Phi([Phi_ZE, Phi_ZE_1], 400, self.wavelengths)
+        Phi_EZ = self.Phi([Phi_EZ, Phi_EZ_1], 400, self.wavelengths)
+        Phi_EHL = self.Phi([Phi_EHL, Phi_EHL_1], 400, self.wavelengths)
         Phi_ZHL = self.Phi([Phi_ZHL], 400, self.wavelengths)
         Phi_HLE = self.Phi([Phi_HLE], 400, self.wavelengths)
 
@@ -959,45 +972,48 @@ class Half_Bilirubin_Multiset(_Model):
 
         # n = K.shape[0]
 
-        _overlap = np.trapz(self.Diode_q_rel * self.I_source, x=self.wavelengths)
+        _overlap330 = np.trapz(self.Diode_q_rel * self.I_330, x=self.wavelengths)
+        _overlap400 = np.trapz(self.Diode_q_rel * self.I_400, x=self.wavelengths)
 
-        q_tot_Z, q_tot_E = IZ * _overlap, IE * _overlap
+        q_tot_Z330, q_tot_E330 = IZ330 * _overlap330, IE330 * _overlap330
+        q_tot_Z400, q_tot_E400 = IZ400 * _overlap400, IE400 * _overlap400
 
 
-        #Z
+        #Z 330
 
-        Z_start, Z_end = self.aug_matrix._C_indiv_range(0)
-        times_Z = self.aug_matrix.matrices[0, 0].times
+        s, e = self.aug_matrix._C_indiv_range(0)
+        t = self.aug_matrix.matrices[0, 0].times
 
-        x0 = np.linspace(0, times_Z[0], num=10)
+        self.C[s:e, :] = self.simulate(q_tot_Z330, V, [xZ_Z * c0Z330, (1-xZ_Z)*c0Z330, 0], self.ST, K, t, self.wavelengths, l=1,
+                               I_source=self.I_330, w_irr=None)
 
-        _init_x = self.simulate(q_tot_Z, V, [xZ_Z * c0Z, (1-xZ_Z)*c0Z, 0], self.ST, K, x0, self.wavelengths, l=1,
-                               I_source=self.I_source, w_irr=w_irr)[-1, :]
+        # E 330
 
-        self.C[Z_start:Z_end, :] = self.simulate(q_tot_Z, V, _init_x, self.ST, K, times_Z, self.wavelengths, l=1,
-                               I_source=self.I_source, w_irr=w_irr)
+        s, e = self.aug_matrix._C_indiv_range(1)
+        t = self.aug_matrix.matrices[1, 0].times
 
-        # E
+        self.C[s:e, :] = self.simulate(q_tot_E330, V, [xZ_E * c0E330, (1 - xZ_E) * c0E330, 0], self.ST, K, t,
+                                       self.wavelengths, l=1, I_source=self.I_330, w_irr=None)
 
-        E_start, E_end = self.aug_matrix._C_indiv_range(1)
-        times_E = self.aug_matrix.matrices[1, 0].times
+        # Z 400
 
-        x0 = np.linspace(0, times_E[0], num=10)
+        s, e = self.aug_matrix._C_indiv_range(2)
+        t = self.aug_matrix.matrices[2, 0].times
 
-        _init_x = self.simulate(q_tot_E, V, [xZ_E * c0E, (1 - xZ_E) * c0E, 0], self.ST, K, x0, self.wavelengths, l=1,
-                                I_source=self.I_source, w_irr=w_irr)[-1, :]
+        self.C[s:e, :] = self.simulate(q_tot_Z400, V, [xZ_Z * c0Z400, (1 - xZ_Z) * c0Z400, 0], self.ST, K, t,
+                                       self.wavelengths, l=1, I_source=self.I_400, w_irr=None)
 
-        self.C[E_start:E_end, :] = self.simulate(q_tot_E, V, _init_x, self.ST, K, times_E, self.wavelengths, l=1,
-                               I_source=self.I_source, w_irr=w_irr)
+        # E 400
+
+        s, e = self.aug_matrix._C_indiv_range(3)
+        t = self.aug_matrix.matrices[3, 0].times
+
+        self.C[s:e, :] = self.simulate(q_tot_E400, V, [xZ_E * c0E400, (1 - xZ_E) * c0E400, 0], self.ST, K, t,
+                                       self.wavelengths, l=1, I_source=self.I_400, w_irr=None)
 
         # self.C = np.heaviside(self.times, 1)[..., None] * result
 
         return self.get_conc_matrix(C_out, self._connectivity)
-
-
-
-
-
 
 
 
