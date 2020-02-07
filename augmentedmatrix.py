@@ -103,20 +103,30 @@ class AugmentedMatrix(object):
 
         return q_rel.squeeze()
 
-    def plot_fit_photochem(self, symlog=True, I_sources=None, z_label='Absorbance', wl_label='Wavelength (nm)', t_label='Time (s)',
-                           dpi=500, figsize=(23, 10), cmap='inferno', time_linthresh=200, time_linscale=1):
+    def plot_fit_photochem(self, symlog=False, I_sources=None, z_label='Absorbance', wl_label='Wavelength (nm)', t_label='Time (s)',
+                           dpi=500, figsize=(30, 8), cmap='inferno', time_linthresh=200, time_linscale=1, transparent=False):
 
         if I_sources is None:
-            fname = r'C:\Users\Dominik\Documents\MUNI\Organic Photochemistry\Projects\2019-Bilirubin project\UV-VIS\led sources.txt'
+            # fname = r'C:\Users\Dominik\Documents\MUNI\Organic Photochemistry\Projects\2019-Bilirubin project\UV-VIS\led sources.txt'
+            path = r"C:\Users\dominik\Documents\Projects\Bilirubin\UV-Vis data"
 
-            data = np.loadtxt(fname, dtype=np.float64, delimiter='\t', skiprows=1)
+            data = np.loadtxt(path + r"\em sources.txt", dtype=np.float64, delimiter='\t', skiprows=1)
 
             # 355, 375, 375, 400, 450, 490 nm
-            I_sources = [data[:, 1], data[:, 2].copy(), data[:, 3], data[:, 4], data[:, 5]]
+            # I_sources = [data[:, 1].copy(), data[:, 2].copy(), data[:, 3].copy(), data[:, 4].copy(), data[:, 5]]
 
-        fig, ax = plt.subplots(3, self.r, figsize=figsize)
+            I_330 = data[:, 1].copy()
+            I_400 = data[:, 3].copy()
+            I_480 = data[:, 5].copy()
 
-        comp = ['Z', 'E', 'HL', 'Unknown']
+            I_sources = [I_330, I_330.copy(), I_400, I_400.copy(), I_480, I_480.copy()]
+
+
+        # fig, ax = plt.subplots(3, self.r, figsize=figsize)
+        fig, ax = plt.subplots(2, self.r, figsize=figsize)
+
+
+        comp = ['Z', 'E', 'HL']
         cmap = cm.get_cmap(cmap)
 
         for i in range(self.r):
@@ -152,28 +162,28 @@ class AugmentedMatrix(object):
                 ax[1, i].set_xscale('symlog', subsx=[2, 3, 4, 5, 6, 7, 8, 9], linscalex=time_linscale, linthreshx=time_linthresh)
                 ax[1, i].xaxis.set_minor_locator(MinorSymLogLocator(time_linthresh))
 
-            # plot q rel
-            if I_sources is None:
-                continue
+            # # plot q rel
+            # if I_sources is None:
+            #     continue
 
-            ax[2, i].set_title("Part of absorbed light")
-            q_rel = self._calc_q_rel(self.ST_aug, C, wls, I_source=I_sources[i])
-
-            for j in range(C.shape[1]):
-                ax[2, i].plot(ts, q_rel[:, j], label=comp[j])
-
-            ax[2, i].legend()
-            ax[2, i].set_ylabel('$q(t)/q^0_{mol}$')
-            ax[2, i].set_xlabel(t_label)
-
-            if symlog:
-                ax[2, i].set_xscale('symlog', subsx=[2, 3, 4, 5, 6, 7, 8, 9], linscalex=time_linscale, linthreshx=time_linthresh)
-                ax[2, i].xaxis.set_minor_locator(MinorSymLogLocator(time_linthresh))
+            # ax[2, i].set_title("Part of absorbed light")
+            # q_rel = self._calc_q_rel(self.ST_aug, C, wls, I_source=I_sources[i])
+            #
+            # for j in range(C.shape[1]):
+            #     ax[2, i].plot(ts, q_rel[:, j], label=comp[j])
+            #
+            # ax[2, i].legend()
+            # ax[2, i].set_ylabel('$q(t)/q^0_{mol}$')
+            # ax[2, i].set_xlabel(t_label)
+            #
+            # if symlog:
+            #     ax[2, i].set_xscale('symlog', subsx=[2, 3, 4, 5, 6, 7, 8, 9], linscalex=time_linscale, linthreshx=time_linthresh)
+            #     ax[2, i].xaxis.set_minor_locator(MinorSymLogLocator(time_linthresh))
 
         plt.tight_layout()
         # fig.subplots_adjust(hspace=0)
 
-        plt.savefig(fname=r'C:\Users\Dominik\Desktop\snth\test-fit_photochem.png', format='png', transparent=True, dpi=dpi)
+        plt.savefig(fname=r'C:\Users\dominik\Documents\Projects\Bilirubin\Results\test-fit_photochem.png', format='png', transparent=transparent, dpi=dpi)
 
         # plt.show()
 
@@ -423,7 +433,9 @@ def setup3():
     fw = FitWidget.instance
     pw = PlotWidget.instance
 
-    path = r"C:\Users\Dominik\Documents\MUNI\Organic Photochemistry\Projects\2019-Bilirubin project\UV-VIS\QY measurement\Photodiode\new setup"
+    # path = r"C:\Users\Dominik\Documents\MUNI\Organic Photochemistry\Projects\2019-Bilirubin project\UV-VIS\QY measurement\Photodiode\new setup"
+    path = r"C:\Users\dominik\Documents\Projects\Bilirubin\UV-Vis data"
+
     paths = []
 
     paths.append(path + r"\Z 330 nm\cut.txt")
@@ -431,13 +443,14 @@ def setup3():
 
     paths.append(path + r"\E 330 nm\cut.txt")
 
-
     paths.append(path + r"\Z 400 nm\cut.txt")
     # paths.append(path + r"\Z 450 nm\cut.txt")
-    # paths.append(path + r"\Z 480 nm\cut.txt")
 
     paths.append(path + r"\E 400 nm\cut.txt")
-    # paths.append(path + r"\E 480 nm\cut.txt")
+
+    paths.append(path + r"\Z 480 nm\cut.txt")
+
+    paths.append(path + r"\E 480 nm\cut.txt")
 
     au = AugmentedMatrix(len(paths), 1)
 
