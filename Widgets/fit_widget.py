@@ -301,7 +301,8 @@ class FitWidget(QWidget, Ui_Form):
             return
 
         # set spectra matrix to model as a parameter
-        setattr(self.current_model, 'wavelengths', self.matrix.wavelengths)
+        wls = self._au[0, 0].wavelengths if self._au else self.matrix.wavelengths
+        setattr(self.current_model, 'wavelengths', wls)
         setattr(self.current_model, 'ST', self._ST)
 
     def simulate_model_clicked(self):
@@ -386,8 +387,9 @@ class FitWidget(QWidget, Ui_Form):
         # elif self.current_model.connectivity.count(0) == n:  # pure MCR fit
         #     self.fitter.HS_MCR_fit(c_model=None)
         # else:  # mix of two, HS-fit
-
-        if self.current_model.connectivity.count(0) == n:  # pure MCR fit
+        if self.current_model.connectivity.count(0) == 0:
+            self.fitter.H_fit_multiset()
+        elif self.current_model.connectivity.count(0) == n:  # pure MCR fit
             self.fitter.HS_MCR_fit(c_model=None)
         else:  # mix of two, HS-fit
             self.fitter.HS_MCR_fit(c_model=self.current_model)
@@ -514,7 +516,7 @@ class FitWidget(QWidget, Ui_Form):
 
     def update_fields_H_fit(self):
 
-        values_errors = np.zeros((self.current_model.params.__len__(), 2), dtype=np.float64)
+        values_errors = np.zeros((self.current_model.params.__len__(), 2), dtype=np.float32)
 
         for i in range(self.current_model.params.__len__()):
             param = self.params_list[i].text()

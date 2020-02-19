@@ -38,7 +38,7 @@ def parse_file(path_to_file):
         delimiter = '\t'
         transpose = True
 
-    data = np.genfromtxt(path_to_file, dtype=np.float64, skip_header=0, delimiter=delimiter, filling_values=None)
+    data = np.genfromtxt(path_to_file, dtype=np.float32, skip_header=0, delimiter=delimiter, filling_values=None)
 
     # with open(path_to_file, mode='r') as tsf:
     #     buffer = [[float_try_parse(num.strip()) for num in line.strip().split(delimiter)]

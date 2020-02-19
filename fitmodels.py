@@ -5,7 +5,10 @@ from lmfit import Parameters
 from abc import abstractmethod
 from gui_console import Console
 
+from multiprocessing import Pool
+
 import math
+from numba import njit, prange
 
 
 def find_nearest_idx(array, value):
@@ -829,7 +832,23 @@ class Bridge_Splitting_Simple(_Model):
 
         return self.get_conc_matrix(C_out, self._connectivity)
 
+    # @staticmethod
+    # def fk_factor(x, c=np.log(10), tol=1e-2):
+    #     # exp(-xc) = 1 - xc + (xc)^2 / 2 - (xc)^3 / 6 ...
+    #     # (1 - exp(-xc)) / x  ~  c - xc^2 / 2 for low x
+    #     return np.where(x <= tol, c - x * c * c / 2 + x * x * c * c * c / 6, (1 - np.exp(-x * c)) / x)
 
+@njit(fastmath=True, parallel=True)
+def fk_factor_numba(x, c=np.log(10), tol=1e-2):
+    ret = np.zeros_like(x)
+
+    for i in prange(x.shape[0]):
+        if x[i] <= tol:
+            ret[i] = c - x[i] * c ** 2 / 2 # + x[i] * x[i] * c ** 3 / 6
+        else:
+            ret[i] = (1 - np.exp(-x[i] * c)) / x[i]
+
+    return ret
 
 
 
@@ -856,6 +875,16 @@ class Half_Bilirubin_Multiset(_Model):
         self.I_450 = data[:, 4] / np.trapz(data[:, 4], x=self.wavelengths)
         self.I_480 = data[:, 5] / np.trapz(data[:, 5], x=self.wavelengths)
 
+        data_led = np.loadtxt(path + r'\LED sources.txt', delimiter='\t', skiprows=1)
+
+        self.LED_355 = data_led[:, 1] / np.trapz(data_led[:, 1], x=self.wavelengths)
+        self.LED_375 = data_led[:, 2] / np.trapz(data_led[:, 2], x=self.wavelengths)
+        self.LED_405 = data_led[:, 3] / np.trapz(data_led[:, 3], x=self.wavelengths)
+        self.LED_420 = data_led[:, 4] / np.trapz(data_led[:, 4], x=self.wavelengths)
+        self.LED_450 = data_led[:, 5] / np.trapz(data_led[:, 5], x=self.wavelengths)
+        self.LED_470 = data_led[:, 6] / np.trapz(data_led[:, 6], x=self.wavelengths)
+        self.LED_490 = data_led[:, 7] / np.trapz(data_led[:, 7], x=self.wavelengths)
+
         fname = path + r'\q rel cut.txt'
         data = np.loadtxt(fname, delimiter='\t', skiprows=1)
         self.Diode_q_rel = data[:, 1]
@@ -872,7 +901,7 @@ class Half_Bilirubin_Multiset(_Model):
         # self.params.add('V', value=3e-3, min=0, max=np.inf, vary=False)  # volume in L
         # self.params.add('w_irr', value=400, min=0, max=np.inf, vary=False)  # irradiating wavelength
 
-        self.params.add('c0Z330', value=4.915e-05, min=0, max=np.inf, vary=False)
+        self.params.add('c0Z330', value=4.915e-05, min=0, max=np.inf, vary=True)
         self.params.add('c0E330', value=4.143e-05, min=0, max=np.inf, vary=True)
 
         self.params.add('c0Z400', value=4.915e-05, min=0, max=np.inf, vary=True)
@@ -880,6 +909,10 @@ class Half_Bilirubin_Multiset(_Model):
 
         self.params.add('c0Z480', value=4.915e-05, min=0, max=np.inf, vary=True)
         self.params.add('c0E480', value=4.143e-05, min=0, max=np.inf, vary=True)
+
+        self.params.add('c0Z375', value=4.915e-05, min=0, max=np.inf, vary=True)
+        self.params.add('c0Z450', value=4.915e-05, min=0, max=np.inf, vary=True)
+
 
         # amount of Z in the mixture, 1: only Z, 0:, only E
         self.params.add('xZ_Z', value=1, min=0, max=1, vary=False)
@@ -899,13 +932,36 @@ class Half_Bilirubin_Multiset(_Model):
         self.params.add('Phi_EZ_2', value=0.2654, min=-1, max=1)
         self.params.add('Phi_ZHL_2', value=0.004506, min=-1, max=1)
 
-
-
     @staticmethod
     def fk_factor(x, c=np.log(10), tol=1e-2):
         # exp(-xc) = 1 - xc + (xc)^2 / 2 - (xc)^3 / 6 ...
         # (1 - exp(-xc)) / x  ~  c - xc^2 / 2 for low x
         return np.where(x <= tol, c - x * c * c / 2 + x * x * c * c * c / 6, (1 - np.exp(-x * c)) / x)
+
+    def plot_phis(self):
+        if self.params is None:
+            return
+
+        c0Z330, c0E330, c0Z400, c0E400, c0Z480, c0E480, c0Z490LED, q0Z490LED, xZ_Z, xZ_E, Phi_ZE, Phi_EZ, Phi_ZHL, Phi_ZE_1, Phi_EZ_1, Phi_ZHL_1, \
+        Phi_ZE_2, Phi_EZ_2, Phi_ZHL_2 = [par[1].value for par in self.params.items()]
+
+        Phi_ZE = self.Phi([Phi_ZE, Phi_ZE_1, Phi_ZE_2], 400, self.wavelengths)
+        Phi_EZ = self.Phi([Phi_EZ, Phi_EZ_1, Phi_EZ_2], 400, self.wavelengths)
+        # Phi_EHL = self.Phi([Phi_EHL, Phi_EHL_1], 400, self.wavelengths)
+        Phi_ZHL = self.Phi([Phi_ZHL, Phi_ZHL_1, Phi_ZHL_2], 400, self.wavelengths)
+
+
+        plt.plot(self.wavelengths, Phi_ZE, label="$\Phi_{ZE}$")
+        plt.plot(self.wavelengths, Phi_EZ, label="$\Phi_{EZ}$")
+        plt.plot(self.wavelengths, Phi_ZHL, label="$\Phi_{ZHL}$")
+
+        plt.xlabel('Wavelenght')
+        plt.ylabel('$\Phi$')
+        plt.legend()
+
+        plt.show()
+
+
 
     @staticmethod
     def Phi(phis, wavelengths, lambda_C=400):
@@ -941,17 +997,25 @@ class Half_Bilirubin_Multiset(_Model):
         ln10 = np.log(10)
 
         def dc_dt(c, t):
+            # c_eps = c[..., None] * eps if integrate else (c * eps_w_irr)[..., None]  # hadamard product
+            # c_dot_eps = c_eps.sum(axis=0)
+            # # x_abs = c_eps * Half_Bilirubin_Multiset.fk_factor(c_dot_eps, c=l * ln10) * (I_source if integrate else 1)
+            # x_abs = c_eps * fk_factor_numba(c_dot_eps, c=l * ln10) * (I_source if integrate else 1)
+            # # w x n x n   x   w x n x 1
+            # product = np.matmul(K, x_abs.T[..., None])  # w x n x 1
+            # return q0 / V * (np.trapz(product, x=wavelengths, axis=0) if integrate else product).squeeze()
 
-            c_eps = c[..., None] * eps if integrate else (c * eps_w_irr)[..., None]  # hadamard product
+            c_eps = c[..., None] * eps  # hadamard product
 
             c_dot_eps = c_eps.sum(axis=0)
 
-            x_abs = c_eps * Half_Bilirubin_Multiset.fk_factor(c_dot_eps, c=l * ln10) * (I_source if integrate else 1)
+            # x_abs = c_eps * Half_Bilirubin_Multiset.fk_factor(c_dot_eps, c=l * ln10) * (I_source if integrate else 1)
+            x_abs = c_eps * fk_factor_numba(c_dot_eps, c=l * ln10) * I_source
 
             # w x n x n   x   w x n x 1
             product = np.matmul(K, x_abs.T[..., None])  # w x n x 1
 
-            return q0 / V * (np.trapz(product, x=wavelengths, axis=0) if integrate else product).squeeze()
+            return q0 / V * np.trapz(product, x=wavelengths, axis=0).squeeze()
 
         result = odeint(dc_dt, c0, times)
 
@@ -964,11 +1028,13 @@ class Half_Bilirubin_Multiset(_Model):
             raise ValueError("Spectra matrix must not be none.")
 
         # c0Z330, c0E330, c0Z400, c0E400, c0Z480, c0E480, xZ_Z, xZ_E, Phi_ZE, Phi_EZ, Phi_EHL, Phi_ZHL, Phi_HLE, Phi_ZE_1, Phi_EZ_1, Phi_EHL_1 = [par[1].value for par in self.params.items()]
-        c0Z330, c0E330, c0Z400, c0E400, c0Z480, c0E480, xZ_Z, xZ_E, Phi_ZE, Phi_EZ, Phi_ZHL, Phi_ZE_1, Phi_EZ_1, Phi_ZHL_1,\
+        c0Z330, c0E330, c0Z400, c0E400, c0Z480, c0E480, c0Z375, c0Z450, xZ_Z, xZ_E, Phi_ZE, Phi_EZ, Phi_ZHL, Phi_ZE_1, Phi_EZ_1, Phi_ZHL_1,\
             Phi_ZE_2, Phi_EZ_2, Phi_ZHL_2 = [par[1].value for par in self.params.items()]
 
 
         IZ330, IE330, IZ400, IE400, V = 16.7e-6, 17e-6, 38.1e-6, 37.7e-6, 3e-3
+
+        IZ375, IZ450 = 24.9e-6, 47.9e-6
 
         IZ480, IE480 = 48e-6, 48e-6
 
@@ -987,62 +1053,144 @@ class Half_Bilirubin_Multiset(_Model):
         # n = K.shape[0]
 
         _overlap330 = np.trapz(self.Diode_q_rel * self.I_330, x=self.wavelengths)
+        _overlap375 = np.trapz(self.Diode_q_rel * self.I_375, x=self.wavelengths)
         _overlap400 = np.trapz(self.Diode_q_rel * self.I_400, x=self.wavelengths)
+        _overlap450 = np.trapz(self.Diode_q_rel * self.I_450, x=self.wavelengths)
         _overlap480 = np.trapz(self.Diode_q_rel * self.I_480, x=self.wavelengths)
 
         q_tot_Z330, q_tot_E330 = IZ330 * _overlap330, IE330 * _overlap330
         q_tot_Z400, q_tot_E400 = IZ400 * _overlap400, IE400 * _overlap400
         q_tot_Z480, q_tot_E480 = IZ480 * _overlap480, IE480 * _overlap480
 
+        q_tot_Z375, q_tot_Z450 = IZ375 * _overlap375, IZ450 * _overlap450
+
+
+        pool = Pool(processes=6)
+
+        # def simulate(q0, V, c0, eps, K, times, wavelengths, l=1, I_source=None, w_irr=None):
 
         #Z 330
 
-        s, e = self.aug_matrix._C_indiv_range(0)
-        t = self.aug_matrix.matrices[0, 0].times
+        N = 8
+        pools = []
+        i = 0
 
-        self.C[s:e, :] = self.simulate(q_tot_Z330, V, [xZ_Z * c0Z330, (1-xZ_Z)*c0Z330, 0], self.ST, K, t, self.wavelengths, l=1,
-                               I_source=self.I_330, w_irr=None)
+        # s, e = self.aug_matrix._C_indiv_range(i)
+        t = self.aug_matrix.matrices[i, 0].times
+
+        pools.append(pool.apply_async(self.simulate, args=(q_tot_Z330, V, [xZ_Z * c0Z330, (1-xZ_Z)*c0Z330, 0], self.ST, K, t, self.wavelengths),
+                                      kwds={'I_source': self.I_330}))
+
+        # self.C[s:e, :] = self.simulate(q_tot_Z330, V, [xZ_Z * c0Z330, (1-xZ_Z)*c0Z330, 0], self.ST, K, t, self.wavelengths, l=1,
+        #                        I_source=self.I_330, w_irr=None)
 
         # E 330
+        i += 1
 
-        s, e = self.aug_matrix._C_indiv_range(1)
-        t = self.aug_matrix.matrices[1, 0].times
+        # s, e = self.aug_matrix._C_indiv_range(i)
+        t = self.aug_matrix.matrices[i, 0].times
+        pools.append(pool.apply_async(self.simulate, args=(q_tot_E330, V, [xZ_E * c0E330, (1 - xZ_E) * c0E330, 0], self.ST, K, t, self.wavelengths),
+                                      kwds={'I_source': self.I_330}))
 
-        self.C[s:e, :] = self.simulate(q_tot_E330, V, [xZ_E * c0E330, (1 - xZ_E) * c0E330, 0], self.ST, K, t,
-                                       self.wavelengths, l=1, I_source=self.I_330, w_irr=None)
+        # self.C[s:e, :] = self.simulate(q_tot_E330, V, [xZ_E * c0E330, (1 - xZ_E) * c0E330, 0], self.ST, K, t,
+        #                                self.wavelengths, l=1, I_source=self.I_330, w_irr=None)
+
+
+        # Z 375
+
+        i += 1
+
+        # s, e = self.aug_matrix._C_indiv_range(i)
+        t = self.aug_matrix.matrices[i, 0].times
+
+        pools.append(pool.apply_async(self.simulate, args=(q_tot_Z375, V, [xZ_Z * c0Z375, (1 - xZ_Z) * c0Z375, 0], self.ST, K, t, self.wavelengths),
+                                      kwds={'I_source': self.I_375}))
+
+        # self.C[s:e, :] = self.simulate(q_tot_Z375, V, [xZ_Z * c0Z375, (1 - xZ_Z) * c0Z375, 0], self.ST, K, t,
+        #                                self.wavelengths, l=1, I_source=self.I_375, w_irr=None)
+
 
         # Z 400
 
-        s, e = self.aug_matrix._C_indiv_range(2)
-        t = self.aug_matrix.matrices[2, 0].times
+        i += 1
 
-        self.C[s:e, :] = self.simulate(q_tot_Z400, V, [xZ_Z * c0Z400, (1 - xZ_Z) * c0Z400, 0], self.ST, K, t,
-                                       self.wavelengths, l=1, I_source=self.I_400, w_irr=None)
+        # s, e = self.aug_matrix._C_indiv_range(i)
+        t = self.aug_matrix.matrices[i, 0].times
+
+        pools.append(pool.apply_async(self.simulate, args=(q_tot_Z400, V, [xZ_Z * c0Z400, (1 - xZ_Z) * c0Z400, 0], self.ST, K, t, self.wavelengths),
+                                     kwds={'I_source': self.I_400}))
+
+        # self.C[s:e, :] = self.simulate(q_tot_Z400, V, [xZ_Z * c0Z400, (1 - xZ_Z) * c0Z400, 0], self.ST, K, t,
+        #                                self.wavelengths, l=1, I_source=self.I_400, w_irr=None)
 
         # E 400
 
-        s, e = self.aug_matrix._C_indiv_range(3)
-        t = self.aug_matrix.matrices[3, 0].times
+        i += 1
 
-        self.C[s:e, :] = self.simulate(q_tot_E400, V, [xZ_E * c0E400, (1 - xZ_E) * c0E400, 0], self.ST, K, t,
-                                       self.wavelengths, l=1, I_source=self.I_400, w_irr=None)
+        # s, e = self.aug_matrix._C_indiv_range(i)
+        t = self.aug_matrix.matrices[i, 0].times
+
+        pools.append(pool.apply_async(self.simulate, args=(q_tot_E400, V, [xZ_E * c0E400, (1 - xZ_E) * c0E400, 0], self.ST, K, t, self.wavelengths),
+                                      kwds={'I_source': self.I_400}))
+
+        # self.C[s:e, :] = self.simulate(q_tot_E400, V, [xZ_E * c0E400, (1 - xZ_E) * c0E400, 0], self.ST, K, t,
+        #                                self.wavelengths, l=1, I_source=self.I_400, w_irr=None)
+
+        # Z 450
+
+        i += 1
+
+        # s, e = self.aug_matrix._C_indiv_range(i)
+        t = self.aug_matrix.matrices[i, 0].times
+
+        pools.append(pool.apply_async(self.simulate, args=(q_tot_Z450, V, [xZ_Z * c0Z450, (1 - xZ_Z) * c0Z450, 0], self.ST, K, t, self.wavelengths),
+                                      kwds={'I_source': self.I_450}))
+        #
+        # self.C[s:e, :] = self.simulate(q_tot_Z450, V, [xZ_Z * c0Z450, (1 - xZ_Z) * c0Z450, 0], self.ST, K, t,
+        #                                self.wavelengths, l=1, I_source=self.I_450, w_irr=None)
 
         # Z 480
 
-        s, e = self.aug_matrix._C_indiv_range(4)
-        t = self.aug_matrix.matrices[4, 0].times
+        i += 1
 
-        self.C[s:e, :] = self.simulate(q_tot_Z480, V, [xZ_Z * c0Z480, (1 - xZ_Z) * c0Z480, 0], self.ST, K, t,
-                                       self.wavelengths, l=1, I_source=self.I_480, w_irr=None)
+        # s, e = self.aug_matrix._C_indiv_range(i)
+        t = self.aug_matrix.matrices[i, 0].times
+
+        pools.append(pool.apply_async(self.simulate, args=(q_tot_Z480, V, [xZ_Z * c0Z480, (1 - xZ_Z) * c0Z480, 0], self.ST, K, t, self.wavelengths),
+                                      kwds={'I_source': self.I_480}))
+
+        # self.C[s:e, :] = self.simulate(q_tot_Z480, V, [xZ_Z * c0Z480, (1 - xZ_Z) * c0Z480, 0], self.ST, K, t,
+        #                                self.wavelengths, l=1, I_source=self.I_480, w_irr=None)
 
         # E 480
 
-        s, e = self.aug_matrix._C_indiv_range(5)
-        t = self.aug_matrix.matrices[5, 0].times
+        i += 1
 
-        self.C[s:e, :] = self.simulate(q_tot_E480, V, [xZ_E * c0E480, (1 - xZ_E) * c0E480, 0], self.ST, K, t,
-                                       self.wavelengths, l=1, I_source=self.I_480, w_irr=None)
+        # s, e = self.aug_matrix._C_indiv_range(i)
+        t = self.aug_matrix.matrices[i, 0].times
 
+        pools.append(pool.apply_async(self.simulate, args=(q_tot_E480, V, [xZ_E * c0E480, (1 - xZ_E) * c0E480, 0], self.ST, K, t, self.wavelengths),
+                                      kwds={'I_source': self.I_480}))
+
+        # self.C[s:e, :] = self.simulate(q_tot_E480, V, [xZ_E * c0E480, (1 - xZ_E) * c0E480, 0], self.ST, K, t,
+        #                                self.wavelengths, l=1, I_source=self.I_480, w_irr=None)
+
+
+        for i in range(N):
+            s, e = self.aug_matrix._C_indiv_range(i)
+            self.C[s:e, :] = pools[i].get()
+
+
+
+        # # Z 490 Reactor
+        #
+        # i += 1
+        #
+        # s, e = self.aug_matrix._C_indiv_range(i)
+        # t = self.aug_matrix.matrices[i, 0].times
+        #
+        # self.C[s:e, :] = self.simulate(q0Z490LED, V, [xZ_Z * c0Z490LED, 0, 0], self.ST, K, t,
+        #                                self.wavelengths, l=1, I_source=self.LED_490, w_irr=None)
 
         return self.get_conc_matrix(C_out, self._connectivity)
 

@@ -110,7 +110,7 @@ class AugmentedMatrix(object):
             # fname = r'C:\Users\Dominik\Documents\MUNI\Organic Photochemistry\Projects\2019-Bilirubin project\UV-VIS\led sources.txt'
             path = r"C:\Users\dominik\Documents\Projects\Bilirubin\UV-Vis data"
 
-            data = np.loadtxt(path + r"\em sources.txt", dtype=np.float64, delimiter='\t', skiprows=1)
+            data = np.loadtxt(path + r"\em sources.txt", dtype=np.float32, delimiter='\t', skiprows=1)
 
             # 355, 375, 375, 400, 450, 490 nm
             # I_sources = [data[:, 1].copy(), data[:, 2].copy(), data[:, 3].copy(), data[:, 4].copy(), data[:, 5]]
@@ -443,20 +443,31 @@ def setup3():
 
     paths.append(path + r"\E 330 nm\cut.txt")
 
+    paths.append(path + r"\Z 375 nm\cut.txt")
+
     paths.append(path + r"\Z 400 nm\cut.txt")
     # paths.append(path + r"\Z 450 nm\cut.txt")
 
     paths.append(path + r"\E 400 nm\cut.txt")
 
+    paths.append(path + r"\Z 450 nm\cut.txt")
+
     paths.append(path + r"\Z 480 nm\cut.txt")
 
     paths.append(path + r"\E 480 nm\cut.txt")
+
+
+    # path_reactors = r"C:\Users\dominik\Documents\Projects\Bilirubin\UV-Vis data\Kinetics Z degassed"
+    #
+    # paths.append(path_reactors + r"\490 nm, then switched 355 nm (both modules)\cut490.txt")
+
+
 
     au = AugmentedMatrix(len(paths), 1)
 
     for i in range(len(paths)):
         au.load_matrix(i, 0, paths[i])
-        # au[i, 0].crop_data(0, t1)
+        au[i, 0].reduce(t_dim=2)
 
     m = au.get_aug_LFP_matrix()
 
@@ -466,6 +477,42 @@ def setup3():
     Console.push_variables({'matrix': m})
 
     return au
+
+
+def setup4():
+    fw = FitWidget.instance
+    pw = PlotWidget.instance
+
+    # path = r"C:\Users\Dominik\Documents\MUNI\Organic Photochemistry\Projects\2019-Bilirubin project\UV-VIS\QY measurement\Photodiode\new setup"
+
+    paths = []
+
+    path_reactors = r"C:\Users\dominik\Documents\Projects\Bilirubin\UV-Vis data\Kinetics Z degassed"
+
+    paths.append(path_reactors + r"\355 nm (both modules)\cut.txt")
+    paths.append(path_reactors + r"\355 nm (both modules)\cut.txt")
+    paths.append(path_reactors + r"\405 nm (both modules)\cut.txt")
+    paths.append(path_reactors + r"\450 nm (one module)\cut.txt")
+    paths.append(path_reactors + r"\470 nm (one module)\cut.txt")
+    paths.append(path_reactors + r"\490 nm, then switched 355 nm (both modules)\cut490.txt")
+    paths.append(path_reactors + r"\490 nm, then switched 355 nm (both modules)\cut355.txt")
+
+
+    au = AugmentedMatrix(len(paths), 1)
+
+    for i in range(len(paths)):
+        au.load_matrix(i, 0, paths[i])
+        au[i, 0].reduce(t_dim=2)
+
+    m = au.get_aug_LFP_matrix()
+
+    pw.plot_matrix(m)
+    fw.matrix = m
+    fw._au = au
+    Console.push_variables({'matrix': m})
+
+    return au
+
 
 
 if __name__ == "__main__":

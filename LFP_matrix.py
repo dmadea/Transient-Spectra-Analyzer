@@ -420,8 +420,8 @@ class LFP_matrix(object):
 
         # initialize matrices
         # self.C = np.zeros((t, n), dtype=np.float64)
-        self.A = np.zeros((n, w), dtype=np.float64)
-        self.K = np.zeros((n, nr), dtype=np.float64)
+        self.A = np.zeros((n, w), dtype=np.float32)
+        self.K = np.zeros((n, nr), dtype=np.float32)
 
         self.UrSr = self.Ur @ self.Sr
 

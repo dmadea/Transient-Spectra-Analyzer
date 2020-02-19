@@ -176,19 +176,26 @@ class Fitter:
         if self.st_fix:
             self.ST_opt[self.st_fix] = self.ST_est[self.st_fix]
 
-    # only for hard modeling, the simplest case - this is what specfit can only do
-    # Var Pro algorithm
-    def H_fit(self, c_model, ST_est, C_est, st_fix, c_fix, **kwargs):
+    # special H-fit for photokinetic model
+    def H_fit_multiset(self, **kwargs):
+
         self.update_options(**kwargs)
 
+        _C_opt = self.C_est.copy()
+        _ST_opt = self.ST_est.copy()
+
+        C_est, ST_est = self.C_est, self.ST_est
+
+        c_fix = self.c_fix
+        st_fix = self.st_fix
+
         # self.fit_alg = fit_alg if fit_alg is not None else self.fit_alg
-        self.c_model = c_model
         # self.n = n if n is not None else self.n
         # self.st_fix = st_fix if st_fix is not None else self.st_fix
         # self.c_fix = c_fix if c_fix is not None else self.c_fix
 
-        _C_opt = C_est.copy() if C_est is not None else np.zeros_like(C_est)
-        _ST_opt = ST_est.copy() if ST_est is not None else np.zeros_like(ST_est)
+        # _C_opt = C_est.copy() if C_est is not None else np.zeros_like(C_est)
+        # _ST_opt = ST_est.copy() if ST_est is not None else np.zeros_like(ST_est)
 
         def residuals(params):
             # needed to use nonlocal because of nested functions, https://stackoverflow.com/questions/5218895/python-nested-functions-variable-scoping
@@ -203,8 +210,19 @@ class Fitter:
             if st_fix:
                 _ST_opt[st_fix] = ST_est[st_fix]
 
+            # nonnegative constrain
+            _ST_opt *= (_ST_opt > 0)
+
+            # apply spectra constraints
+            # normalize Z to 26139.01
+
+            _ST_opt[0] *= 26139.01 / _ST_opt[0].max()
+
+            # apply fixed spectra
+            if st_fix:
+                _ST_opt[st_fix] = ST_est[st_fix]
+
             # set spectra matrix to model as a parameter
-            setattr(self.c_model, 'wavelengths', self.wls)
             setattr(self.c_model, 'ST', _ST_opt)
 
             R = np.dot(_C_opt, _ST_opt) - self.D  # calculate residuals
@@ -222,6 +240,8 @@ class Fitter:
 
     def var_pro(self, C_est=None, c_fix=None, **kwargs):
         self.update_options(**kwargs)
+
+        "only conc. profiles can be fixed, but not spectra"
 
         _C_opt = C_est.copy() if C_est is not None else np.zeros_like(C_est)
         # _ST_opt = ST_est.copy() if ST_est is not None else np.zeros_like(ST_est)
