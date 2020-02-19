@@ -152,16 +152,16 @@ class FitWidget(QWidget, Ui_Form):
             self.upper_bound_list.append(QLineEdit())
             self.fixed_list.append(QCheckBox())
             self.error_list.append(QLineEdit())
-
-            self.lower_bound_list[i].setSizePolicy(QSizePolicy.Ignored, QSizePolicy.Preferred)
-            self.value_list[i].setSizePolicy(QSizePolicy.Ignored, QSizePolicy.Preferred)
-            self.upper_bound_list[i].setSizePolicy(QSizePolicy.Ignored, QSizePolicy.Preferred)
-            self.error_list[i].setSizePolicy(QSizePolicy.Ignored, QSizePolicy.Preferred)
-
-            self.lower_bound_list[i].setMinimumSize(1, 1)
-            self.value_list[i].setMinimumSize(1, 1)
-            self.upper_bound_list[i].setMinimumSize(1, 1)
-            self.error_list[i].setMinimumSize(1, 1)
+            #
+            # self.lower_bound_list[i].setSizePolicy(QSizePolicy.Ignored, QSizePolicy.Preferred)
+            # self.value_list[i].setSizePolicy(QSizePolicy.Ignored, QSizePolicy.Preferred)
+            # self.upper_bound_list[i].setSizePolicy(QSizePolicy.Ignored, QSizePolicy.Preferred)
+            # self.error_list[i].setSizePolicy(QSizePolicy.Ignored, QSizePolicy.Preferred)
+            #
+            # self.lower_bound_list[i].setMinimumSize(1, 1)
+            # self.value_list[i].setMinimumSize(1, 1)
+            # self.upper_bound_list[i].setMinimumSize(1, 1)
+            # self.error_list[i].setMinimumSize(1, 1)
 
             self.glKinetics.addWidget(self.params_list[i], i + 1, 0, 1, 1)
             self.glKinetics.addWidget(self.lower_bound_list[i], i + 1, 1, 1, 1)

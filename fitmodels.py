@@ -996,6 +996,9 @@ class Half_Bilirubin_Multiset(_Model):
 
         ln10 = np.log(10)
 
+        const = l * ln10
+        tol = 1e-2
+
         def dc_dt(c, t):
             # c_eps = c[..., None] * eps if integrate else (c * eps_w_irr)[..., None]  # hadamard product
             # c_dot_eps = c_eps.sum(axis=0)
@@ -1010,7 +1013,10 @@ class Half_Bilirubin_Multiset(_Model):
             c_dot_eps = c_eps.sum(axis=0)
 
             # x_abs = c_eps * Half_Bilirubin_Multiset.fk_factor(c_dot_eps, c=l * ln10) * (I_source if integrate else 1)
-            x_abs = c_eps * fk_factor_numba(c_dot_eps, c=l * ln10) * I_source
+            # x_abs = c_eps * fk_factor_numba(c_dot_eps, c=l * ln10) * I_source
+
+            x_abs = c_eps * np.where(c_dot_eps <= tol, const - c_dot_eps * const * const / 2,
+                                     (1 - np.exp(-c_dot_eps * const)) / c_dot_eps) * I_source
 
             # w x n x n   x   w x n x 1
             product = np.matmul(K, x_abs.T[..., None])  # w x n x 1

@@ -176,7 +176,7 @@ class Fitter:
         if self.st_fix:
             self.ST_opt[self.st_fix] = self.ST_est[self.st_fix]
 
-    # special H-fit for photokinetic model
+    # special HS-MCR-ALS fit for photokinetic model
     def H_fit_multiset(self, **kwargs):
 
         self.update_options(**kwargs)
@@ -200,6 +200,12 @@ class Fitter:
         def residuals(params):
             # needed to use nonlocal because of nested functions, https://stackoverflow.com/questions/5218895/python-nested-functions-variable-scoping
             nonlocal _ST_opt, _C_opt
+
+            # perform MCR of calculating C profiles from spectra
+            _C_opt = lstsq(_ST_opt.T, self.D.T)[0].T
+            # apply nonzero constraint
+            _C_opt *= (_C_opt > 0)
+
             _C_opt = self.c_model.calc_C(params, _C_opt)
             if c_fix:
                 _C_opt[:, c_fix] = C_est[:, c_fix]
