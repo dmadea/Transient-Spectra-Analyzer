@@ -103,30 +103,34 @@ class AugmentedMatrix(object):
 
         return q_rel.squeeze()
 
-    def plot_fit_photochem(self, symlog=False, I_sources=None, z_label='Absorbance', wl_label='Wavelength (nm)', t_label='Time (s)',
-                           dpi=500, figsize=(30, 8), cmap='inferno', time_linthresh=200, time_linscale=1, transparent=False):
+    def plot_fit_photochem(self, symlog=False, c_model=None, z_label='Absorbance', wl_label='Wavelength (nm)', t_label='Time (s)',
+                           dpi=500, figsize=(50, 8), cmap='inferno', time_linthresh=200, time_linscale=1, transparent=False,
+                           fname=r'C:\Users\dominik\Documents\Projects\Bilirubin\Results\test-fit_photochem.png', step=2):
 
-        if I_sources is None:
-            # fname = r'C:\Users\Dominik\Documents\MUNI\Organic Photochemistry\Projects\2019-Bilirubin project\UV-VIS\led sources.txt'
-            path = r"C:\Users\dominik\Documents\Projects\Bilirubin\UV-Vis data"
+        # if c_model is not None:
+            # # fname = r'C:\Users\Dominik\Documents\MUNI\Organic Photochemistry\Projects\2019-Bilirubin project\UV-VIS\led sources.txt'
+            # path = r"C:\Users\dominik\Documents\Projects\Bilirubin\UV-Vis data"
+            #
+            # data = np.loadtxt(path + r"\em sources.txt", dtype=np.float32, delimiter='\t', skiprows=1)
+            #
+            # # 355, 375, 375, 400, 450, 490 nm
+            # # I_sources = [data[:, 1].copy(), data[:, 2].copy(), data[:, 3].copy(), data[:, 4].copy(), data[:, 5]]
+            #
+            # I_330 = data[:, 1].copy()
+            # I_400 = data[:, 3].copy()
+            # I_480 = data[:, 5].copy()
 
-            data = np.loadtxt(path + r"\em sources.txt", dtype=np.float32, delimiter='\t', skiprows=1)
-
-            # 355, 375, 375, 400, 450, 490 nm
-            # I_sources = [data[:, 1].copy(), data[:, 2].copy(), data[:, 3].copy(), data[:, 4].copy(), data[:, 5]]
-
-            I_330 = data[:, 1].copy()
-            I_400 = data[:, 3].copy()
-            I_480 = data[:, 5].copy()
-
-            I_sources = [I_330, I_330.copy(), I_400, I_400.copy(), I_480, I_480.copy()]
+        I_sources = [c_model.I_330.copy(), c_model.I_330.copy(), c_model.I_375.copy(),
+                     c_model.I_400.copy(), c_model.I_400.copy(), c_model.I_450.copy(),
+                     c_model.I_480.copy(), c_model.I_480.copy(), c_model.LED_355.copy(),
+                     c_model.LED_375.copy(), c_model.LED_405.copy(), c_model.LED_490.copy(),
+                     c_model.LED_355.copy()]
 
 
         # fig, ax = plt.subplots(3, self.r, figsize=figsize)
         fig, ax = plt.subplots(2, self.r, figsize=figsize)
 
-
-        comp = ['Z', 'E', 'HL']
+        comp = ['Z', 'E', 'HL', 'Photoproducts']
         cmap = cm.get_cmap(cmap)
 
         for i in range(self.r):
@@ -138,11 +142,11 @@ class AugmentedMatrix(object):
             # plot spectrum with I source
             ax[0, i].set_title("Time-Dependent Spectra")
 
-            for j in range(0, ts.shape[0], 2):
+            for j in range(0, ts.shape[0], step):
                 ax[0, i].plot(wls, D[j], color=cmap(j/(ts.shape[0]-1)), lw=0.3)
 
             # plot I_source
-            ax[0, i].plot(wls, D.max() * I_sources[i], color='black', linestyle='--', lw=1)
+            ax[0, i].plot(wls, D.max() * I_sources[i] / I_sources[i].max(), color='black', linestyle='--', lw=1)
 
             ax[0, i].set_ylabel(z_label)
             ax[0, i].set_xlabel(wl_label)
@@ -183,7 +187,8 @@ class AugmentedMatrix(object):
         plt.tight_layout()
         # fig.subplots_adjust(hspace=0)
 
-        plt.savefig(fname=r'C:\Users\dominik\Documents\Projects\Bilirubin\Results\test-fit_photochem.png', format='png', transparent=transparent, dpi=dpi)
+        if fname is not None:
+            plt.savefig(fname=fname, format='png', transparent=transparent, dpi=dpi)
 
         # plt.show()
 
@@ -439,35 +444,42 @@ def setup3():
     paths = []
 
     paths.append(path + r"\Z 330 nm\cut.txt")
-    # paths.append(path + r"\Z 375 nm\cut.txt")
-
     paths.append(path + r"\E 330 nm\cut.txt")
 
     paths.append(path + r"\Z 375 nm\cut.txt")
 
     paths.append(path + r"\Z 400 nm\cut.txt")
-    # paths.append(path + r"\Z 450 nm\cut.txt")
-
     paths.append(path + r"\E 400 nm\cut.txt")
 
     paths.append(path + r"\Z 450 nm\cut.txt")
 
     paths.append(path + r"\Z 480 nm\cut.txt")
-
     paths.append(path + r"\E 480 nm\cut.txt")
 
+    path_reactors = r"C:\Users\dominik\Documents\Projects\Bilirubin\UV-Vis data\Kinetics Z degassed"
 
-    # path_reactors = r"C:\Users\dominik\Documents\Projects\Bilirubin\UV-Vis data\Kinetics Z degassed"
-    #
-    # paths.append(path_reactors + r"\490 nm, then switched 355 nm (both modules)\cut490.txt")
+    paths.append(path_reactors + r"\355 nm (both modules)\cut.txt")
+    paths.append(path_reactors + r"\375 nm (both modules)\cut.txt")
+    paths.append(path_reactors + r"\405 nm (both modules)\cut.txt")
 
+    paths.append(path_reactors + r"\490 nm, then switched 355 nm (both modules)\cut490.txt")
+    paths.append(path_reactors + r"\490 nm, then switched 355 nm (both modules)\cut355.txt")
+
+
+    # paths.append(path_reactors + r"\450 nm (one module)\cut.txt")
+    # paths.append(path_reactors + r"\470 nm (one module)\cut.txt")
 
 
     au = AugmentedMatrix(len(paths), 1)
 
     for i in range(len(paths)):
         au.load_matrix(i, 0, paths[i])
-        au[i, 0].reduce(t_dim=2)
+        # au[i, 0].reduce(t_dim=2)
+
+    au[-5, 0].crop_data(t1=2000)
+    au[-4, 0].crop_data(t1=2000)
+    au[-3, 0].crop_data(t1=2000)
+
 
     m = au.get_aug_LFP_matrix()
 

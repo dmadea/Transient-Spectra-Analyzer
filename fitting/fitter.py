@@ -203,10 +203,18 @@ class Fitter:
 
             # perform MCR of calculating C profiles from spectra
             _C_opt = lstsq(_ST_opt.T, self.D.T)[0].T
+
+            # # apply closure contstrain on C profiles
+            # _C_opt = 36e-6 * _C_opt / _C_opt.sum(axis=1, keepdims=True)
+
+            # calculate kinetic profiles based ont the model
+            _C_opt = self.c_model.calc_C(params, _C_opt)
+
             # apply nonzero constraint
             _C_opt *= (_C_opt > 0)
 
-            _C_opt = self.c_model.calc_C(params, _C_opt)
+                        # _C_opt[_C_opt < 100] = 100
+
             if c_fix:
                 _C_opt[:, c_fix] = C_est[:, c_fix]
             # if we don't fix all spectral components or don't provide any spectra, calculate them by lstsq
@@ -216,8 +224,8 @@ class Fitter:
             if st_fix:
                 _ST_opt[st_fix] = ST_est[st_fix]
 
-            # nonnegative constrain
-            _ST_opt *= (_ST_opt > 0)
+            # # nonnegative constrain
+            # _ST_opt *= (_ST_opt > 0)
 
             # apply spectra constraints
             # normalize Z to 26139.01

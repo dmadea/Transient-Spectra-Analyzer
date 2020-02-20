@@ -34,7 +34,7 @@ from fitting.constraints import ConstraintClosure
 
 
 class FitWidget(QWidget, Ui_Form):
-    max_params = 20
+    max_params = 50
     max_species = 10
 
     instance = None
