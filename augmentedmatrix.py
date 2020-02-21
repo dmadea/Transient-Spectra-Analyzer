@@ -461,6 +461,8 @@ def setup3():
     paths.append(path_reactors + r"\355 nm (both modules)\cut.txt")
     paths.append(path_reactors + r"\375 nm (both modules)\cut.txt")
     paths.append(path_reactors + r"\405 nm (both modules)\cut.txt")
+    paths.append(path_reactors + r"\450 nm (one module)\cut.txt")
+    paths.append(path_reactors + r"\470 nm (one module)\cut.txt")
 
     paths.append(path_reactors + r"\490 nm, then switched 355 nm (both modules)\cut490.txt")
     paths.append(path_reactors + r"\490 nm, then switched 355 nm (both modules)\cut355.txt")
@@ -476,6 +478,9 @@ def setup3():
         au.load_matrix(i, 0, paths[i])
         # au[i, 0].reduce(t_dim=2)
 
+
+    au[-7, 0].crop_data(t1=2000)
+    au[-6, 0].crop_data(t1=2000)
     au[-5, 0].crop_data(t1=2000)
     au[-4, 0].crop_data(t1=2000)
     au[-3, 0].crop_data(t1=2000)

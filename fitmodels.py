@@ -928,10 +928,15 @@ class Half_Bilirubin_Multiset(_Model):
         self.params.add('c0Z405LED', value=6.6768094e-05, min=0, max=np.inf, vary=True)
         self.params.add('q0Z405LED', value=4.903e-07, min=0, max=np.inf, vary=True)
 
+        self.params.add('c0Z450LED', value=6.6768094e-05, min=0, max=np.inf, vary=True)
+        self.params.add('q0Z450LED', value=4.903e-07, min=0, max=np.inf, vary=True)
+
+        self.params.add('c0Z470LED', value=6.6768094e-05, min=0, max=np.inf, vary=True)
+        self.params.add('q0Z470LED', value=4.903e-07, min=0, max=np.inf, vary=True)
 
         self.params.add('c0Z490LED', value=4.774e-05, min=0, max=np.inf, vary=True)
         # self.params.add('c0Z490355LED', value=4.915e-05, min=0, max=np.inf, vary=True)
-        self.params.add('q0Z490355LED', value=4.903e-07, min=0, max=np.inf, vary=True)
+        # self.params.add('q0Z490355LED', value=4.903e-07, min=0, max=np.inf, vary=True)
 
 
 
@@ -977,7 +982,7 @@ class Half_Bilirubin_Multiset(_Model):
             return
 
         c0Z330, c0E330, c0Z400, c0E400, c0Z480, c0E480, c0Z375, c0Z450, \
-        c0Z355LED, q0Z355LED, c0Z375LED, q0Z375LED, c0Z405LED, q0Z405LED, c0Z490LED, q0Z490355LED,\
+        c0Z355LED, q0Z355LED, c0Z375LED, q0Z375LED, c0Z405LED, q0Z405LED, c0Z450LED, q0Z450LED, c0Z470LED, q0Z470LED, c0Z490LED,\
         xZ_Z, xZ_E, \
         Phi_ZE, Phi_ZE1, Phi_ZE2, Phi_ZE3, \
         Phi_EZ, Phi_EZ1, Phi_EZ2, Phi_EZ3, \
@@ -1079,7 +1084,7 @@ class Half_Bilirubin_Multiset(_Model):
 
         # c0Z330, c0E330, c0Z400, c0E400, c0Z480, c0E480, xZ_Z, xZ_E, Phi_ZE, Phi_EZ, Phi_EHL, Phi_ZHL, Phi_HLE, Phi_ZE_1, Phi_EZ_1, Phi_EHL_1 = [par[1].value for par in self.params.items()]
         c0Z330, c0E330, c0Z400, c0E400, c0Z480, c0E480, c0Z375, c0Z450, \
-        c0Z355LED, q0Z355LED, c0Z375LED, q0Z375LED, c0Z405LED, q0Z405LED, c0Z490LED, q0Z490355LED, \
+        c0Z355LED, q0Z355LED, c0Z375LED, q0Z375LED, c0Z405LED, q0Z405LED, c0Z450LED, q0Z450LED, c0Z470LED, q0Z470LED, c0Z490LED, \
         xZ_Z, xZ_E, \
         Phi_ZE, Phi_ZE1, Phi_ZE2, Phi_ZE3, \
         Phi_EZ, Phi_EZ1, Phi_EZ2, Phi_EZ3, \
@@ -1162,6 +1167,8 @@ class Half_Bilirubin_Multiset(_Model):
             [q0Z355LED, [xZ_Z * c0Z355LED, (1 - xZ_Z) * c0Z355LED, 0, 0], K, self.LED_355],  # LED 355
             [q0Z375LED, [xZ_Z * c0Z375LED, (1 - xZ_Z) * c0Z375LED, 0, 0], K, self.LED_375],  # LED 375
             [q0Z405LED, [xZ_Z * c0Z405LED, (1 - xZ_Z) * c0Z405LED, 0, 0], K, self.LED_405],  # LED 405
+            [q0Z450LED, [xZ_Z * c0Z450LED, (1 - xZ_Z) * c0Z450LED, 0, 0], K, self.LED_450],  # LED 450
+            [q0Z470LED, [xZ_Z * c0Z470LED, (1 - xZ_Z) * c0Z470LED, 0, 0], K, self.LED_470],  # LED 470
         ]
 
         for i in range(len(args)):
@@ -1174,7 +1181,9 @@ class Half_Bilirubin_Multiset(_Model):
 
         # apply closure constrain on 490 nm LED C profiles,  keep it as a fitting parameter
         s, e = self.aug_matrix._C_indiv_range(i)
+        C_out[s:e, 3] = 0  # no protoproducts
         C_out[s:e, :] = c0Z490LED * C_out[s:e, :] / C_out[s:e, :].sum(axis=1, keepdims=True)
+
 
         # 355 nm LED
         i += 1
@@ -1183,7 +1192,7 @@ class Half_Bilirubin_Multiset(_Model):
         s, e = self.aug_matrix._C_indiv_range(i)
         t = self.aug_matrix.matrices[i, 0].times
 
-        C_out[s:e, :] = self.simulate(q0Z490355LED, c0_490_355, K, self.LED_355,
+        C_out[s:e, :] = self.simulate(q0Z355LED, c0_490_355, K, self.LED_355,
                                       wavelengths=self.wavelengths, times=t, eps=self.ST, V=V, l=1)
 
         return C_out
