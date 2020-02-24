@@ -89,6 +89,7 @@ class FitWidget(QWidget, Ui_Form):
 
         # fill the combo box items with method names
         self.cbMethod.addItems(map(lambda m: m['name'], self.methods))
+        self.cbMethod.setCurrentIndex(1)
         self.cbRegressorC.addItems(map(lambda m: m['name'], self.regressors))
         self.cbRegressorS.addItems(map(lambda m: m['name'], self.regressors))
 
@@ -387,9 +388,9 @@ class FitWidget(QWidget, Ui_Form):
         # elif self.current_model.connectivity.count(0) == n:  # pure MCR fit
         #     self.fitter.HS_MCR_fit(c_model=None)
         # else:  # mix of two, HS-fit
-        if self.current_model.connectivity.count(0) == 0:
-            self.fitter.H_fit_multiset()
-        elif self.current_model.connectivity.count(0) == n:  # pure MCR fit
+        # if self.current_model.connectivity.count(0) == 0:
+        #     self.fitter.H_fit_multiset()
+        if self.current_model.connectivity.count(0) == n:  # pure MCR fit
             self.fitter.HS_MCR_fit(c_model=None)
         else:  # mix of two, HS-fit
             self.fitter.HS_MCR_fit(c_model=self.current_model)
@@ -509,9 +510,14 @@ class FitWidget(QWidget, Ui_Form):
         # get params from field to current model
         for i in range(self.current_model.params.__len__()):
             param = self.params_list[i].text()
-            self.current_model.params[param].value = float(self.value_list[i].text())
-            self.current_model.params[param].min = float(self.lower_bound_list[i].text())
-            self.current_model.params[param].max = float(self.upper_bound_list[i].text())
+
+            val = float(self.value_list[i].text())
+            min, max = float(self.lower_bound_list[i].text()), float(self.upper_bound_list[i].text())
+            val = val if min <= val <= max else (min if np.abs(min - val) < np.abs(max - val) else max)
+
+            self.current_model.params[param].min = min
+            self.current_model.params[param].max = max
+            self.current_model.params[param].value = val
             self.current_model.params[param].vary = not self.fixed_list[i].isChecked()
 
     def update_fields_H_fit(self):

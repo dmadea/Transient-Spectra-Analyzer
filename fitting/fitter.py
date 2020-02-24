@@ -110,6 +110,8 @@ class Fitter:
         self.minimizer = None
         self.lof = 0  # lack of fit
 
+        self.kwds = None  # keywords args to pass to underlying fitting function
+
         self.update_options(**kwargs)
 
     def update_options(self, **kwargs):
@@ -204,6 +206,17 @@ class Fitter:
             # perform MCR of calculating C profiles from spectra
             _C_opt = lstsq(_ST_opt.T, self.D.T)[0].T
 
+            # apply nonzero constraint
+            _C_opt *= (_C_opt > 0)
+
+            if not st_fix or len(st_fix) < self.n:
+                _ST_opt = lstsq(_C_opt, self.D)[0]
+            # nonnegative constrain
+            _ST_opt *= (_ST_opt > 0)
+            # apply fixed spectra
+            if st_fix:
+                _ST_opt[st_fix] = ST_est[st_fix]
+
             # # apply closure contstrain on C profiles
             # _C_opt = 36e-6 * _C_opt / _C_opt.sum(axis=1, keepdims=True)
 
@@ -224,8 +237,8 @@ class Fitter:
             if st_fix:
                 _ST_opt[st_fix] = ST_est[st_fix]
 
-            # # nonnegative constrain
-            # _ST_opt *= (_ST_opt > 0)
+            # nonnegative constrain
+            _ST_opt *= (_ST_opt > 0)
 
             # apply spectra constraints
             # normalize Z to 26139.01
@@ -309,7 +322,8 @@ class Fitter:
             return R
 
         self.minimizer = lmfit.Minimizer(residuals, self.c_model.params)
-        self.last_result = self.minimizer.minimize(method=self.fit_alg)  # minimize the residuals
+        kws = {} if self.kwds is None else self.kwds
+        self.last_result = self.minimizer.minimize(method=self.fit_alg, **kws)  # minimize the residuals
 
         self.c_model.params = self.last_result.params
         #
@@ -356,5 +370,7 @@ class Fitter:
                 # self.H_fit(self.c_model, self.ST_opt, self.C_est, [i for i in range(self.n)], self.c_fix)
 
             self.calc_ST()
+
+            self.ST_opt[0] *= 26139.01 / self.ST_opt[0].max()
 
         return True

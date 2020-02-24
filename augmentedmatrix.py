@@ -438,8 +438,8 @@ def setup3():
     fw = FitWidget.instance
     pw = PlotWidget.instance
 
-    # path = r"C:\Users\Dominik\Documents\MUNI\Organic Photochemistry\Projects\2019-Bilirubin project\UV-VIS\QY measurement\Photodiode\new setup"
-    path = r"C:\Users\dominik\Documents\Projects\Bilirubin\UV-Vis data"
+    path = r"C:\Users\Dominik\Documents\MUNI\Organic Photochemistry\Projects\2019-Bilirubin project\UV-VIS\QY measurement\Photodiode\new setup"
+    # path = r"C:\Users\dominik\Documents\Projects\Bilirubin\UV-Vis data"
 
     paths = []
 
@@ -456,7 +456,9 @@ def setup3():
     paths.append(path + r"\Z 480 nm\cut.txt")
     paths.append(path + r"\E 480 nm\cut.txt")
 
-    path_reactors = r"C:\Users\dominik\Documents\Projects\Bilirubin\UV-Vis data\Kinetics Z degassed"
+    # path_reactors = r"C:\Users\dominik\Documents\Projects\Bilirubin\UV-Vis data\Kinetics Z degassed"
+    path_reactors = r"C:\Users\Dominik\Documents\MUNI\Organic Photochemistry\Projects\2019-Bilirubin project\UV-VIS\Irradiation kinetics\for MCR\Kinetics Z degassed"
+
 
     paths.append(path_reactors + r"\355 nm (both modules)\cut.txt")
     paths.append(path_reactors + r"\375 nm (both modules)\cut.txt")
@@ -476,7 +478,7 @@ def setup3():
 
     for i in range(len(paths)):
         au.load_matrix(i, 0, paths[i])
-        # au[i, 0].reduce(t_dim=2)
+        au[i, 0].reduce(t_dim=2)
 
 
     au[-7, 0].crop_data(t1=2000)
@@ -530,7 +532,34 @@ def setup4():
 
     return au
 
+def setup_test():
+    fw = FitWidget.instance
+    pw = PlotWidget.instance
 
+    paths = []
+
+    path_reactors = r"C:\Users\Dominik\Documents\MUNI\Organic Photochemistry\Projects\Python scripts\Photoreaction kinetics"
+
+    paths.append(path_reactors + r"\Z_cut355.txt")
+    paths.append(path_reactors + r"\E_cut355.txt")
+    paths.append(path_reactors + r"\Z_cut470.txt")
+
+
+
+    au = AugmentedMatrix(len(paths), 1)
+
+    for i in range(len(paths)):
+        au.load_matrix(i, 0, paths[i])
+        au[i, 0].reduce(t_dim=2)
+
+    m = au.get_aug_LFP_matrix()
+
+    pw.plot_matrix(m)
+    fw.matrix = m
+    fw._au = au
+    Console.push_variables({'matrix': m})
+
+    return au
 
 if __name__ == "__main__":
     m = AugmentedMatrix(2, 1)

@@ -49,7 +49,7 @@ class GeneralParser(GenericParser):
             for j in range(row_count):
                 sp_data.append((data[j][0], data[j][i]))
 
-            sp = Spectrum(np.asarray(sp_data, dtype=np.float64), self.filepath, names[i], group_name)
+            sp = Spectrum(np.asarray(sp_data, dtype=np.float32), self.filepath, names[i], group_name)
 
             spectra.append(sp)
 
