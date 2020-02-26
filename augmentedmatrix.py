@@ -104,7 +104,7 @@ class AugmentedMatrix(object):
         return q_rel.squeeze()
 
     def plot_fit_photochem(self, symlog=False, c_model=None, z_label='Absorbance', wl_label='Wavelength (nm)', t_label='Time (s)',
-                           dpi=500, figsize=(50, 8), cmap='inferno', time_linthresh=200, time_linscale=1, transparent=False,
+                           dpi=500, figsize=(85, 8), cmap='inferno', time_linthresh=200, time_linscale=1, transparent=False,
                            fname=r'C:\Users\dominik\Documents\Projects\Bilirubin\Results\test-fit_photochem.png', step=2):
 
         # if c_model is not None:
@@ -123,8 +123,8 @@ class AugmentedMatrix(object):
         I_sources = [c_model.I_330.copy(), c_model.I_330.copy(), c_model.I_375.copy(),
                      c_model.I_400.copy(), c_model.I_400.copy(), c_model.I_450.copy(),
                      c_model.I_480.copy(), c_model.I_480.copy(), c_model.LED_355.copy(),
-                     c_model.LED_375.copy(), c_model.LED_405.copy(), c_model.LED_490.copy(),
-                     c_model.LED_355.copy()]
+                     c_model.LED_375.copy(), c_model.LED_405.copy(), c_model.LED_450.copy(),
+                     c_model.LED_470.copy(), c_model.LED_490.copy(), c_model.LED_355.copy()]
 
 
         # fig, ax = plt.subplots(3, self.r, figsize=figsize)
@@ -438,8 +438,8 @@ def setup3():
     fw = FitWidget.instance
     pw = PlotWidget.instance
 
-    path = r"C:\Users\Dominik\Documents\MUNI\Organic Photochemistry\Projects\2019-Bilirubin project\UV-VIS\QY measurement\Photodiode\new setup"
-    # path = r"C:\Users\dominik\Documents\Projects\Bilirubin\UV-Vis data"
+    # path = r"C:\Users\Dominik\Documents\MUNI\Organic Photochemistry\Projects\2019-Bilirubin project\UV-VIS\QY measurement\Photodiode\new setup"
+    path = r"C:\Users\dominik\Documents\Projects\Bilirubin\UV-Vis data"
 
     paths = []
 
@@ -456,8 +456,8 @@ def setup3():
     paths.append(path + r"\Z 480 nm\cut.txt")
     paths.append(path + r"\E 480 nm\cut.txt")
 
-    # path_reactors = r"C:\Users\dominik\Documents\Projects\Bilirubin\UV-Vis data\Kinetics Z degassed"
-    path_reactors = r"C:\Users\Dominik\Documents\MUNI\Organic Photochemistry\Projects\2019-Bilirubin project\UV-VIS\Irradiation kinetics\for MCR\Kinetics Z degassed"
+    path_reactors = r"C:\Users\dominik\Documents\Projects\Bilirubin\UV-Vis data\Kinetics Z degassed"
+    # path_reactors = r"C:\Users\Dominik\Documents\MUNI\Organic Photochemistry\Projects\2019-Bilirubin project\UV-VIS\Irradiation kinetics\for MCR\Kinetics Z degassed"
 
 
     paths.append(path_reactors + r"\355 nm (both modules)\cut.txt")
@@ -482,10 +482,13 @@ def setup3():
 
 
     au[-7, 0].crop_data(t1=2000)
-    au[-6, 0].crop_data(t1=2000)
+    au[-6, 0].crop_data(t1=1800)
     au[-5, 0].crop_data(t1=2000)
-    au[-4, 0].crop_data(t1=2000)
+    au[-4, 0].crop_data(t1=1000)
     au[-3, 0].crop_data(t1=2000)
+
+    au[-1, 0].crop_data(t1=2000)
+
 
 
     m = au.get_aug_LFP_matrix()

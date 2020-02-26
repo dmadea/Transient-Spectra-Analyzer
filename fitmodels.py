@@ -864,8 +864,8 @@ class Half_Bilirubin_Multiset(_Model):
         self.wavelengths = wavelengths
         self.ST = ST
 
-        path = r"C:\Users\Dominik\Documents\MUNI\Organic Photochemistry\Projects\2019-Bilirubin project\UV-VIS\QY measurement\Photodiode\new setup"
-        # path = r"C:\Users\dominik\Documents\Projects\Bilirubin\UV-Vis data"
+        # path = r"C:\Users\Dominik\Documents\MUNI\Organic Photochemistry\Projects\2019-Bilirubin project\UV-VIS\QY measurement\Photodiode\new setup"
+        path = r"C:\Users\dominik\Documents\Projects\Bilirubin\UV-Vis data"
 
         fname = path + r'\em sources.txt'
         data = np.loadtxt(fname, delimiter='\t', skiprows=1)
@@ -960,25 +960,25 @@ class Half_Bilirubin_Multiset(_Model):
 
 
         self.params.add('Phi_ZHL', value=0.004081171, min=0, max=1, vary=True)
-        self.params.add('Phi_ZHL_1', value=-9.21E-05, min=-1, max=1)
-        self.params.add('Phi_ZHL_2', value=0.028672891, min=-1, max=1)
-        self.params.add('Phi_ZHL_3', value=0.01579831, min=-1, max=1)
-        self.params.add('Phi_ZHL_4', value=-0.059034159, min=-1, max=1)
+        self.params.add('Phi_ZHL_1', value=-9.21E-05, min=-0.01, max=0.01)
+        self.params.add('Phi_ZHL_2', value=0.028672891, min=-0.01, max=0.01)
+        self.params.add('Phi_ZHL_3', value=0.01579831, min=-0.01, max=0.01)
+        self.params.add('Phi_ZHL_4', value=-0.059034159, min=-0.01, max=0.01)
 
 
         self.params.add('Phi_HLZ', value=0.006594641, min=0, max=1, vary=True)
-        self.params.add('Phi_HLZ_1', value=0.081719941, min=-1, max=1)
-        self.params.add('Phi_HLZ_2', value=0.353508038, min=-1, max=1)
-        self.params.add('Phi_HLZ_3', value=-0.006820378, min=-1, max=1)
-        self.params.add('Phi_HLZ_4', value=-0.995929445, min=-1, max=1)
+        self.params.add('Phi_HLZ_1', value=0.081719941, min=-0.01, max=0.01)
+        self.params.add('Phi_HLZ_2', value=0, min=-0.01, max=0.01)
+        self.params.add('Phi_HLZ_3', value=-0.006820378, min=-0.01, max=0.01)
+        self.params.add('Phi_HLZ_4', value=-0.995929445, min=-0.01, max=0.01)
 
 
         # HL decay QY
         self.params.add('Phi_HL', value=0.003677229, min=0, max=1, vary=True)
-        self.params.add('Phi_HL_1', value=-0.011269426, min=-1, max=1)
-        self.params.add('Phi_HL_2', value=0.046829783,  min=-1, max=1)
-        self.params.add('Phi_HL_3', value=0.231334259, min=-1, max=1)
-        self.params.add('Phi_HL_4', value=-0.434018951, min=-1, max=1)
+        self.params.add('Phi_HL_1', value=-0.011269426, min=-0.01, max=0.01)
+        self.params.add('Phi_HL_2', value=0.046829783,  min=-0.01, max=0.01)
+        self.params.add('Phi_HL_3', value=0, min=-0.01, max=0.01)
+        self.params.add('Phi_HL_4', value=-0.434018951, min=-0.01, max=0.01)
 
 
 
@@ -1353,8 +1353,8 @@ class Test_Bilirubin_Multiset(_Model):
         self.wavelengths = wavelengths
         self.ST = ST
 
-        path = r"C:\Users\Dominik\Documents\MUNI\Organic Photochemistry\Projects\2019-Bilirubin project\UV-VIS\QY measurement\Photodiode\new setup"
-        # path = r"C:\Users\dominik\Documents\Projects\Bilirubin\UV-Vis data"
+        # path = r"C:\Users\Dominik\Documents\MUNI\Organic Photochemistry\Projects\2019-Bilirubin project\UV-VIS\QY measurement\Photodiode\new setup"
+        path = r"C:\Users\dominik\Documents\Projects\Bilirubin\UV-Vis data"
 
         fname = path + r'\em sources.txt'
         data = np.loadtxt(fname, delimiter='\t', skiprows=1)

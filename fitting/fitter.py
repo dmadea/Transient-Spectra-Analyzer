@@ -4,6 +4,7 @@ from scipy.linalg import lstsq
 from copy import deepcopy
 from scipy.optimize import nnls as _nnls
 from numba import njit
+import pymc3.ode
 
 from .constraints import ConstraintNonneg
 
