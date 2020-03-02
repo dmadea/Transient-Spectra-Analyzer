@@ -4,6 +4,8 @@ from scipy.linalg import lstsq
 from copy import deepcopy
 from scipy.optimize import nnls as _nnls
 from numba import njit
+# # from theano.ode import DifferentalEquation
+# from pymc3.ode import DifferentialEquation
 
 from .constraints import ConstraintNonneg
 
@@ -186,7 +188,7 @@ class Fitter:
         _C_opt = self.C_est.copy()
         _ST_opt = self.ST_est.copy()
 
-        C_est, ST_est = self.C_est, self.ST_est
+        # C_est, ST_est = self.C_est, self.ST_est
 
         c_fix = self.c_fix
         st_fix = self.st_fix
@@ -199,58 +201,68 @@ class Fitter:
         # _C_opt = C_est.copy() if C_est is not None else np.zeros_like(C_est)
         # _ST_opt = ST_est.copy() if ST_est is not None else np.zeros_like(ST_est)
 
+        it_mcr = 5
+
         def residuals(params):
             # needed to use nonlocal because of nested functions, https://stackoverflow.com/questions/5218895/python-nested-functions-variable-scoping
             nonlocal _ST_opt, _C_opt
 
-            # perform MCR of calculating C profiles from spectra
-            _C_opt = lstsq(_ST_opt.T, self.D.T)[0].T
+            for i in range(it_mcr):
 
-            # apply nonzero constraint
-            _C_opt *= (_C_opt > 0)
+                # # perform MCR of calculating C profiles from spectra
+                # _C_opt = lstsq(_ST_opt.T, self.D.T)[0].T
+                #
+                _C_opt = self.c_model.calc_C(params, _C_opt)
+                # apply nonzero constraint
+                # _C_opt *= (_C_opt > 0)
 
-            if not st_fix or len(st_fix) < self.n:
-                _ST_opt = lstsq(_C_opt, self.D)[0]
-            # nonnegative constrain
-            _ST_opt *= (_ST_opt > 0)
-            # apply fixed spectra
-            if st_fix:
-                _ST_opt[st_fix] = ST_est[st_fix]
+                if not st_fix or len(st_fix) < self.n:
+                    _ST_opt = lstsq(_C_opt, self.D)[0]
+                # nonnegative constrain
+                _ST_opt *= (_ST_opt > 0)
 
-            # # apply closure contstrain on C profiles
-            # _C_opt = 36e-6 * _C_opt / _C_opt.sum(axis=1, keepdims=True)
+                _ST_opt[0] *= 26139.01 / _ST_opt[0].max()
 
-            # calculate kinetic profiles based ont the model
-            _C_opt = self.c_model.calc_C(params, _C_opt)
+                # apply fixed spectra
+                if st_fix:
+                    _ST_opt[st_fix] = self.ST_est[st_fix]
 
-            # apply nonzero constraint
-            _C_opt *= (_C_opt > 0)
+                setattr(self.c_model, 'ST', _ST_opt)
 
-                        # _C_opt[_C_opt < 100] = 100
-
-            if c_fix:
-                _C_opt[:, c_fix] = C_est[:, c_fix]
-            # if we don't fix all spectral components or don't provide any spectra, calculate them by lstsq
-            if not st_fix or len(st_fix) < self.n:
-                _ST_opt = lstsq(_C_opt, self.D)[0]
-            # apply fixed spectra
-            if st_fix:
-                _ST_opt[st_fix] = ST_est[st_fix]
-
-            # nonnegative constrain
-            _ST_opt *= (_ST_opt > 0)
-
-            # apply spectra constraints
-            # normalize Z to 26139.01
-
-            _ST_opt[0] *= 26139.01 / _ST_opt[0].max()
-
-            # apply fixed spectra
-            if st_fix:
-                _ST_opt[st_fix] = ST_est[st_fix]
-
-            # set spectra matrix to model as a parameter
-            setattr(self.c_model, 'ST', _ST_opt)
+            # # # apply closure contstrain on C profiles
+            # # _C_opt = 36e-6 * _C_opt / _C_opt.sum(axis=1, keepdims=True)
+            #
+            # # calculate kinetic profiles based ont the model
+            # _C_opt = self.c_model.calc_C(params, _C_opt)
+            #
+            # # apply nonzero constraint
+            # _C_opt *= (_C_opt > 0)
+            #
+            #             # _C_opt[_C_opt < 100] = 100
+            #
+            # if c_fix:
+            #     _C_opt[:, c_fix] = C_est[:, c_fix]
+            # # if we don't fix all spectral components or don't provide any spectra, calculate them by lstsq
+            # if not st_fix or len(st_fix) < self.n:
+            #     _ST_opt = lstsq(_C_opt, self.D)[0]
+            # # apply fixed spectra
+            # if st_fix:
+            #     _ST_opt[st_fix] = ST_est[st_fix]
+            #
+            # # nonnegative constrain
+            # _ST_opt *= (_ST_opt > 0)
+            #
+            # # apply spectra constraints
+            # # normalize Z to 26139.01
+            #
+            # _ST_opt[0] *= 26139.01 / _ST_opt[0].max()
+            #
+            # # apply fixed spectra
+            # if st_fix:
+            #     _ST_opt[st_fix] = ST_est[st_fix]
+            #
+            # # set spectra matrix to model as a parameter
+            # setattr(self.c_model, 'ST', _ST_opt)
 
             R = np.dot(_C_opt, _ST_opt) - self.D  # calculate residuals
             return R

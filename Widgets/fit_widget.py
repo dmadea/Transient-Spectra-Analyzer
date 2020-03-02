@@ -191,6 +191,9 @@ class FitWidget(QWidget, Ui_Form):
 
         self.plot_opt_matrices()
 
+    def ssq(self):
+        return ((self.matrix.Y - self._C @ self._ST) ** 2).sum()
+
     def set_C(self, component, data):
         if self.matrix is None:
             return
@@ -311,31 +314,40 @@ class FitWidget(QWidget, Ui_Form):
             return
 
         self.update_params()
+        self.fitter_update_options()
 
-        t_diff = np.abs(self.matrix.times[1:] - self.matrix.times[:-1])
+        self._C = self.current_model.calc_C(C_out=self._C)
 
-        min_diff = t_diff.min()
+        self.fitter.calc_ST()
+        self.fitter.ST_opt[0] *= 26139.01 / self.fitter.ST_opt[0].max()
+        self._ST = self.fitter.ST_opt
+        self.plot_opt_matrices()
 
-        t_points = (self.matrix.times[-1] - self.matrix.times[0]) / min_diff + 1
-        new_t = np.linspace(self.matrix.times[0], self.matrix.times[-1], np.ceil(t_points))
 
-        self.current_model.init_times(new_t)
+        #
+        # t_diff = np.abs(self.matrix.times[1:] - self.matrix.times[:-1])
+        #
+        # min_diff = t_diff.min()
+        #
+        # t_points = (self.matrix.times[-1] - self.matrix.times[0]) / min_diff + 1
+        # new_t = np.linspace(self.matrix.times[0], self.matrix.times[-1], np.ceil(t_points))
+        #
+        # self.current_model.init_times(new_t)
 
-        C = self.current_model.calc_C()
-        n = C.shape[1]
+        # n = C.shape[1]
+        #
+        # self.fit_plot_layout.C_plot.clear()
+        # self.fit_plot_layout.ST_plot.clear()
+        #
+        # self.fit_plot_layout.add_legend(spacing=13)
+        #
+        # for i in range(n):
+        #     pen = pg.mkPen(color=FitLayout.int_default_color(i), width=1.5, style=Qt.DashLine)
+        #     self.fit_plot_layout.C_plot.plot(new_t, C[:, i], pen=pen,
+        #                                      name=self.current_model.species_names[i])
 
-        self.fit_plot_layout.C_plot.clear()
-        self.fit_plot_layout.ST_plot.clear()
-
-        self.fit_plot_layout.add_legend(spacing=13)
-
-        for i in range(n):
-            pen = pg.mkPen(color=FitLayout.int_default_color(i), width=1.5, style=Qt.DashLine)
-            self.fit_plot_layout.C_plot.plot(new_t, C[:, i], pen=pen,
-                                             name=self.current_model.species_names[i])
-
-        self.matrix.times_fine = new_t
-        self.matrix.C_fine = C
+        # self.matrix.times_fine = new_t
+        # self.matrix.C_fine = C
 
     def calc_ST(self):
         if self.matrix is None:
@@ -388,9 +400,10 @@ class FitWidget(QWidget, Ui_Form):
         # elif self.current_model.connectivity.count(0) == n:  # pure MCR fit
         #     self.fitter.HS_MCR_fit(c_model=None)
         # else:  # mix of two, HS-fit
-        # if self.current_model.connectivity.count(0) == 0:
-        #     self.fitter.H_fit_multiset()
-        if self.current_model.connectivity.count(0) == n:  # pure MCR fit
+        if self.current_model.connectivity.count(0) == 0:
+            self.fitter.HS_MCR_fit(c_model=self.current_model)
+            self.current_model = self.fitter.c_model
+        elif self.current_model.connectivity.count(0) == n:  # pure MCR fit
             self.fitter.HS_MCR_fit(c_model=None)
         else:  # mix of two, HS-fit
             self.fitter.HS_MCR_fit(c_model=self.current_model)
