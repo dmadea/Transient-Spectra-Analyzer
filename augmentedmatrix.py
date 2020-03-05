@@ -500,6 +500,46 @@ def setup3():
 
     return au
 
+def setup3_half():
+    fw = FitWidget.instance
+    pw = PlotWidget.instance
+
+    # path = r"C:\Users\Dominik\Documents\MUNI\Organic Photochemistry\Projects\2019-Bilirubin project\UV-VIS\QY measurement\Photodiode\new setup"
+    path = r"C:\Users\dominik\Documents\Projects\Bilirubin\UV-Vis data"
+
+    paths = []
+
+    paths.append(path + r"\Z 330 nm\cut.txt")
+    paths.append(path + r"\E 330 nm\cut.txt")
+
+    paths.append(path + r"\Z 375 nm\cut.txt")
+
+    paths.append(path + r"\Z 400 nm\cut.txt")
+    paths.append(path + r"\E 400 nm\cut.txt")
+
+    paths.append(path + r"\Z 450 nm\cut.txt")
+
+    paths.append(path + r"\Z 480 nm\cut.txt")
+    paths.append(path + r"\E 480 nm\cut.txt")
+
+
+    au = AugmentedMatrix(len(paths), 1)
+
+    for i in range(len(paths)):
+        au.load_matrix(i, 0, paths[i])
+        # au[i, 0].reduce(t_dim=2)
+
+
+    m = au.get_aug_LFP_matrix()
+
+    pw.plot_matrix(m)
+    fw.matrix = m
+    fw._au = au
+    Console.push_variables({'matrix': m})
+
+    return au
+
+
 
 def setup4():
     fw = FitWidget.instance

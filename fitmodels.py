@@ -9,7 +9,7 @@ from multiprocessing import Pool
 
 import math
 from numba import njit, prange
-from scipy.interpolate import interp2d
+from scipy.interpolate import interp2d, interp1d
 
 
 def find_nearest_idx(array, value):
@@ -47,7 +47,7 @@ class _Model(object):
         self.init_times(times)
 
         self.init_params()
-        self.species_names = np.array(list('AB'), dtype=np.str)
+        self.species_names = np.array(list('ABC'), dtype=np.str)
 
     @property
     def connectivity(self):
@@ -863,9 +863,11 @@ class Half_Bilirubin_Multiset(_Model):
         self.species_names = np.array(list('ZEHD'), dtype=np.str)
         self.wavelengths = wavelengths
         self.ST = ST
+        self.interp_kind = 'linear'
+        self.wl_range = (340, 480)
 
-        path = r"C:\Users\Dominik\Documents\MUNI\Organic Photochemistry\Projects\2019-Bilirubin project\UV-VIS\QY measurement\Photodiode\new setup"
-        # path = r"C:\Users\dominik\Documents\Projects\Bilirubin\UV-Vis data"
+        # path = r"C:\Users\Dominik\Documents\MUNI\Organic Photochemistry\Projects\2019-Bilirubin project\UV-VIS\QY measurement\Photodiode\new setup"
+        path = r"C:\Users\dominik\Documents\Projects\Bilirubin\UV-Vis data"
 
         fname = path + r'\em sources.txt'
         data = np.loadtxt(fname, delimiter='\t', skiprows=1)
@@ -946,46 +948,44 @@ class Half_Bilirubin_Multiset(_Model):
         self.params.add('xZ_E', value=0.055, min=0, max=1, vary=False)
 
         self.params.add('Phi_ZE', value=0.160581292, min=0, max=1)
-        self.params.add('Phi_ZE_1', value=0.030771559, min=-1, max=1)
-        self.params.add('Phi_ZE_2', value=0.193611305, min=-1, max=1)
-        self.params.add('Phi_ZE_3', value=0, min=-1, max=1, vary=False)
-        self.params.add('Phi_ZE_4', value=0, min=-1, max=1, vary=False)
+        self.params.add('Phi_ZE_1', value=0.16771559, min=0, max=1)
+        self.params.add('Phi_ZE_2', value=0.193611305, min=0, max=1)
+        self.params.add('Phi_ZE_3', value=0.193611305, min=0, max=1, vary=True)
+        self.params.add('Phi_ZE_4', value=0.193611305, min=0, max=1, vary=True)
 
         self.params.add('Phi_EZ', value=0.368744317, min=0, max=1)
-        self.params.add('Phi_EZ_1', value=-0.085357809, min=-1, max=1)
-        self.params.add('Phi_EZ_2', value=-0.125563008, min=-1, max=1)
-        self.params.add('Phi_EZ_3', value=0, min=-1, max=1, vary=False)
-        self.params.add('Phi_EZ_4', value=0, min=-1, max=1, vary=False)
-
+        self.params.add('Phi_EZ_1', value=0.3, min=0, max=1)
+        self.params.add('Phi_EZ_2', value=0.3, min=0, max=1)
+        self.params.add('Phi_EZ_3', value=0.3, min=0, max=1, vary=True)
+        self.params.add('Phi_EZ_4', value=0.3, min=0, max=1, vary=True)
 
         self.params.add('Phi_ZHL', value=0.004081171, min=0, max=1, vary=True)
-        self.params.add('Phi_ZHL_1', value=-9.21E-05, min=-1, max=1)
-        self.params.add('Phi_ZHL_2', value=0.028672891, min=-1, max=1)
-        self.params.add('Phi_ZHL_3', value=0, min=-1, max=1, vary=False)
-        self.params.add('Phi_ZHL_4', value=0, min=-1, max=1, vary=False)
-
+        self.params.add('Phi_ZHL_1', value=0.004, min=0, max=1)
+        self.params.add('Phi_ZHL_2', value=0.004, min=0, max=1)
+        self.params.add('Phi_ZHL_3', value=0.004, min=0, max=1, vary=True)
+        self.params.add('Phi_ZHL_4', value=0.004, min=0, max=1, vary=True)
 
         self.params.add('Phi_HLZ', value=0.006594641, min=0, max=1, vary=True)
-        self.params.add('Phi_HLZ_1', value=0.081719941, min=-1, max=1)
-        self.params.add('Phi_HLZ_2', value=0.353508038, min=-1, max=1)
-        self.params.add('Phi_HLZ_3', value=0, min=-1, max=1, vary=False)
-        self.params.add('Phi_HLZ_4', value=0, min=-1, max=1, vary=False)
+        self.params.add('Phi_HLZ_1', value=0.004, min=0, max=1)
+        self.params.add('Phi_HLZ_2', value=0.004, min=0, max=1)
+        self.params.add('Phi_HLZ_3', value=0.004, min=0, max=1, vary=True)
+        self.params.add('Phi_HLZ_4', value=0.004, min=0, max=1, vary=True)
 
 
         # HL decay QY
         self.params.add('Phi_HL', value=0.003677229, min=0, max=1, vary=True)
-        self.params.add('Phi_HL_1', value=-0.011269426, min=-1, max=1)
-        self.params.add('Phi_HL_2', value=0.046829783,  min=-1, max=1)
-        self.params.add('Phi_HL_3', value=0, min=-1, max=1, vary=False)
-        self.params.add('Phi_HL_4', value=0, min=-1, max=1, vary=False)
+        self.params.add('Phi_HL_1', value=0.004, min=0, max=1)
+        self.params.add('Phi_HL_2', value=0.004,  min=0, max=1)
+        self.params.add('Phi_HL_3', value=0.004, min=0, max=1, vary=True)
+        self.params.add('Phi_HL_4', value=0.004, min=0, max=1, vary=True)
 
 
-
-    @staticmethod
-    def fk_factor(x, c=np.log(10), tol=1e-2):
-        # exp(-xc) = 1 - xc + (xc)^2 / 2 - (xc)^3 / 6 ...
-        # (1 - exp(-xc)) / x  ~  c - xc^2 / 2 for low x
-        return np.where(x <= tol, c - x * c * c / 2 + x * x * c * c * c / 6, (1 - np.exp(-x * c)) / x)
+    #
+    # @staticmethod
+    # def fk_factor(x, c=np.log(10), tol=1e-2):
+    #     # exp(-xc) = 1 - xc + (xc)^2 / 2 - (xc)^3 / 6 ...
+    #     # (1 - exp(-xc)) / x  ~  c - xc^2 / 2 for low x
+    #     return np.where(x <= tol, c - x * c * c / 2 + x * x * c * c * c / 6, (1 - np.exp(-x * c)) / x)
 
     def plot_phis(self, y_scale='log'):
         if self.params is None:
@@ -1000,17 +1000,17 @@ class Half_Bilirubin_Multiset(_Model):
         Phi_HLZ, Phi_HLZ1, Phi_HLZ2, Phi_HLZ3, Phi_HLZ4, \
         Phi_HL, Phi_HL1, Phi_HL2, Phi_HL3, Phi_HL4 = [par[1].value for par in self.params.items()]
 
-        Phi_ZE = self.Phi([Phi_ZE, Phi_ZE1, Phi_ZE2, Phi_ZE3, Phi_ZE4], 400, self.wavelengths)
-        Phi_EZ = self.Phi([Phi_EZ, Phi_EZ1, Phi_EZ2, Phi_EZ3, Phi_EZ4], 400, self.wavelengths)
-        Phi_ZHL = self.Phi([Phi_ZHL, Phi_ZHL1, Phi_ZHL2, Phi_ZHL3, Phi_ZHL4], 400, self.wavelengths)
-        Phi_HLZ = self.Phi([Phi_HLZ, Phi_HLZ1, Phi_HLZ2, Phi_HLZ3, Phi_HLZ4], 400, self.wavelengths)
-        Phi_HL = self.Phi([Phi_HL, Phi_HL1, Phi_HL2, Phi_HL3, Phi_HL4], 400, self.wavelengths)
+        _Phi_ZE = self.Phi_interp([Phi_ZE, Phi_ZE1, Phi_ZE2, Phi_ZE3, Phi_ZE4], self.wl_range)
+        _Phi_EZ = self.Phi_interp([Phi_EZ, Phi_EZ1, Phi_EZ2, Phi_EZ3, Phi_EZ4], self.wl_range)
+        _Phi_ZHL = self.Phi_interp([Phi_ZHL, Phi_ZHL1, Phi_ZHL2, Phi_ZHL3, Phi_ZHL4], self.wl_range)
+        _Phi_HLZ = self.Phi_interp([Phi_HLZ, Phi_HLZ1, Phi_HLZ2, Phi_HLZ3, Phi_HLZ4], self.wl_range)
+        _Phi_HL = self.Phi_interp([Phi_HL, Phi_HL1, Phi_HL2, Phi_HL3, Phi_HL4], self.wl_range)
 
-        plt.plot(self.wavelengths, Phi_ZE, label="$\Phi_{ZE}$")
-        plt.plot(self.wavelengths, Phi_EZ, label="$\Phi_{EZ}$")
-        plt.plot(self.wavelengths, Phi_ZHL, label="$\Phi_{ZHL}$")
-        plt.plot(self.wavelengths, Phi_HLZ, label="$\Phi_{HLZ}$")
-        plt.plot(self.wavelengths, Phi_HL, label="$\Phi_{HL-decay}$")
+        plt.plot(self.wavelengths, _Phi_ZE, label="$\Phi_{ZE}$")
+        plt.plot(self.wavelengths, _Phi_EZ, label="$\Phi_{EZ}$")
+        plt.plot(self.wavelengths, _Phi_ZHL, label="$\Phi_{ZHL}$")
+        plt.plot(self.wavelengths, _Phi_HLZ, label="$\Phi_{HLZ}$")
+        plt.plot(self.wavelengths, _Phi_HL, label="$\Phi_{HL-decay}$")
 
         plt.yscale(y_scale)
 
@@ -1027,6 +1027,20 @@ class Half_Bilirubin_Multiset(_Model):
         assert isinstance(phis, (list, np.ndarray))
         return sum(par * ((lambda_C - wavelengths) / 100) ** i for i, par in enumerate(phis))
 
+    def Phi_interp(self, phis, wl_range=(340, 480), crop_01=True):
+        n = len(phis)
+        assert n >= 3
+        x = np.linspace(wl_range[0], wl_range[1], n, endpoint=True)
+        f = interp1d(x, np.asarray(phis), kind=self.interp_kind, fill_value='extrapolate')
+
+        y = f(self.wavelengths)
+        if crop_01:
+            y *= (y > 0)
+            y = np.where(y > 1, 1, y)
+
+        return y
+
+
     @staticmethod
     def simulate(q0, c0, K, I_source, wavelengths=None, times=None, eps=None, V=0.003, l=1,  D=None):
         """
@@ -1041,7 +1055,7 @@ class Half_Bilirubin_Multiset(_Model):
 
 
         # get absorbances from real data
-        abs_at = interp2d(wavelengths, times, D, kind='linear', copy=False)
+        abs_at = interp2d(wavelengths, times, D, kind='linear', copy=True)
 
         const = l * np.log(10)
         tol = 1e-3
@@ -1099,42 +1113,35 @@ class Half_Bilirubin_Multiset(_Model):
         Phi_HLZ, Phi_HLZ1, Phi_HLZ2, Phi_HLZ3, Phi_HLZ4, \
         Phi_HL, Phi_HL1, Phi_HL2, Phi_HL3, Phi_HL4 = [par[1].value for par in self.params.items()]
 
-        Phi_ZE = self.Phi([Phi_ZE, Phi_ZE1, Phi_ZE2, Phi_ZE3, Phi_ZE4], 400, self.wavelengths)
-        Phi_EZ = self.Phi([Phi_EZ, Phi_EZ1, Phi_EZ2, Phi_EZ3, Phi_EZ4], 400, self.wavelengths)
-        Phi_ZHL = self.Phi([Phi_ZHL, Phi_ZHL1, Phi_ZHL2, Phi_ZHL3, Phi_ZHL4], 400, self.wavelengths)
-        Phi_HLZ = self.Phi([Phi_HLZ, Phi_HLZ1, Phi_HLZ2, Phi_HLZ3, Phi_HLZ4], 400, self.wavelengths)
-        Phi_HL = self.Phi([Phi_HL, Phi_HL1, Phi_HL2, Phi_HL3, Phi_HL4], 400, self.wavelengths)
+        # _Phi_ZE = self.Phi([Phi_ZE, Phi_ZE1, Phi_ZE2, Phi_ZE3, Phi_ZE4], 400, self.wavelengths)
+        #         # _Phi_EZ = self.Phi([Phi_EZ, Phi_EZ1, Phi_EZ2, Phi_EZ3, Phi_EZ4], 400, self.wavelengths)
+        #         # _Phi_ZHL = self.Phi([Phi_ZHL, Phi_ZHL1, Phi_ZHL2, Phi_ZHL3, Phi_ZHL4], 400, self.wavelengths)
+        #         # _Phi_HLZ = self.Phi([Phi_HLZ, Phi_HLZ1, Phi_HLZ2, Phi_HLZ3, Phi_HLZ4], 400, self.wavelengths)
+        #         # _Phi_HL = self.Phi([Phi_HL, Phi_HL1, Phi_HL2, Phi_HL3, Phi_HL4], 400, self.wavelengths)
+
+        _Phi_ZE = self.Phi_interp([Phi_ZE, Phi_ZE1, Phi_ZE2, Phi_ZE3, Phi_ZE4], self.wl_range)
+        _Phi_EZ = self.Phi_interp([Phi_EZ, Phi_EZ1, Phi_EZ2, Phi_EZ3, Phi_EZ4], self.wl_range)
+        _Phi_ZHL = self.Phi_interp([Phi_ZHL, Phi_ZHL1, Phi_ZHL2, Phi_ZHL3, Phi_ZHL4], self.wl_range)
+        _Phi_HLZ = self.Phi_interp([Phi_HLZ, Phi_HLZ1, Phi_HLZ2, Phi_HLZ3, Phi_HLZ4], self.wl_range)
+        _Phi_HL = self.Phi_interp([Phi_HL, Phi_HL1, Phi_HL2, Phi_HL3, Phi_HL4], self.wl_range)
 
 
         IZ330, IE330, IZ400, IE400, V = 16.7e-6, 17e-6, 38.1e-6, 37.7e-6, 3e-3
         IZ375, IZ450 = 24.9e-6, 47.9e-6
         IZ480, IE480 = 48e-6, 48e-6
 
-        # crop QYs to 0-1
-        Phi_ZE *= (Phi_ZE > 0)
-        Phi_EZ *= (Phi_EZ > 0)
-        Phi_ZHL *= (Phi_ZHL > 0)
-        Phi_HLZ *= (Phi_HLZ > 0)
-        Phi_HL *= (Phi_HL > 0)
-
-        Phi_ZE = np.where(Phi_ZE > 1, 1, Phi_ZE)
-        Phi_EZ = np.where(Phi_EZ > 1, 1, Phi_EZ)
-        Phi_ZHL = np.where(Phi_ZHL > 1, 1, Phi_ZHL)
-        Phi_HLZ = np.where(Phi_HLZ > 1, 1, Phi_HLZ)
-        Phi_HL = np.where(Phi_HL > 1, 1, Phi_HL)
-
         # Phi_HLE = self.Phi([Phi_HLE], 400, self.wavelengths)
 
-        _0 = np.zeros(self.wavelengths.shape) if isinstance(Phi_ZE, np.ndarray) else 0
+        _0 = np.zeros(self.wavelengths.shape) if isinstance(_Phi_ZE, np.ndarray) else 0
 
         # K = np.asarray([[-Phi_ZE - Phi_ZHL,   Phi_EZ,        Phi_HLZ],
         #                 [Phi_ZE,              -Phi_EZ,            _0],
         #                 [Phi_ZHL,             _0,          -Phi_HLZ]])
 
-        K = np.asarray([[-Phi_ZE - Phi_ZHL, Phi_EZ, Phi_HLZ, _0],
-                        [Phi_ZE, -Phi_EZ, _0, _0],
-                        [Phi_ZHL, _0, -Phi_HLZ - Phi_HL, _0],
-                        [_0, _0, Phi_HL, _0]])
+        K = np.asarray([[-_Phi_ZE - _Phi_ZHL, _Phi_EZ, _Phi_HLZ, _0],
+                        [_Phi_ZE, -_Phi_EZ, _0, _0],
+                        [_Phi_ZHL, _0, -_Phi_HLZ - _Phi_HL, _0],
+                        [_0, _0, _Phi_HL, _0]])
 
         # # # no photoproduct
         # K_no_D = np.asarray([[-Phi_ZE - Phi_ZHL, Phi_EZ, Phi_HLZ, _0],
@@ -1220,6 +1227,227 @@ class Half_Bilirubin_Multiset(_Model):
         return C_out
 
 
+
+class Half_Bilirubin_Multiset_Half(_Model):
+    n = 3
+    name = '(Half) Half-Bilirubin Multiset Model'
+    n_pars_per_QY = 5
+    wl_range = (340, 480)
+
+    def __init__(self, times=None, ST=None, wavelengths=None, aug_matrix=None):
+        super(Half_Bilirubin_Multiset_Half, self).__init__(times)
+
+        self.wavelengths = wavelengths
+        self.ST = ST
+        self.interp_kind = 'quadratic'
+        self.species_names = np.array(list('ZEH'), dtype=np.str)
+
+        # path = r"C:\Users\Dominik\Documents\MUNI\Organic Photochemistry\Projects\2019-Bilirubin project\UV-VIS\QY measurement\Photodiode\new setup"
+        path = r"C:\Users\dominik\Documents\Projects\Bilirubin\UV-Vis data"
+
+        fname = path + r'\em sources.txt'
+        data = np.loadtxt(fname, delimiter='\t', skiprows=1)
+
+        self.I_330 = data[:, 1] / np.trapz(data[:, 1], x=self.wavelengths)
+        self.I_375 = data[:, 2] / np.trapz(data[:, 2], x=self.wavelengths)
+        self.I_400 = data[:, 3] / np.trapz(data[:, 3], x=self.wavelengths)
+        self.I_450 = data[:, 4] / np.trapz(data[:, 4], x=self.wavelengths)
+        self.I_480 = data[:, 5] / np.trapz(data[:, 5], x=self.wavelengths)
+
+        fname = path + r'\q rel cut.txt'
+        data = np.loadtxt(fname, delimiter='\t', skiprows=1)
+        self.Diode_q_rel = data[:, 1]
+
+        self._overlap330 = np.trapz(self.Diode_q_rel * self.I_330, x=self.wavelengths)
+        self._overlap375 = np.trapz(self.Diode_q_rel * self.I_375, x=self.wavelengths)
+        self._overlap400 = np.trapz(self.Diode_q_rel * self.I_400, x=self.wavelengths)
+        self._overlap450 = np.trapz(self.Diode_q_rel * self.I_450, x=self.wavelengths)
+        self._overlap480 = np.trapz(self.Diode_q_rel * self.I_480, x=self.wavelengths)
+
+        self.aug_matrix = aug_matrix
+
+        self.description = ""
+
+    # def update_params(self, n_pars_per_QY=5, wl_range=(340, 480)):
+    #     self.wl_range = wl_range
+    #     self.n_pars_per_QY = n_pars_per_QY
+    #     self.init_params()
+
+    def init_params(self):
+        self.params = Parameters()
+
+        wls_QY = np.linspace(self.wl_range[0], self.wl_range[1], self.n_pars_per_QY, endpoint=True, dtype=int)
+
+        # amount of Z in the mixture, 1: only Z, 0:, only E
+        self.params.add('xZ_Z', value=1, min=0, max=1, vary=False)
+        self.params.add('xZ_E', value=0.055, min=0, max=1, vary=False)
+
+        for wl in wls_QY:
+            self.params.add(f'Phi_ZE_{wl}', value=0.20, min=0, max=1, vary=True)
+
+        for wl in wls_QY:
+            self.params.add(f'Phi_EZ_{wl}', value=0.20, min=0, max=1, vary=True)
+
+        for wl in wls_QY:
+            self.params.add(f'Phi_ZHL_{wl}', value=0.005, min=0, max=1, vary=True)
+
+        for wl in wls_QY:
+            self.params.add(f'Phi_HLZ_{wl}', value=0.003, min=0, max=1, vary=True)
+
+    def plot_phis(self, y_scale='log'):
+        if self.params is None:
+            return
+
+        pars = [par[1].value for par in self.params.items()]
+        pars = pars[2:]
+
+        n = self.n_pars_per_QY
+
+        p_ZE = pars[:n]
+        p_EZ = pars[n : 2*n]
+        p_ZHL = pars[2*n : 3*n]
+        p_HLZ = pars[3*n :]
+
+        _Phi_ZE = self.Phi_interp(p_ZE, self.wl_range)
+        _Phi_EZ = self.Phi_interp(p_EZ, self.wl_range)
+        _Phi_ZHL = self.Phi_interp(p_ZHL, self.wl_range)
+        _Phi_HLZ = self.Phi_interp(p_HLZ, self.wl_range)
+
+        x = np.linspace(self.wl_range[0], self.wl_range[1], n, dtype=int)
+
+        plt.plot(self.wavelengths, _Phi_ZE, label="$\Phi_{ZE}$")
+        plt.plot(self.wavelengths, _Phi_EZ, label="$\Phi_{EZ}$")
+        plt.plot(self.wavelengths, _Phi_ZHL, label="$\Phi_{ZHL}$")
+        plt.plot(self.wavelengths, _Phi_HLZ, label="$\Phi_{HLZ}$")
+
+        plt.plot(x, p_ZE, 'o', color='black')
+        plt.plot(x, p_EZ, 'o', color='black')
+        plt.plot(x, p_ZHL, 'o', color='black')
+        plt.plot(x, p_HLZ, 'o', color='black')
+
+        plt.yscale(y_scale)
+
+        plt.xlabel('Wavelength')
+        plt.ylabel('$\Phi$')
+        plt.legend()
+
+        plt.show()
+
+    def Phi_interp(self, phis, wl_range=(340, 480), crop_01=True):
+        n = len(phis)
+        assert n >= 3
+        x = np.linspace(wl_range[0], wl_range[1], n, dtype=int)
+        f = interp1d(x, np.asarray(phis), kind=self.interp_kind, fill_value='extrapolate')
+
+        y = f(self.wavelengths)
+        if crop_01:
+            y *= (y > 0)
+            y = np.where(y > 1, 1, y)
+
+        return y
+
+    @staticmethod
+    def simulate(q0, c0, K, I_source, wavelengths=None, times=None, eps=None, V=0.003, l=1,  D=None):
+        """
+        c0 is concentration vector at time, defined in times arary as first element (initial condition), eps is vector of molar abs. coefficients,
+        I_source is spectrum of irradiaiton source if this was used,
+        if not, w_irr as irradiaton wavelength must be specified, K is transfer matrix, l is length of a cuvette, default 1 cm
+        times are times for which to simulate the kinetics
+        """
+        # n = eps.shape[0]  # eps are epsilons - n x w matrix, where n is number of species and w is number of wavelengths
+        # assert n == K.shape[0] == K.shape[1]
+        c0 = np.asarray(c0)
+
+
+        # get absorbances from real data
+        abs_at = interp2d(wavelengths, times, D, kind='linear', copy=True)
+
+        const = l * np.log(10)
+        tol = 1e-3
+
+        def dc_dt(c, t):
+
+            c_eps = c[..., None] * eps  # hadamard product
+
+            c_dot_eps = abs_at(wavelengths, t)
+
+            x_abs = c_eps * np.where(c_dot_eps <= tol, const - c_dot_eps * const * const / 2,
+                                     (1 - np.exp(-c_dot_eps * const)) / c_dot_eps) * I_source
+
+            # w x n x n   x   w x n x 1
+            product = np.matmul(K, x_abs.T[..., None])  # w x n x 1
+
+            return q0 / V * np.trapz(product, x=wavelengths, axis=0).squeeze()
+
+        result = odeint(dc_dt, c0, times)
+
+        return result
+
+    def calc_C(self, params=None, C_out=None):
+        super(Half_Bilirubin_Multiset_Half, self).calc_C(params)
+
+        if self.ST is None:
+            raise ValueError("Spectra matrix must not be none.")
+
+        pars = [par[1].value for par in self.params.items()]
+        xZ_Z, xZ_E = pars[:2]
+        pars = pars[2:]
+
+        n = self.n_pars_per_QY
+
+        _Phi_ZE = self.Phi_interp(pars[:n], self.wl_range)
+        _Phi_EZ = self.Phi_interp(pars[n : 2 * n], self.wl_range)
+        _Phi_ZHL = self.Phi_interp(pars[2 * n : 3 * n], self.wl_range)
+        _Phi_HLZ = self.Phi_interp(pars[3 * n :], self.wl_range)
+
+        IZ330, IE330, IZ400, IE400, V = 16.7e-6, 17e-6, 38.1e-6, 37.7e-6, 3e-3
+        IZ375, IZ450 = 24.9e-6, 47.9e-6
+        IZ480, IE480 = 48e-6, 48e-6
+
+        _0 = np.zeros(self.wavelengths.shape)  # if isinstance(_Phi_ZE, np.ndarray) else 0
+
+        K = np.asarray([[-_Phi_ZE - _Phi_ZHL,   _Phi_EZ,        _Phi_HLZ],
+                        [_Phi_ZE,              -_Phi_EZ,            _0],
+                        [_Phi_ZHL,             _0,          -_Phi_HLZ]])
+
+        K = np.transpose(K, (2, 0, 1))
+
+        q_tot_Z330, q_tot_E330 = IZ330 * self._overlap330, IE330 * self._overlap330
+        q_tot_Z400, q_tot_E400 = IZ400 * self._overlap400, IE400 * self._overlap400
+        q_tot_Z480, q_tot_E480 = IZ480 * self._overlap480, IE480 * self._overlap480
+        q_tot_Z375, q_tot_Z450 = IZ375 * self._overlap375, IZ450 * self._overlap450
+
+        args = [
+            ['Z', q_tot_Z330, '-initial concentraition vector', K, self.I_330],  # Z 330
+            ['E', q_tot_E330, '-initial concentraition vector', K, self.I_330],  # E start
+            ['Z', q_tot_Z375, '-initial concentraition vector', K, self.I_375],
+            ['Z', q_tot_Z400, '-initial concentraition vector', K, self.I_400],
+            ['E', q_tot_E400, '-initial concentraition vector', K, self.I_400],  # E start
+            ['Z', q_tot_Z450, '-initial concentraition vector', K, self.I_450],
+            ['Z', q_tot_Z480, '-initial concentraition vector', K, self.I_480],
+            ['E', q_tot_E480, '-initial concentraition vector', K, self.I_480],  # E start
+
+        ]
+
+        # E is combined spectrum of
+        Z, E_com = self.ST[0], self.ST[0] * xZ_E + (1 - xZ_E) * self.ST[1]
+        ZZ_sum = (Z * Z).sum()
+        EE_com_sum = (E_com * E_com).sum()
+
+        for i in range(len(args)):
+            s, e = self.aug_matrix._C_indiv_range(i)
+            t = self.aug_matrix.matrices[i, 0].times
+
+            A0 = self.aug_matrix.matrices[i, 0].Y[0]
+            # calculation of initial concentration of Z/E by least squares
+            c0 = (A0 * Z).sum() / ZZ_sum if args[i][0] == 'Z' else (A0 * E_com).sum() / EE_com_sum
+
+            args[i][2] = [c0, 0, 0] if args[i][0] == 'Z' else [xZ_E * c0, (1 - xZ_E) * c0, 0]
+
+            C_out[s:e, :] = self.simulate(*args[i][1:], wavelengths=self.wavelengths,
+                                          times=t, eps=self.ST, V=V, l=1, D=self.aug_matrix.matrices[i, 0].Y)
+
+        return C_out
 
 
 
