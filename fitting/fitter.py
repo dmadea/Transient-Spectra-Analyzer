@@ -9,7 +9,7 @@ from numba import njit
 
 from .constraints import ConstraintNonneg
 
-@njit(fastmath=True, parallel=True)
+# @njit(fastmath=True, parallel=True)
 def _res_varpro(C, D):
     """Calculates residuals efficiently  by (I - CC+)D.
     Projector CC+ is calculated by SVD: CC+ = U @ U.T.
@@ -284,8 +284,7 @@ class Fitter:
 
         "only conc. profiles can be fixed, but not spectra"
 
-        _C_opt = C_est.copy() if C_est is not None else np.zeros_like(C_est)
-        # _ST_opt = ST_est.copy() if ST_est is not None else np.zeros_like(ST_est)
+        _C_opt = C_est.copy() if C_est is not None else None #np.zeros_like(self.C_est)
 
         def residuals(params):
             # needed to use nonlocal because of nested functions, https://stackoverflow.com/questions/5218895/python-nested-functions-variable-scoping

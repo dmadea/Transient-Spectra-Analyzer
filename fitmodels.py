@@ -111,6 +111,60 @@ class _Model(object):
             return np.heaviside(t, 1) * (k1 * c0 / (k2 - k1 - k0)) * (np.exp(-(k1 + k0) * t) - np.exp(-k2 * t))
 
 
+
+# class _pKa_Titration(_Model):
+#     # n = 0  # number of visible species in model
+#     n = 0  # number of all possible species
+#
+#     params = None
+#     species_names = None
+#     # connectivity = None
+#
+#     def __init__(self, times=None):
+#         super(_pKa_Titration, self).__init__(times)
+#         self.times = times
+#         self.C = None
+#         self._connectivity = connectivity
+#
+#         self.init_times(times)
+#
+#         self.init_params()
+#         self.species_names = np.array(list('ABC'), dtype=np.str)
+#
+#
+#     @staticmethod
+#     def simulate(pkas, pH):
+#         n = len(pkas)
+#         _pkas = np.sort(np.asarray(pkas))
+#
+#         fs = 10 ** (_pkas[:, None] - pH[None, :])  # factors for pKas
+#
+#         profiles = np.ones((n + 1, pH.shape[0]))
+#         for i in range(n):
+#             profiles[i] = fs[i:, :].prod(axis=0, keepdims=False)
+#
+#         profiles /= profiles.sum(axis=0)  # divide each profile by sum of all profiles
+#
+#         return profiles.T
+#
+#     def init_params(self):
+#         self.params = Parameters()
+#
+#         self.params.add('c0', value=1, min=0, max=np.inf, vary=True)
+#         self.params.add('k', value=1, min=0, max=np.inf)
+#
+#         if self.order == '1st':
+#             self.params['c0'].vary = False
+#             self.params.add('n', value=1, min=0, max=10, vary=False)
+#         elif self.order == '2nd':
+#             self.params.add('n', value=2, min=0, max=10, vary=False)
+#         else:
+#             self.params['c0'].vary = False
+#             self.params.add('n', value=1.1, min=0, max=10)
+
+
+
+
 class AB_Model(_Model):
     """Simple A->B model, default is 1st order reaction, 2nd order and n-th order can be selected as well. Also,
     user can define whether both A and B are visible, or only A or B is visible. Default is [True, False] - only A is
@@ -1746,9 +1800,47 @@ class Test_Bilirubin_Multiset(_Model):
         return C_out
 
 
+class PKA_Titration(_Model):
+    """Mixed first and second order kinetics, d[A]/dt = -k1[A] - k2[A]^2"""
+    n = 2
+    name = 'pKa determination, monoprotic acid'
+
+    def __init__(self, times=None):
+        super(PKA_Titration, self).__init__(times)
+
+        self.species_names = np.array(list('AB'), dtype=np.str)
+
+        self.description = "TODO "
+
+    @staticmethod
+    def simulate(pkas, pH):
+        n = len(pkas)
+        _pkas = np.sort(np.asarray(pkas))
+
+        fs = 10 ** (_pkas[:, None] - pH[None, :])  # factors for pKas
+
+        profiles = np.ones((n + 1, pH.shape[0]))
+        for i in range(n):
+            profiles[i] = fs[i:, :].prod(axis=0, keepdims=False)
+
+        profiles /= profiles.sum(axis=0)  # divide each profile by sum of all profiles
+
+        return profiles.T
 
 
+    def init_params(self):
+        self.params = Parameters()
+        self.params.add('c0', value=1, min=0, max=np.inf, vary=False)
+        self.params.add('pKa', value=1, min=0, max=np.inf)
 
+    def calc_C(self, params=None, C_out=None):
+        super(PKA_Titration, self).calc_C(params, C_out)
+
+        c0, pKa = self.params['c0'].value, self.params['pKa'].value
+
+        self.C = c0 * self.simulate([pKa], self.times)
+
+        return self.get_conc_matrix(C_out, self._connectivity)
 
 
 

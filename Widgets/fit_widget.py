@@ -316,10 +316,13 @@ class FitWidget(QWidget, Ui_Form):
         self.update_params()
         self.fitter_update_options()
 
-        self._C = self.current_model.calc_C(C_out=self._C)
+        # self._C = self.current_model.calc_C(C_out=self._C)
+        self._C = self.current_model.calc_C(C_out=None)
+
+        self.fitter_update_options()
 
         self.fitter.calc_ST()
-        self.fitter.ST_opt[0] *= 26139.01 / self.fitter.ST_opt[0].max()
+        # self.fitter.ST_opt[0] *= 26139.01 / self.fitter.ST_opt[0].max()
         self._ST = self.fitter.ST_opt
         self.plot_opt_matrices()
 
@@ -401,7 +404,8 @@ class FitWidget(QWidget, Ui_Form):
         #     self.fitter.HS_MCR_fit(c_model=None)
         # else:  # mix of two, HS-fit
         if self.current_model.connectivity.count(0) == 0:
-            self.fitter.HS_MCR_fit(c_model=self.current_model)
+            # self.fitter.HS_MCR_fit(c_model=self.current_model)
+            self.fitter.var_pro()
             self.current_model = self.fitter.c_model
         elif self.current_model.connectivity.count(0) == n:  # pure MCR fit
             self.fitter.HS_MCR_fit(c_model=None)
