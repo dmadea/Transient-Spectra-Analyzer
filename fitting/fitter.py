@@ -384,6 +384,6 @@ class Fitter:
 
             self.calc_ST()
 
-            # self.ST_opt[0] *= 26139.01 / self.ST_opt[0].max()
+            self.ST_opt[0] *= 26139.01 / self.ST_opt[0].max()
 
         return True

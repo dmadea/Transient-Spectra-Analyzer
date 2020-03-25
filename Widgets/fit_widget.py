@@ -316,8 +316,8 @@ class FitWidget(QWidget, Ui_Form):
         self.update_params()
         self.fitter_update_options()
 
-        # self._C = self.current_model.calc_C(C_out=self._C)
-        self._C = self.current_model.calc_C(C_out=None)
+        self._C = self.current_model.calc_C(C_out=self._C)
+        # self._C = self.current_model.calc_C(C_out=None)
 
         self.fitter_update_options()
 
