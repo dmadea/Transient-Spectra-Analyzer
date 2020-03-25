@@ -575,6 +575,67 @@ def setup4():
 
     return au
 
+
+def setup5():
+    fw = FitWidget.instance
+    pw = PlotWidget.instance
+
+    # path = r"C:\Users\Dominik\Documents\MUNI\Organic Photochemistry\Projects\2019-Bilirubin project\UV-VIS\Irradiation kinetics\HL-degassed"
+    #
+    # paths = []
+    #
+    # paths.append(path + r"\HL 375 nm irr (both modules)\cut.txt")
+    # paths.append(path + r"\Z 375 nm irr (both modules)\cut.txt")
+
+    path = r"C:\Users\Dominik\Documents\MUNI\Organic Photochemistry\Projects\2019-Bilirubin project\UV-VIS\QY measurement\Photodiode\Z purified"
+
+    paths = []
+    #
+
+    paths.append(path + r"\Z 350\cut.txt")
+    paths.append(path + r"\E 350\cut.txt")
+
+    paths.append(path + r"\Z 410\cut.txt")
+    paths.append(path + r"\E 410\cut.txt")
+
+    paths.append(path + r"\Z 500\cut.txt")
+    paths.append(path + r"\E 500\cut.txt")
+
+
+    path += r"\reactor LEDs"
+
+
+    paths.append(path + r"\Z 355\cut.txt")
+    paths.append(path + r"\Z 400\cut.txt")
+    paths.append(path + r"\Z 490\cut.txt")
+
+    paths.append(path + r"\HL 355\cut.txt")
+    paths.append(path + r"\HL 400\cut.txt")
+
+
+
+
+    # paths.append(path + r"\E 350\cut.txt")
+
+    au = AugmentedMatrix(len(paths), 1)
+
+    for i in range(len(paths)):
+        au.load_matrix(i, 0, paths[i])
+        # au[i, 0].reduce(t_dim=2)
+
+
+    au[6, 0].crop_data(t1=3000)
+
+    m = au.get_aug_LFP_matrix()
+
+    pw.plot_matrix(m)
+    fw.matrix = m
+    fw._au = au
+    Console.push_variables({'matrix': m})
+
+    return au
+
+
 def setup_test():
     fw = FitWidget.instance
     pw = PlotWidget.instance

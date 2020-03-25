@@ -405,7 +405,8 @@ class FitWidget(QWidget, Ui_Form):
         # else:  # mix of two, HS-fit
         if self.current_model.connectivity.count(0) == 0:
             # self.fitter.HS_MCR_fit(c_model=self.current_model)
-            self.fitter.var_pro()
+            # self.fitter.var_pro()
+            self.fitter.HS_MCR_fit(c_model=self.current_model)
             self.current_model = self.fitter.c_model
         elif self.current_model.connectivity.count(0) == n:  # pure MCR fit
             self.fitter.HS_MCR_fit(c_model=None)
@@ -476,6 +477,8 @@ class FitWidget(QWidget, Ui_Form):
         setattr(self.current_model, 'ST', self._ST)
         if self._au:
             setattr(self.current_model, 'aug_matrix', self._au)
+        else:
+            setattr(self.current_model, 'matrix', self.matrix)
 
         # get the conectivity with kinetic model
         n = int(self.sbN.value())  # number of species

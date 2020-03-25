@@ -1296,8 +1296,8 @@ class Half_Bilirubin_Multiset_Half(_Model):
         self.interp_kind = 'quadratic'
         self.species_names = np.array(list('ZEH'), dtype=np.str)
 
-        # path = r"C:\Users\Dominik\Documents\MUNI\Organic Photochemistry\Projects\2019-Bilirubin project\UV-VIS\QY measurement\Photodiode\new setup"
-        path = r"C:\Users\dominik\Documents\Projects\Bilirubin\UV-Vis data"
+        path = r"C:\Users\Dominik\Documents\MUNI\Organic Photochemistry\Projects\2019-Bilirubin project\UV-VIS\QY measurement\Photodiode\new setup"
+        # path = r"C:\Users\dominik\Documents\Projects\Bilirubin\UV-Vis data"
 
         fname = path + r'\em sources.txt'
         data = np.loadtxt(fname, delimiter='\t', skiprows=1)
@@ -1798,6 +1798,124 @@ class Test_Bilirubin_Multiset(_Model):
         #
 
         return C_out
+
+
+
+class Test_HL_start(_Model):
+    n = 3
+    name = 'Test HL start'
+    # n_pars_per_QY = 5
+    wl_range = (340, 480)
+
+    def __init__(self, times=None, ST=None, wavelengths=None, matrix=None):
+        super(Test_HL_start, self).__init__(times)
+
+        self.wavelengths = wavelengths
+        self.matrix = matrix
+
+        self.ST = ST
+        # self.interp_kind = 'quadratic'
+        self.species_names = np.array(list('ZHD'), dtype=np.str)
+
+        path = r"C:\Users\Dominik\Documents\MUNI\Organic Photochemistry\Projects\2019-Bilirubin project\UV-VIS\QY measurement\Photodiode\new setup"
+        # path = r"C:\Users\dominik\Documents\Projects\Bilirubin\UV-Vis data"
+
+        data_led = np.loadtxt(path + r'\LED sources.txt', delimiter='\t', skiprows=1)
+
+        self.LED_355 = data_led[:, 1] / np.trapz(data_led[:, 1], x=self.wavelengths)
+        self.LED_375 = data_led[:, 2] / np.trapz(data_led[:, 2], x=self.wavelengths)
+        self.LED_405 = data_led[:, 3] / np.trapz(data_led[:, 3], x=self.wavelengths)
+        self.LED_420 = data_led[:, 4] / np.trapz(data_led[:, 4], x=self.wavelengths)
+        self.LED_450 = data_led[:, 5] / np.trapz(data_led[:, 5], x=self.wavelengths)
+        self.LED_470 = data_led[:, 6] / np.trapz(data_led[:, 6], x=self.wavelengths)
+        self.LED_490 = data_led[:, 7] / np.trapz(data_led[:, 7], x=self.wavelengths)
+
+        self.description = ""
+
+    # def update_params(self, n_pars_per_QY=5, wl_range=(340, 480)):
+    #     self.wl_range = wl_range
+    #     self.n_pars_per_QY = n_pars_per_QY
+    #     self.init_params()
+
+    def init_params(self):
+        self.params = Parameters()
+
+        # amount of Z in the mixture, 1: only Z, 0:, only E
+
+        self.params.add('q0', value=1e-6, min=0, max=np.inf, vary=False)
+
+        self.params.add('Phi_HLZE', value=0.005, min=0, max=1, vary=True)
+        self.params.add('Phi_ZEHL', value=0.005, min=0, max=1, vary=True)
+        self.params.add('Phi_HLD', value=0.001, min=0, max=1, vary=True)
+        self.params.add('Phi_ZED', value=0.001, min=0, max=1, vary=True)
+
+
+
+    @staticmethod
+    def simulate(q0, c0, K, I_source, wavelengths=None, times=None, eps=None, V=0.003, l=1,  D=None):
+        """
+        c0 is concentration vector at time, defined in times arary as first element (initial condition), eps is vector of molar abs. coefficients,
+        I_source is spectrum of irradiaiton source if this was used,
+        if not, w_irr as irradiaton wavelength must be specified, K is transfer matrix, l is length of a cuvette, default 1 cm
+        times are times for which to simulate the kinetics
+        """
+        # n = eps.shape[0]  # eps are epsilons - n x w matrix, where n is number of species and w is number of wavelengths
+        # assert n == K.shape[0] == K.shape[1]
+        c0 = np.asarray(c0)
+
+        # get absorbances from real data
+        abs_at = interp2d(wavelengths, times, D, kind='linear', copy=True)
+
+        const = l * np.log(10)
+        tol = 1e-3
+
+        def dc_dt(c, t):
+
+            c_eps = c[..., None] * eps  # hadamard product
+
+            c_dot_eps = abs_at(wavelengths, t)
+
+            x_abs = c_eps * np.where(c_dot_eps <= tol, const - c_dot_eps * const * const / 2,
+                                     (1 - np.exp(-c_dot_eps * const)) / c_dot_eps) * I_source
+
+            # w x n x n   x   w x n x 1
+            product = np.matmul(K, x_abs.T[..., None])  # w x n x 1
+
+            return q0 / V * np.trapz(product, x=wavelengths, axis=0).squeeze()
+
+        result = odeint(dc_dt, c0, times)
+
+        return result
+
+    def calc_C(self, params=None, C_out=None):
+        super(Test_HL_start, self).calc_C(params)
+
+        if self.ST is None:
+            raise ValueError("Spectra matrix must not be none.")
+
+        q0, Phi_HLZE, Phi_ZEHL, Phi_HLD, Phi_ZED = [par[1].value for par in self.params.items()]
+        #
+        # K = np.asarray([[-Phi_ZE,   Phi_EZ,         0,                0],
+        #                 [Phi_ZE,   -Phi_EZ - Phi_EHL,    Phi_HLE,     0],
+        #                 [0,      Phi_EHL,   -Phi_HLE - Phi_HLD,       0],
+        #                 [0,      0,             Phi_HLD,              0]])
+
+        K = np.asarray([[-Phi_ZEHL - Phi_ZED, Phi_HLZE, 0],
+                        [Phi_ZEHL, -Phi_HLZE - Phi_HLD, 0],
+                        [Phi_ZED, Phi_HLD, 0]])
+
+        # E is combined spectrum of
+        HL = self.ST[1]
+        HL_sum = (HL * HL).sum()
+
+        A0 = self.matrix.Y[0]
+        c0 = (A0 * HL).sum() / HL_sum
+
+        C_out = self.simulate(q0, [0, c0, 0], K, self.LED_375, wavelengths=self.wavelengths,
+                                      times=self.times, eps=self.ST, V=1, l=1, D=self.matrix.Y)
+
+        return C_out
+
 
 
 class PKA_Titration(_Model):
