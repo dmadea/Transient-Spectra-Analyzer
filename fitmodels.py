@@ -1296,8 +1296,8 @@ class Half_Bilirubin_Multiset_Half(_Model):
         self.interp_kind = 'quadratic'
         self.species_names = np.array(list('ZEH'), dtype=np.str)
 
-        # path = r"C:\Users\Dominik\Documents\MUNI\Organic Photochemistry\Projects\2019-Bilirubin project\UV-VIS\QY measurement\Photodiode\new setup"
-        path = r"C:\Users\dominik\Documents\Projects\Bilirubin\UV-Vis data"
+        path = r"C:\Users\Dominik\Documents\MUNI\Organic Photochemistry\Projects\2019-Bilirubin project\UV-VIS\QY measurement\Photodiode\new setup"
+        # path = r"C:\Users\dominik\Documents\Projects\Bilirubin\UV-Vis data"
 
         fname = path + r'\em sources.txt'
         data = np.loadtxt(fname, delimiter='\t', skiprows=1)
@@ -1817,7 +1817,8 @@ class Z_purified(_Model):
         # self.interp_kind = 'quadratic'
         self.species_names = np.array(list('ZEHD'), dtype=np.str)
 
-        path = r"C:\Users\dominik\Documents\Projects\Bilirubin\UV-Vis Z purified"
+        # path = r"C:\Users\dominik\Documents\Projects\Bilirubin\UV-Vis Z purified"
+        path = r"C:\Users\Dominik\Documents\MUNI\Organic Photochemistry\Projects\2019-Bilirubin project\UV-VIS\QY measurement\Photodiode\Z purified"
 
         data_led = np.loadtxt(path + r'\LED sources.txt', delimiter='\t', skiprows=1)
 
@@ -1852,16 +1853,16 @@ class Z_purified(_Model):
 
         # amount of Z in the mixture, 1: only Z, 0:, only E
 
-        self.params.add('q0_355_LED', value=1e-6, min=0, max=np.inf, vary=True)
+        # self.params.add('q0_355_LED', value=1e-6, min=0, max=np.inf, vary=True)
         # self.params.add('q0_405_LED', value=1e-6, min=0, max=np.inf, vary=True)
         # self.params.add('q0_490_LED', value=1e-6, min=0, max=np.inf, vary=True)
 
-        self.params.add('Phi_ZE_350', value=0.2, min=0, max=1, vary=True)
-        self.params.add('Phi_EZ_350', value=0.2, min=0, max=1, vary=True)
-        self.params.add('Phi_EHL_350', value=0.005, min=0, max=1, vary=True)
-        self.params.add('Phi_HLE_350', value=0.005, min=0, max=1, vary=True)
-        self.params.add('Phi_HLD_350', value=0.001, min=0, max=1, vary=True)
-        self.params.add('Phi_ZD_350', value=0.00, min=0, max=1, vary=False)
+        # self.params.add('Phi_ZE_350', value=0.2, min=0, max=1, vary=True)
+        # self.params.add('Phi_EZ_350', value=0.2, min=0, max=1, vary=True)
+        # self.params.add('Phi_EHL_350', value=0.005, min=0, max=1, vary=True)
+        # self.params.add('Phi_HLE_350', value=0.005, min=0, max=1, vary=True)
+        # self.params.add('Phi_HLD_350', value=0.001, min=0, max=1, vary=True)
+        # self.params.add('Phi_ZD_350', value=0.00, min=0, max=1, vary=False)
 
         # self.params.add('Phi_ZE_400', value=0.2, min=0, max=1, vary=True)
         # self.params.add('Phi_EZ_400', value=0.2, min=0, max=1, vary=True)
@@ -1870,12 +1871,12 @@ class Z_purified(_Model):
         # self.params.add('Phi_HLD_400', value=0.001, min=0, max=1, vary=True)
         # self.params.add('Phi_ZD_400', value=0.00, min=0, max=1, vary=False)
         #
-        # self.params.add('Phi_ZE_500', value=0.2, min=0, max=1, vary=True)
-        # self.params.add('Phi_EZ_500', value=0.2, min=0, max=1, vary=True)
-        # self.params.add('Phi_EHL_500', value=0.005, min=0, max=1, vary=True)
-        # self.params.add('Phi_HLE_500', value=0.005, min=0, max=1, vary=True)
-        # self.params.add('Phi_HLD_500', value=0.001, min=0, max=1, vary=True)
-        # self.params.add('Phi_ZD_500', value=0.00, min=0, max=1, vary=False)
+        self.params.add('Phi_ZE_500', value=0.2, min=0, max=1, vary=True)
+        self.params.add('Phi_EZ_500', value=0.2, min=0, max=1, vary=True)
+        self.params.add('Phi_EHL_500', value=0.005, min=0, max=1, vary=True)
+        self.params.add('Phi_HLE_500', value=0.005, min=0, max=1, vary=True)
+        self.params.add('Phi_HLD_500', value=0.001, min=0, max=1, vary=True)
+        self.params.add('Phi_ZD_500', value=0.00, min=0, max=1, vary=False)
 
         self.params.add('pop_D_in_E', value=0.00, min=0, max=1, vary=False)
         self.params.add('pop_D_in_HL', value=0.00, min=0, max=1, vary=False)
@@ -1952,7 +1953,7 @@ class Z_purified(_Model):
         # Phi_ZE_500, Phi_EZ_500, Phi_EHL_500, Phi_HLE_500, Phi_HLD_500, Phi_ZD_500, \
         # pop_D_in_E, pop_D_in_HL, xZ_E = [par[1].value for par in self.params.items()]
 
-        q0_355_LED, Phi_ZE_350, Phi_EZ_350, Phi_EHL_350, Phi_HLE_350, Phi_HLD_350, Phi_ZD_350, \
+        Phi_ZE_500, Phi_EZ_500, Phi_EHL_500, Phi_HLE_500, Phi_HLD_500, Phi_ZD_500, \
         pop_D_in_E, pop_D_in_HL, xZ_E, t0_0, t0_1 = [par[1].value for par in self.params.items()]
 
         # currents (in A) from power meter of incident photon flux
@@ -1966,40 +1967,40 @@ class Z_purified(_Model):
 
         # xExZ = (1-xZ_E) / xZ_E
 
-        K350 = np.asarray([[-Phi_ZE_350   -Phi_ZD_350,   Phi_EZ_350,         0,            0],
-                           [Phi_ZE_350,   -Phi_EZ_350 - Phi_EHL_350,    Phi_HLE_350,       0],
-                           [0,      Phi_EHL_350,   -Phi_HLE_350 - Phi_HLD_350,             0],
-                           [Phi_ZD_350,      0,             Phi_HLD_350,                   0]])
+        # K350 = np.asarray([[-Phi_ZE_350   -Phi_ZD_350,   Phi_EZ_350,         0,            0],
+        #                    [Phi_ZE_350,   -Phi_EZ_350 - Phi_EHL_350,    Phi_HLE_350,       0],
+        #                    [0,      Phi_EHL_350,   -Phi_HLE_350 - Phi_HLD_350,             0],
+        #                    [Phi_ZD_350,      0,             Phi_HLD_350,                   0]])
 
         # K400 = np.asarray([[-Phi_ZE_400 - Phi_ZD_400, Phi_EZ_400, 0, 0],
         #                    [Phi_ZE_400, -Phi_EZ_400 - Phi_EHL_400, Phi_HLE_400, 0],
         #                    [0, Phi_EHL_400, -Phi_HLE_400 - Phi_HLD_400, 0],
         #                    [Phi_ZD_400, 0, Phi_HLD_400, 0]])
         #
-        # K500 = np.asarray([[-Phi_ZE_500 - Phi_ZD_500, Phi_EZ_500, 0, 0],
-        #                    [Phi_ZE_500, -Phi_EZ_500 - Phi_EHL_500, Phi_HLE_500, 0],
-        #                    [0, Phi_EHL_500, -Phi_HLE_500 - Phi_HLD_500, 0],
-        #                    [Phi_ZD_500, 0, Phi_HLD_500, 0]])
+        K500 = np.asarray([[-Phi_ZE_500 - Phi_ZD_500, Phi_EZ_500, 0, 0],
+                           [Phi_ZE_500, -Phi_EZ_500 - Phi_EHL_500, Phi_HLE_500, 0],
+                           [0, Phi_EHL_500, -Phi_HLE_500 - Phi_HLD_500, 0],
+                           [Phi_ZD_500, 0, Phi_HLD_500, 0]])
 
 
         # time of start of irradiation
         # t0_s = [6.6, 6, 9.5, 9.5, 9.5, 9.5, 3.8, 3.8, 8.8, 8, 10]
 
-        t0_s = [t0_0, t0_1, 8]
+        t0_s = [9.5, 9.5, t0_0, t0_1, 8]
 
         args = [
-            ['Z', q_tot_Z350, '-initial concentraition vector', K350, self.I_350],
+            # ['Z', q_tot_Z350, '-initial concentraition vector', K350, self.I_350],
             # ['E', q_tot_E350, '-initial concentraition vector', K350, self.I_350],
             # ['Z', q_tot_Z400, '-initial concentraition vector', K400, self.I_400],
             # ['E', q_tot_E400, '-initial concentraition vector', K400, self.I_400],
-            # ['Z', q_tot_Z500, '-initial concentraition vector', K500, self.I_500],
-            # ['E', q_tot_E500, '-initial concentraition vector', K500, self.I_500],
+            ['Z', q_tot_Z500, '-initial concentraition vector', K500, self.I_500],
+            ['E', q_tot_E500, '-initial concentraition vector', K500, self.I_500],
             #
-            ['Z', q0_355_LED, '-initial concentraition vector', K350, self.LED_355],
+            # ['Z', q0_355_LED, '-initial concentraition vector', K350, self.LED_355],
             # ['Z', q0_405_LED, '-initial concentraition vector', K400, self.LED_405],
             # ['Z', q0_490_LED, '-initial concentraition vector', K500, self.LED_490],
             # #
-            ['HL', q0_355_LED, '-initial concentraition vector', K350, self.LED_355],
+            # ['HL', q0_355_LED, '-initial concentraition vector', K350, self.LED_355],
             # ['HL', q0_405_LED, '-initial concentraition vector', K400, self.LED_405],
 
         ]
