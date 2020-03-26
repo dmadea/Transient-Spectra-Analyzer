@@ -6,6 +6,14 @@ from scipy.optimize import nnls as _nnls
 from numba import njit
 # # from theano.ode import DifferentalEquation
 # from pymc3.ode import DifferentialEquation
+import math
+
+def find_nearest_idx(array, value):
+    idx = np.searchsorted(array, value, side="left")
+    if idx > 0 and (idx == len(array) or math.fabs(value - array[idx - 1]) < math.fabs(value - array[idx])):
+        return idx - 1
+    else:
+        return idx
 
 from .constraints import ConstraintNonneg
 
@@ -384,6 +392,15 @@ class Fitter:
 
             self.calc_ST()
 
+            # normalize Z to constant value
+
             self.ST_opt[0] *= 26139.01 / self.ST_opt[0].max()
+
+            # E must have the same epsilon at 444 nm as Z has
+
+            idx_444 = find_nearest_idx(self.wls, 444 - 230)
+
+            self.ST_opt[1] *= self.ST_opt[0, idx_444] / self.ST_opt[1, idx_444]
+
 
         return True

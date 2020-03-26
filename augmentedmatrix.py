@@ -528,12 +528,29 @@ def setup3_half():
     paths.append(path + r"\Z 480 nm\cut.txt")
     paths.append(path + r"\E 480 nm\cut.txt")
 
+    # paths.append(path + r"\Z 410p\cut.txt")
+    # paths.append(path + r"\E 410p\cut.txt")
+
+    paths.append(path + r"\Z 500p\cut.txt")
+    paths.append(path + r"\E 500p\cut.txt")
+
+    path += r"\reactor LEDs"
+    #
+
+    paths.append(path + r"\Z 355\cut.txt")
+    paths.append(path + r"\Z 400\cut.txt")
+    paths.append(path + r"\Z 490\cut.txt")
+    #
+    paths.append(path + r"\HL 355\cut.txt")
+    paths.append(path + r"\HL 400\cut.txt")
 
     au = AugmentedMatrix(len(paths), 1)
 
     for i in range(len(paths)):
         au.load_matrix(i, 0, paths[i])
-        # au[i, 0].reduce(t_dim=2)
+        au[i, 0].reduce(t_dim=2)
+
+    au[-5, 0].crop_data(t1=3000)
 
 
     m = au.get_aug_LFP_matrix()
@@ -592,8 +609,8 @@ def setup5():
     # paths.append(path + r"\HL 375 nm irr (both modules)\cut.txt")
     # paths.append(path + r"\Z 375 nm irr (both modules)\cut.txt")
 
-    path = r"C:\Users\Dominik\Documents\MUNI\Organic Photochemistry\Projects\2019-Bilirubin project\UV-VIS\QY measurement\Photodiode\Z purified"
-    # path = r"C:\Users\dominik\Documents\Projects\Bilirubin\UV-Vis Z purified"
+    # path = r"C:\Users\Dominik\Documents\MUNI\Organic Photochemistry\Projects\2019-Bilirubin project\UV-VIS\QY measurement\Photodiode\Z purified"
+    path = r"C:\Users\dominik\Documents\Projects\Bilirubin\UV-Vis Z purified"
 
 
     paths = []
