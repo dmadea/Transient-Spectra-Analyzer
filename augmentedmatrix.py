@@ -39,8 +39,8 @@ class AugmentedMatrix(object):
     def get_shapes(self):
         return [[self.matrices[i, j].Y.shape for j in range(self.c)] for i in range(self.r)]
 
-    def construct_aug_matrix(self):
-        if self.aug_mat is not None:
+    def construct_aug_matrix(self, reconstruct=False):
+        if self.aug_mat is not None and not reconstruct:
             return self.aug_mat
 
         self.aug_mat = np.hstack([mat.Y for mat in self.matrices[0]])
@@ -102,6 +102,30 @@ class AugmentedMatrix(object):
         q_rel = np.trapz(x_abs * I_source, x=wls, axis=2)
 
         return q_rel.squeeze()
+
+    def save_Cs(self, fname='C'):
+        for i in range(self.r):
+
+            C = self._C_indiv(i)
+            C_aug = np.hstack((self[i, 0].times[:, None], C))
+
+            np.savetxt(f'{fname}{i:03d}.txt', C_aug, delimiter='\t')
+
+    def change_to_fitted_data(self):
+        fw = FitWidget.instance
+        pw = PlotWidget.instance
+
+        for i in range(self.r):
+            C = self._C_indiv(i)
+            self[i, 0].Y = C @ self.ST_aug
+
+        self.construct_aug_matrix(True)
+        m = self.get_aug_LFP_matrix()
+
+        pw.plot_matrix(m)
+        fw.matrix = m
+        fw._au = self
+        Console.push_variables({'matrix': m})
 
     def plot_fit_photochem(self, symlog=False, c_model=None, z_label='Absorbance', wl_label='Wavelength (nm)', t_label='Time (s)',
                            dpi=500, figsize=(50, 8), cmap='jet', time_linthresh=200, time_linscale=1, transparent=False,
@@ -510,26 +534,30 @@ def setup3_half():
     fw = FitWidget.instance
     pw = PlotWidget.instance
 
-    # path = r"C:\Users\Dominik\Documents\MUNI\Organic Photochemistry\Projects\2019-Bilirubin project\UV-VIS\QY measurement\Photodiode\new setup"
-    path = r"C:\Users\dominik\Documents\Projects\Bilirubin\UV-Vis data"
+    path = r"C:\Users\Dominik\Documents\MUNI\Organic Photochemistry\Projects\2019-Bilirubin project\UV-VIS\QY measurement\Photodiode\new setup"
+    # path = r"C:\Users\dominik\Documents\Projects\Bilirubin\UV-Vis data"
 
     paths = []
 
-    paths.append(path + r"\Z 330 nm\cut.txt")
-    paths.append(path + r"\E 330 nm\cut.txt")
+    # paths.append(path + r"\Z 330 nm\cut.txt")
+    # paths.append(path + r"\E 330 nm\cut.txt")
+    #
+    # paths.append(path + r"\Z 375 nm\cut.txt")
+    #
+    # paths.append(path + r"\Z 400 nm\cut.txt")
+    # paths.append(path + r"\E 400 nm\cut.txt")
+    #
+    # paths.append(path + r"\Z 450 nm\cut.txt")
+    #
+    # paths.append(path + r"\Z 480 nm\cut.txt")
+    # paths.append(path + r"\E 480 nm\cut.txt")
 
-    paths.append(path + r"\Z 375 nm\cut.txt")
 
-    paths.append(path + r"\Z 400 nm\cut.txt")
-    paths.append(path + r"\E 400 nm\cut.txt")
+    paths.append(path + r"\Z 350p\cut.txt")
+    paths.append(path + r"\E 350p\cut.txt")
 
-    paths.append(path + r"\Z 450 nm\cut.txt")
-
-    paths.append(path + r"\Z 480 nm\cut.txt")
-    paths.append(path + r"\E 480 nm\cut.txt")
-
-    # paths.append(path + r"\Z 410p\cut.txt")
-    # paths.append(path + r"\E 410p\cut.txt")
+    paths.append(path + r"\Z 410p\cut.txt")
+    paths.append(path + r"\E 410p\cut.txt")
 
     paths.append(path + r"\Z 500p\cut.txt")
     paths.append(path + r"\E 500p\cut.txt")
@@ -539,6 +567,10 @@ def setup3_half():
 
     paths.append(path + r"\Z 355\cut.txt")
     paths.append(path + r"\Z 400\cut.txt")
+
+    # paths.append(path + r"\450 nm (one module)\cut.txt")
+    # paths.append(path + r"\470 nm (one module)\cut.txt")
+
     paths.append(path + r"\Z 490\cut.txt")
     #
     paths.append(path + r"\HL 355\cut.txt")
@@ -548,7 +580,7 @@ def setup3_half():
 
     for i in range(len(paths)):
         au.load_matrix(i, 0, paths[i])
-        au[i, 0].reduce(t_dim=2)
+        # au[i, 0].reduce(t_dim=2)
 
     au[-5, 0].crop_data(t1=3000)
 

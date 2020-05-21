@@ -194,6 +194,16 @@ class FitWidget(QWidget, Ui_Form):
     def ssq(self):
         return ((self.matrix.Y - self._C @ self._ST) ** 2).sum()
 
+    def lof(self):
+        return np.sqrt(self.ssq() / (self.matrix.Y ** 2).sum()) * 100
+
+    def R2(self):
+        return (1 - self.ssq() / (self.matrix.Y ** 2).sum()) * 100
+
+    def print_stats(self):
+        print(f"Lack of Fit:    {self.lof():.05g}")
+        print(f"R squared:      {self.R2():.05g}")
+
     def set_C(self, component, data):
         if self.matrix is None:
             return

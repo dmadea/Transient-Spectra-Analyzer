@@ -29,6 +29,20 @@ class FitResult(object):
         self.values_errors = values_errors
         self.model = current_model
 
+    def plot_phis(self, y_scale='log', quantiles=(0.025, 0.975), n_samples=10000, alpha_q=0.2):
+
+        Q = self.model.get_quantiles(self.result.covar, self.values_errors[:, 0], quantiles=quantiles, n_samples=n_samples)
+
+        self.model.plot_phis(y_scale=y_scale, quantiles=Q, alpha_q=alpha_q)
+
+    def save_QYs(self, quantiles=(0.025, 0.975), n_samples=10000, fname='fit_QY.txt'):
+
+        Q = self.model.get_quantiles(self.result.covar, self.values_errors[:, 0], quantiles=quantiles,
+                                     n_samples=n_samples)
+
+        self.model.save_QY_quantiles(Q, fname)
+
+
     def report(self, print=True):
         """Prints a fit report if print == True, otherwise returns fit report as text.
 

@@ -290,6 +290,7 @@ class HeatMapPlot(pg.GraphicsLayout):
 
         # signals
         self.range_changed = self.heat_map_plot.getViewBox().sigRangeChanged
+        self.Y_range_changed = self.heat_map_plot.getViewBox().sigYRangeChanged
 
         self.heat_map = Heatmap()
         self.heat_map_plot.addItem(self.heat_map)

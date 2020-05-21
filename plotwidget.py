@@ -49,6 +49,8 @@ class PlotWidget(DockArea):
 
         self.set_coordinate_func = set_coordinate_func
 
+        self.change_range_lock = False
+
         self.smooth_count = 0
 
         self.fit_matrix = None
@@ -66,9 +68,11 @@ class PlotWidget(DockArea):
 
         # self.surface_widget = SurfacePlot(self)
 
-        self.heat_map_dock = Dock("Heat Map", size=(20, 10))
+        self.heat_map_dock = Dock("Heat Map", size=(50, 7))
         self.heat_map_plot = HeatMapPlot(title="Heat Map")
         self.heat_map_plot.range_changed.connect(self.heat_map_range_changed)
+        # # updates the spectra when y range of heatmap was changed
+        # self.heat_map_plot.Y_range_changed.connect(self.update_spectra)
         self.heat_map_plot.levels_changed.connect(self.heat_map_levels_changed)
         heatmap_w = pg.GraphicsLayoutWidget()
         heatmap_w.ci.addItem(self.heat_map_plot)
@@ -77,8 +81,8 @@ class PlotWidget(DockArea):
 
         # self.ci.addItem(self.heat_map_plot)
 
-        self.heat_map_vline = pg.InfiniteLine(angle=90, movable=True) #, label='vline', labelOpts={'position': 0.2})
-        self.heat_map_hline = pg.InfiniteLine(angle=0, movable=True) #, label='hline', labelOpts={'position': 0.2})
+        self.heat_map_vline = pg.InfiniteLine(angle=90, movable=True, pen=pg.mkPen((0, 0, 0)))
+        self.heat_map_hline = pg.InfiniteLine(angle=0, movable=True, pen=pg.mkPen((0, 0, 0)))
 
         self.heat_map_plot.heat_map_plot.addItem(self.heat_map_vline, ignoreBounds=True)
         self.heat_map_plot.heat_map_plot.addItem(self.heat_map_hline, ignoreBounds=True)
@@ -89,6 +93,10 @@ class PlotWidget(DockArea):
 
         w_spectra = pg.PlotWidget(title="Spectra")
         self.spectra_plot = w_spectra.plotItem
+
+        self.spectra_vline = pg.InfiniteLine(angle=90, movable=True, pen=pg.mkPen((0, 0, 0)))
+        self.spectra_plot.addItem(self.spectra_vline, ignoreBounds=True)
+
         self.spectra_plot.showAxis('top', show=True)
         self.spectra_plot.showAxis('right', show=True)
 
@@ -96,14 +104,14 @@ class PlotWidget(DockArea):
         self.spectra_plot.setLabel('bottom', text='Wavelength (nm)')
         self.spectra_plot.showGrid(x=True, y=True, alpha=0.1)
 
-        self.spectra_dock = Dock("Spectra", widget=w_spectra)
+        self.spectra_dock = Dock("Spectra", widget=w_spectra, size=(40, 7))
 
         # Spectrum plot
 
         w_spectrum = pg.PlotWidget(title="Spectrum")
         self.spectrum = w_spectrum.plotItem
 
-        self.spectrum_vline = pg.InfiniteLine(angle=90, movable=True)
+        self.spectrum_vline = pg.InfiniteLine(angle=90, movable=True, pen=pg.mkPen('b'))
         self.spectrum.addItem(self.spectrum_vline, ignoreBounds=True)
 
         self.spectrum.showAxis('top', show=True)
@@ -122,7 +130,7 @@ class PlotWidget(DockArea):
 
         # self.trace = self.ci.addPlot(title="Trace")
 
-        self.trace_vline = pg.InfiniteLine(angle=90, movable=True)
+        self.trace_vline = pg.InfiniteLine(angle=90, movable=True, pen=pg.mkPen('b'))
         self.trace.addItem(self.trace_vline, ignoreBounds=True)
 
         self.trace.showAxis('top', show=True)
@@ -141,7 +149,7 @@ class PlotWidget(DockArea):
         # data panel
 
         self.data_panel = DataPanel()
-        self.settings_dock = Dock("Properties", widget=self.data_panel, size=(1, 10))
+        self.settings_dock = Dock("Properties", widget=self.data_panel, size=(1, 7))
 
         self.data_panel.txb_t0.focus_lost.connect(self.update_range)
         self.data_panel.txb_t1.focus_lost.connect(self.update_range)
@@ -175,6 +183,7 @@ class PlotWidget(DockArea):
             wl_pos = self.heat_map_vline.pos()
 
             self.spectrum_vline.setPos(wl_pos[0])
+            self.spectra_vline.setPos(wl_pos[0])
             self.trace_vline.setPos(time_pos[1])
 
         def update_heat_lines():
@@ -184,28 +193,27 @@ class PlotWidget(DockArea):
             self.heat_map_hline.setPos(time_pos[0])
             self.heat_map_vline.setPos(wl_pos[0])
 
+        def update_heat_lines_spectra():
+            wl_pos = self.spectra_vline.pos()
+            self.heat_map_vline.setPos(wl_pos[0])
+
         self.heat_map_vline.sigPositionChanged.connect(update_v_lines)
         self.heat_map_hline.sigPositionChanged.connect(update_v_lines)
         self.spectrum_vline.sigPositionChanged.connect(update_heat_lines)
+        self.spectra_vline.sigPositionChanged.connect(update_heat_lines_spectra)
         self.trace_vline.sigPositionChanged.connect(update_heat_lines)
 
         self.heat_map_vline.sigPositionChanged.connect(self.update_trace_and_spectrum)
         self.heat_map_hline.sigPositionChanged.connect(self.update_trace_and_spectrum)
         self.spectrum_vline.sigPositionChanged.connect(self.update_trace_and_spectrum)
+        self.spectra_vline.sigPositionChanged.connect(self.update_trace_and_spectrum)
         self.trace_vline.sigPositionChanged.connect(self.update_trace_and_spectrum)
+
 
         # self.heat_map_vline.sigPositionChangeFinished.connect(self.update_trace_and_spectrum)
         # self.heat_map_hline.sigPositionChangeFinished.connect(self.update_trace_and_spectrum)
         # self.spectrum_vline.sigPositionChangeFinished.connect(self.update_trace_and_spectrum)
         # self.trace_vline.sigPositionChangeFinished.connect(self.update_trace_and_spectrum)
-
-        #
-        # self.update_settings()
-
-        # self.legend = None
-        # self.add_legend()
-
-        # proxy = pg.SignalProxy(self.scene().sigMouseMoved, rateLimit=60, slot=self.mouse_moved)
 
     @staticmethod
     def is_int(num):
@@ -280,12 +288,20 @@ class PlotWidget(DockArea):
             pass
 
     def trace_spectrum_range_changed(self, vb, range):
+        if self.change_range_lock:
+            return
+        self.change_range_lock = True
         if vb == self.spectrum.getViewBox():
             self.heat_map_plot.heat_map_plot.getViewBox().setXRange(range[0][0], range[0][1], padding=0)
         else:
             self.heat_map_plot.heat_map_plot.getViewBox().setYRange(range[0][0], range[0][1], padding=0)
 
+        self.change_range_lock = False
+
     def heat_map_range_changed(self, vb, range):
+        if self.change_range_lock:
+            return
+        self.change_range_lock = True
         self.data_panel.txb_w0.setText(f'{range[0][0]:.4g}')
         self.data_panel.txb_w1.setText(f'{range[0][1]:.4g}')
         self.data_panel.txb_t0.setText(f'{range[1][0]:.4g}')
@@ -305,6 +321,7 @@ class PlotWidget(DockArea):
         if not range[1][0] <= h_pos <= range[1][1]:
             self.heat_map_hline.setPos(range[1][0] if np.abs(h_pos - range[1][0]) < np.abs(h_pos - range[1][1]) else range[1][1])
 
+        self.change_range_lock = False
     def heat_map_levels_changed(self, hist):
         z_levels = self.heat_map_plot.get_z_range()
         self.data_panel.txb_z0.setText(f'{z_levels[0]:.4g}')
@@ -436,7 +453,12 @@ class PlotWidget(DockArea):
         self.trace.autoBtnClicked()
 
     def update_spectra(self):
+        if self.matrix is None:
+            return
+
         self.spectra_plot.clearPlots()
+
+        # print("range changed")
 
         for i in range(self.n_spectra):
             sp = self.matrix.D[int(i * self.matrix.D.shape[0] / self.n_spectra)]
@@ -469,10 +491,15 @@ class PlotWidget(DockArea):
 
         self.spectrum.getViewBox().setLimits(xMin=matrix.wavelengths[0], xMax=matrix.wavelengths[-1],
                                              yMin=self.matrix_min, yMax=self.matrix_max)
+
+        self.spectra_plot.getViewBox().setLimits(xMin=matrix.wavelengths[0], xMax=matrix.wavelengths[-1],
+                                             yMin=self.matrix_min, yMax=self.matrix_max)
+
         self.trace.getViewBox().setLimits(xMin=matrix.times[0], xMax=matrix.times[-1],
                                           yMin=self.matrix_min, yMax=self.matrix_max)
 
         self.spectrum_vline.setBounds([matrix.wavelengths[0], matrix.wavelengths[-1]])
+        self.spectra_vline.setBounds([matrix.wavelengths[0], matrix.wavelengths[-1]])
         self.trace_vline.setBounds([matrix.times[0], matrix.times[-1]])
         self.heat_map_vline.setBounds([matrix.wavelengths[0], matrix.wavelengths[-1]])
         self.heat_map_hline.setBounds([matrix.times[0], matrix.times[-1]])
