@@ -68,7 +68,7 @@ class FitWidget(QWidget, Ui_Form):
         # get all models from fitmodels, get classes that inherits from Model base class and sort them by name
         # and number of species
         classes = inspect.getmembers(sys.modules[fitmodels.__name__], inspect.isclass)
-        tuples = filter(lambda tup: issubclass(tup[1], fitmodels._Model) and tup[1] is not fitmodels._Model, classes)
+        tuples = filter(lambda tup: issubclass(tup[1], (fitmodels._Model)) and tup[1] is not (fitmodels._Model and fitmodels._Photokinetic_Model), classes)
         self.models = sorted(list(map(lambda tup: tup[1], tuples)), key=lambda cls: (cls.name, cls.n))
 
         # fill the combo box items with model names
@@ -275,6 +275,8 @@ class FitWidget(QWidget, Ui_Form):
             self.C_fix_list[i].setVisible(visible)
 
         self.init_matrices()
+        self.current_model.update_n(species_count)
+        self.update_model_par_count()
 
     @staticmethod
     def check_state(checked):
@@ -283,6 +285,19 @@ class FitWidget(QWidget, Ui_Form):
     def model_changed(self):
         index = self.cbModel.currentIndex()
         self.current_model = self.models[index]()
+
+        self.current_model.update_n(int(self.sbN.value()))
+        self.update_model_par_count()
+
+        if self.matrix is None:
+            return
+
+        # set spectra matrix to model as a parameter
+        wls = self._au[0, 0].wavelengths if self._au else self.matrix.wavelengths
+        setattr(self.current_model, 'wavelengths', wls)
+        setattr(self.current_model, 'ST', self._ST)
+
+    def update_model_par_count(self):
         params_count = self.current_model.params.__len__()
 
         species_count = self.current_model.n
@@ -311,13 +326,6 @@ class FitWidget(QWidget, Ui_Form):
             self.value_list[i].setText(str(p.value))
             self.fixed_list[i].setChecked(not p.vary)
 
-        if self.matrix is None:
-            return
-
-        # set spectra matrix to model as a parameter
-        wls = self._au[0, 0].wavelengths if self._au else self.matrix.wavelengths
-        setattr(self.current_model, 'wavelengths', wls)
-        setattr(self.current_model, 'ST', self._ST)
 
     def simulate_model_clicked(self):
         if self.current_model is None:

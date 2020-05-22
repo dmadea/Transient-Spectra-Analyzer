@@ -287,33 +287,33 @@ class Fitter:
 
         return True
 
-    def obj_func(self, **kwargs):
-        self.update_options(**kwargs)
-        pass
-
-        def residuals(params):
-            # needed to use nonlocal because of nested functions, https://stackoverflow.com/questions/5218895/python-nested-functions-variable-scoping
-            nonlocal _C_opt
-            _C_opt = self.c_model.calc_C(params, _C_opt)
-
-            # calc of objective function
-            # ST =
-
-
-            if c_fix:
-                _C_opt[:, c_fix] = C_est[:, c_fix]
-
-            _ST_calc = NNLS(_C_opt, self.D)[0]
-
-            return _C_opt @ _ST_calc - self.D
-
-            # calculate the residual matrix by varpro (I - CC+)D
-            # return _res_varpro(_C_opt, self.D)
-
-        self.minimizer = lmfit.Minimizer(residuals, self.c_model.params)
-        self.last_result = self.minimizer.minimize(method=self.fit_alg)  # minimize the residuals
-
-        self.c_model.params = self.last_result.params
+    # def obj_func(self, **kwargs):
+    #     self.update_options(**kwargs)
+    #     pass
+    #
+    #     def residuals(params):
+    #         # needed to use nonlocal because of nested functions, https://stackoverflow.com/questions/5218895/python-nested-functions-variable-scoping
+    #         nonlocal _C_opt
+    #         _C_opt = self.c_model.calc_C(params, _C_opt)
+    #
+    #         # calc of objective function
+    #         # ST =
+    #
+    #
+    #         if c_fix:
+    #             _C_opt[:, c_fix] = C_est[:, c_fix]
+    #
+    #         _ST_calc = NNLS(_C_opt, self.D)[0]
+    #
+    #         return _C_opt @ _ST_calc - self.D
+    #
+    #         # calculate the residual matrix by varpro (I - CC+)D
+    #         # return _res_varpro(_C_opt, self.D)
+    #
+    #     self.minimizer = lmfit.Minimizer(residuals, self.c_model.params)
+    #     self.last_result = self.minimizer.minimize(method=self.fit_alg)  # minimize the residuals
+    #
+    #     self.c_model.params = self.last_result.params
 
 
     def var_pro(self, C_est=None, c_fix=None, **kwargs):

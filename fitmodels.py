@@ -78,10 +78,12 @@ class _Model(object):
 
     @abstractmethod
     def init_params(self):
-        self.params = []
+        pass
 
     def update_n(self, new_n=None):
-        pass
+        self.n = new_n if new_n is not None else self.n
+        self.init_params()
+        self.init_times(self.times)
 
     def get_conc_matrix(self, C_out, connectivity=(1, 2, 3)):
         """Replaces the values in C_out according to calculated values based on conectivity"""
@@ -118,19 +120,15 @@ class _Model(object):
             return np.heaviside(t, 1) * (k1 * c0 / (k2 - k1 - k0)) * (np.exp(-(k1 + k0) * t) - np.exp(-k2 * t))
 
 
-
 class _Photokinetic_Model(_Model):
-    n = 4
-    name = 'name'
-    # wl_range_ZEHL = (340, 360, 402, 443, 480, 490)
-    # wl_range_HLED = (370, 409, 490)
 
-    # wl_range_ZE = (355, 414, 490)
-    # wl_range_EHL = (355, 380, 414, 490)
-    # wl_range_HLED = (370, 409, 485)
+    def __init__(self, times=None, connectivity=(0, 1, 2), ST=None, wavelengths=None, aug_matrix=None, rot_mat=True):
 
-    def __init__(self, times=None, ST=None, wavelengths=None, aug_matrix=None, rot_mat=True):
-        super(_Photokinetic_Model, self).__init__(times)
+        self.times = times
+        self.C = None
+        self._connectivity = connectivity
+        self.init_times(times)
+        self.species_names = np.array(list('ABCDEFGHIJ'), dtype=np.str)
 
         self.wavelengths = wavelengths
         self.ST = ST
@@ -146,16 +144,13 @@ class _Photokinetic_Model(_Model):
         self.description = ""
 
     def update_n(self, new_n=None):
-        # _Photokinetic_Model.n = new_n
-        self.n = new_n if new_n is not None else self.n
+        super(_Photokinetic_Model, self).update_n(new_n)
 
         self.T = np.zeros((self.n, self.n), dtype=np.float64) if self.T is not None else None
 
         if self.aug_matrix:
             U, S, VT = svd(self.aug_matrix.aug_mat, full_matrices=False)
             self.U, self.Sigma, self.VT = U[:, :self.n], np.diag(S[:self.n]), VT[:self.n, :]
-
-        self.init_params()
 
     def get_T(self):
         if self.T is None:
@@ -171,15 +166,15 @@ class _Photokinetic_Model(_Model):
     def init_params(self):
         self.params = Parameters()
         if self.T is not None:
-            for i in self.n:
-                for j in self.n:
+            for i in range(self.n):
+                for j in range(self.n):
                     self.params.add(f't_{i+1}{j+1}', value=1 if i == j else 0, min=-np.inf, max=np.inf, vary=True)
 
     @staticmethod
     @vectorize()
     def photokin_factor(A):
         ln10 = np.log(10)
-        ll2 = ln10 * ln10 / 2
+        ll2 = ln10 ** 2 / 2
 
         if A < 1e-3:
             return ln10 - A * ll2
@@ -245,57 +240,38 @@ class _Photokinetic_Model(_Model):
 
         return C_out
 
+class First_Order_Consecutive_Model(_Model):
 
-# class _pKa_Titration(_Model):
-#     # n = 0  # number of visible species in model
-#     n = 0  # number of all possible species
-#
-#     params = None
-#     species_names = None
-#     # connectivity = None
-#
-#     def __init__(self, times=None):
-#         super(_pKa_Titration, self).__init__(times)
-#         self.times = times
-#         self.C = None
-#         self._connectivity = connectivity
-#
-#         self.init_times(times)
-#
-#         self.init_params()
-#         self.species_names = np.array(list('ABC'), dtype=np.str)
-#
-#
-#     @staticmethod
-#     def simulate(pkas, pH):
-#         n = len(pkas)
-#         _pkas = np.sort(np.asarray(pkas))
-#
-#         fs = 10 ** (_pkas[:, None] - pH[None, :])  # factors for pKas
-#
-#         profiles = np.ones((n + 1, pH.shape[0]))
-#         for i in range(n):
-#             profiles[i] = fs[i:, :].prod(axis=0, keepdims=False)
-#
-#         profiles /= profiles.sum(axis=0)  # divide each profile by sum of all profiles
-#
-#         return profiles.T
-#
-#     def init_params(self):
-#         self.params = Parameters()
-#
-#         self.params.add('c0', value=1, min=0, max=np.inf, vary=True)
-#         self.params.add('k', value=1, min=0, max=np.inf)
-#
-#         if self.order == '1st':
-#             self.params['c0'].vary = False
-#             self.params.add('n', value=1, min=0, max=10, vary=False)
-#         elif self.order == '2nd':
-#             self.params.add('n', value=2, min=0, max=10, vary=False)
-#         else:
-#             self.params['c0'].vary = False
-#             self.params.add('n', value=1.1, min=0, max=10)
+    name = 'First order consecutive model'
 
+    def init_params(self):
+        self.params = Parameters()
+        self.params.add('c0', value=1, min=0, max=np.inf, vary=True)
+
+        for i in range(self.n):
+            sec_label = self.species_names[i+1] if i < self.n - 1 else ""
+            self.params.add(f'k_{self.species_names[i]}{sec_label}', value=1, min=0, max=np.inf)
+
+    def calc_C(self, params=None, C_out=None):
+        super(First_Order_Consecutive_Model, self).calc_C(params, C_out)
+
+        c0, *ks = [par[1].value for par in self.params.items()]
+        n = self.n
+
+        # setup K matrix for consecutive model
+        K = np.zeros((n, n))
+
+        for i in range(n):
+            K[i, i] = -ks[i]
+            if i < n - 1:
+                K[i+1, i] = ks[i]
+
+        y0 = np.zeros(n)
+        y0[0] = 1
+
+        self.C = c0 * odeint(lambda c, t: K.dot(c), y0, self.times)
+
+        return self.get_conc_matrix(C_out, self._connectivity)
 
 
 
@@ -410,36 +386,36 @@ class ABDE_Model(_Model):
 
         return self.get_conc_matrix(C_out, self._connectivity)
 
-
-class ABC_Model(_Model):
-    """ABC kinetic model, first order."""
-
-    n = 3
-    name = 'A→B→C (1st order)'
-
-    def __init__(self, times=None):
-        super(ABC_Model, self).__init__(times)
-
-        self.species_names = np.array(list('ABC'), dtype=np.str)
-
-        self.description = "Simple A->B->C model of 1st order. d[A]/dt = -k1[A] - k2[A]^2, [A]_0 = c_0"
-
-    def init_params(self):
-        self.params = Parameters()
-        self.params.add('c0', value=1, min=0, max=np.inf, vary=False)
-        self.params.add('k1', value=1, min=0, max=np.inf)
-        self.params.add('k2', value=0.5, min=0, max=np.inf)
-
-    def calc_C(self, params=None, C_out=None):
-        super(ABC_Model, self).calc_C(params)
-
-        c0, k1, k2 = self.params['c0'].value, self.params['k1'].value, self.params['k2'].value
-
-        self.C[:, 0] = np.heaviside(self.times, 1) * c0 * np.exp(-self.times * k1)
-        self.C[:, 1] = self.cB(self.times, c0, k1, k2)
-        self.C[:, 2] = np.heaviside(self.times, 1) * (c0 - self.C[:, 0] - self.C[:, 1])
-
-        return self.get_conc_matrix(C_out, self._connectivity)
+#
+# class ABC_Model(_Model):
+#     """ABC kinetic model, first order."""
+#
+#     n = 3
+#     name = 'A→B→C (1st order)'
+#
+#     def __init__(self, times=None):
+#         super(ABC_Model, self).__init__(times)
+#
+#         self.species_names = np.array(list('ABC'), dtype=np.str)
+#
+#         self.description = "Simple A->B->C model of 1st order. d[A]/dt = -k1[A] - k2[A]^2, [A]_0 = c_0"
+#
+#     def init_params(self):
+#         self.params = Parameters()
+#         self.params.add('c0', value=1, min=0, max=np.inf, vary=False)
+#         self.params.add('k1', value=1, min=0, max=np.inf)
+#         self.params.add('k2', value=0.5, min=0, max=np.inf)
+#
+#     def calc_C(self, params=None, C_out=None):
+#         super(ABC_Model, self).calc_C(params)
+#
+#         c0, k1, k2 = self.params['c0'].value, self.params['k1'].value, self.params['k2'].value
+#
+#         self.C[:, 0] = np.heaviside(self.times, 1) * c0 * np.exp(-self.times * k1)
+#         self.C[:, 1] = self.cB(self.times, c0, k1, k2)
+#         self.C[:, 2] = np.heaviside(self.times, 1) * (c0 - self.C[:, 0] - self.C[:, 1])
+#
+#         return self.get_conc_matrix(C_out, self._connectivity)
 
 
 class ABC_zero_Model(_Model):
@@ -496,51 +472,51 @@ class ABC_zero_Model(_Model):
 
         return self.get_conc_matrix(C_out, self._connectivity)
 
-class ABCD_Model(_Model):
-    """ABCD kinetic model, first order."""
-
-    n = 4
-    name = 'A→B→C→D (1st order)'
-
-    def __init__(self, times=None, visible=None):
-        super(ABCD_Model, self).__init__(times, visible)
-
-        self.species_names = np.array(list('ABCD'), dtype=np.str)
-
-        # self.description = "Simple A->B->C model of 1st order. d[A]/dt = -k1[A] - k2[A]^2, [A]_0 = c_0"
-
-    def init_params(self):
-        self.params = Parameters()
-        self.params.add('c0', value=1, min=0, max=np.inf, vary=False)
-        self.params.add('k1', value=1, min=0, max=np.inf)
-        self.params.add('k2', value=0.5, min=0, max=np.inf)
-        self.params.add('k3', value=0.2, min=0, max=np.inf)
-
-    def calc_C(self, params=None, C_out=None):
-        super(ABCD_Model, self).calc_C(params)
-
-        c0, k1, k2, k3 = self.params['c0'].value, self.params['k1'].value, self.params['k2'].value, self.params[
-            'k3'].value
-
-        self.C[:, 0] = np.heaviside(self.times, 1) * c0 * np.exp(-self.times * k1)
-        self.C[:, 1] = self.cB(self.times, c0, k1, k2)
-
-        def dC_dt(cC, t):
-            cB = self.cB(t, c0, k1, k2)
-            return k2 * cB - k3 * cC  # d[C]/dt = k2[B] - k3[C]
-
-        # initial condition, cC(t=0) = 0
-
-        # initial conditiona, cC(t=0) = 0, cD(t=0) = 0
-        x0 = np.linspace(0, self.times[0], num=100)
-        _init_x = odeint(dC_dt, 0, x0)[-1, :]  # take the row in the result matrix
-        result = odeint(dC_dt, _init_x, self.times)
-
-        self.C[:, 2] = np.heaviside(self.times, 1) * result.flatten()
-        self.C[:, 3] = np.heaviside(self.times, 1) * (
-                c0 - self.C[:, 0] - self.C[:, 1] - self.C[:, 2])
-
-        return self.get_conc_matrix(C_out, self._connectivity)
+# class ABCD_Model(_Model):
+#     """ABCD kinetic model, first order."""
+#
+#     n = 4
+#     name = 'A→B→C→D (1st order)'
+#
+#     def __init__(self, times=None, visible=None):
+#         super(ABCD_Model, self).__init__(times, visible)
+#
+#         self.species_names = np.array(list('ABCD'), dtype=np.str)
+#
+#         # self.description = "Simple A->B->C model of 1st order. d[A]/dt = -k1[A] - k2[A]^2, [A]_0 = c_0"
+#
+#     def init_params(self):
+#         self.params = Parameters()
+#         self.params.add('c0', value=1, min=0, max=np.inf, vary=False)
+#         self.params.add('k1', value=1, min=0, max=np.inf)
+#         self.params.add('k2', value=0.5, min=0, max=np.inf)
+#         self.params.add('k3', value=0.2, min=0, max=np.inf)
+#
+#     def calc_C(self, params=None, C_out=None):
+#         super(ABCD_Model, self).calc_C(params)
+#
+#         c0, k1, k2, k3 = self.params['c0'].value, self.params['k1'].value, self.params['k2'].value, self.params[
+#             'k3'].value
+#
+#         self.C[:, 0] = np.heaviside(self.times, 1) * c0 * np.exp(-self.times * k1)
+#         self.C[:, 1] = self.cB(self.times, c0, k1, k2)
+#
+#         def dC_dt(cC, t):
+#             cB = self.cB(t, c0, k1, k2)
+#             return k2 * cB - k3 * cC  # d[C]/dt = k2[B] - k3[C]
+#
+#         # initial condition, cC(t=0) = 0
+#
+#         # initial conditiona, cC(t=0) = 0, cD(t=0) = 0
+#         x0 = np.linspace(0, self.times[0], num=100)
+#         _init_x = odeint(dC_dt, 0, x0)[-1, :]  # take the row in the result matrix
+#         result = odeint(dC_dt, _init_x, self.times)
+#
+#         self.C[:, 2] = np.heaviside(self.times, 1) * result.flatten()
+#         self.C[:, 3] = np.heaviside(self.times, 1) * (
+#                 c0 - self.C[:, 0] - self.C[:, 1] - self.C[:, 2])
+#
+#         return self.get_conc_matrix(C_out, self._connectivity)
 
 
 #
@@ -595,54 +571,54 @@ class ABCD_Model(_Model):
 #
 #         return self.get_conc_matrix()
 
-
-class ABCDE_Model(_Model):
-    """ABCDE kinetic model, first order."""
-
-    n = 5
-    name = 'A→B→C→D→E (1st order)'
-
-    def __init__(self, times=None, visible=None):
-        super(ABCDE_Model, self).__init__(times, visible)
-
-        self.species_names = np.array(list('ABCDE'), dtype=np.str)
-
-    def init_params(self):
-        self.params = Parameters()
-        self.params.add('c0', value=1, min=0, max=np.inf, vary=False)
-        self.params.add('k1', value=1, min=0, max=np.inf)
-        self.params.add('k2', value=0.5, min=0, max=np.inf)
-        self.params.add('k3', value=0.4, min=0, max=np.inf)
-        self.params.add('k4', value=0.3, min=0, max=np.inf)
-
-    def calc_C(self, params=None, C_out=None):
-        super(ABCDE_Model, self).calc_C(params)
-
-        c0, k1, k2, k3, k4 = self.params['c0'].value, self.params['k1'].value, self.params['k2'].value, \
-                             self.params['k3'].value, self.params['k4'].value
-
-        self.C[:, 0] = np.heaviside(self.times, 1) * c0 * np.exp(-self.times * k1)
-        self.C[:, 1] = self.cB(self.times, c0, k1, k2)
-
-        def solve(conc, t):
-            cC, cD = conc
-            cB = self.cB(t, c0, k1, k2)
-            dC_dt = k2 * cB - k3 * cC  # d[C]/dt = k2[B] - k3[C]
-            dD_dt = k3 * cC - k4 * cD  # d[D]/dt = k3[C] - k4[D]
-            return [dC_dt, dD_dt]
-
-        # initial conditiona, cC(t=0) = 0, cD(t=0) = 0
-        x0 = np.linspace(0, self.times[0], num=100)
-        _init_x = odeint(solve, [0, 0], x0)[-1, :]  # take the row in the result matrix
-        result = odeint(solve, _init_x, self.times)
-
-        self.C[:, 2] = np.heaviside(self.times, 1) * result[:, 0]
-        self.C[:, 3] = np.heaviside(self.times, 1) * result[:, 1]
-
-        self.C[:, 4] = np.heaviside(self.times, 1) * (
-                c0 - self.C[:, 0] - self.C[:, 1] - self.C[:, 2] - self.C[:, 3])
-
-        return self.get_conc_matrix(C_out, self._connectivity)
+#
+# class ABCDE_Model(_Model):
+#     """ABCDE kinetic model, first order."""
+#
+#     n = 5
+#     name = 'A→B→C→D→E (1st order)'
+#
+#     def __init__(self, times=None, visible=None):
+#         super(ABCDE_Model, self).__init__(times, visible)
+#
+#         self.species_names = np.array(list('ABCDE'), dtype=np.str)
+#
+#     def init_params(self):
+#         self.params = Parameters()
+#         self.params.add('c0', value=1, min=0, max=np.inf, vary=False)
+#         self.params.add('k1', value=1, min=0, max=np.inf)
+#         self.params.add('k2', value=0.5, min=0, max=np.inf)
+#         self.params.add('k3', value=0.4, min=0, max=np.inf)
+#         self.params.add('k4', value=0.3, min=0, max=np.inf)
+#
+#     def calc_C(self, params=None, C_out=None):
+#         super(ABCDE_Model, self).calc_C(params)
+#
+#         c0, k1, k2, k3, k4 = self.params['c0'].value, self.params['k1'].value, self.params['k2'].value, \
+#                              self.params['k3'].value, self.params['k4'].value
+#
+#         self.C[:, 0] = np.heaviside(self.times, 1) * c0 * np.exp(-self.times * k1)
+#         self.C[:, 1] = self.cB(self.times, c0, k1, k2)
+#
+#         def solve(conc, t):
+#             cC, cD = conc
+#             cB = self.cB(t, c0, k1, k2)
+#             dC_dt = k2 * cB - k3 * cC  # d[C]/dt = k2[B] - k3[C]
+#             dD_dt = k3 * cC - k4 * cD  # d[D]/dt = k3[C] - k4[D]
+#             return [dC_dt, dD_dt]
+#
+#         # initial conditiona, cC(t=0) = 0, cD(t=0) = 0
+#         x0 = np.linspace(0, self.times[0], num=100)
+#         _init_x = odeint(solve, [0, 0], x0)[-1, :]  # take the row in the result matrix
+#         result = odeint(solve, _init_x, self.times)
+#
+#         self.C[:, 2] = np.heaviside(self.times, 1) * result[:, 0]
+#         self.C[:, 3] = np.heaviside(self.times, 1) * result[:, 1]
+#
+#         self.C[:, 4] = np.heaviside(self.times, 1) * (
+#                 c0 - self.C[:, 0] - self.C[:, 1] - self.C[:, 2] - self.C[:, 3])
+#
+#         return self.get_conc_matrix(C_out, self._connectivity)
 
 
 class Delayed_Fl(_Model):
@@ -1481,9 +1457,8 @@ class Half_Bilirubin_Multiset_Half(_Model):
         self.interp_kind = 'quadratic'
         self.species_names = np.array(['Z', 'E', 'HL', 'D'], dtype=np.str)
 
-
-        path = r"C:\Users\Dominik\Documents\MUNI\Organic Photochemistry\Projects\2019-Bilirubin project\UV-VIS\QY measurement\Photodiode\new setup"
-        # path = r"C:\Users\dominik\Documents\Projects\Bilirubin\UV-Vis data"
+        # path = r"C:\Users\Dominik\Documents\MUNI\Organic Photochemistry\Projects\2019-Bilirubin project\UV-VIS\QY measurement\Photodiode\new setup"
+        path = r"C:\Users\dominik\Documents\Projects\Bilirubin\UV-Vis data"
 
         fname = path + r'\em sources.txt'
         data = np.loadtxt(fname, delimiter='\t', skiprows=1)
@@ -1872,7 +1847,6 @@ class Half_Bilirubin_Multiset_Half(_Model):
 
 
 class Test_Bilirubin_Multiset(_Photokinetic_Model):
-    n = 4
     name = 'Test-Bilirubin Multiset Model'
 
     def __init__(self, times=None, ST=None, wavelengths=None, aug_matrix=None):
@@ -2211,13 +2185,11 @@ class Z_purified(_Model):
 
 class PKA_Titration(_Model):
     """Mixed first and second order kinetics, d[A]/dt = -k1[A] - k2[A]^2"""
-    n = 2
-    name = 'pKa determination, monoprotic acid'
+    n = 2   # subject of change
+    name = 'pKa determination'
 
     def __init__(self, times=None):
         super(PKA_Titration, self).__init__(times)
-
-        self.species_names = np.array(list('AB'), dtype=np.str)
 
         self.description = "TODO "
 
@@ -2236,22 +2208,21 @@ class PKA_Titration(_Model):
 
         return profiles.T
 
-
     def init_params(self):
         self.params = Parameters()
         self.params.add('c0', value=1, min=0, max=np.inf, vary=False)
-        self.params.add('pKa', value=1, min=0, max=np.inf)
+
+        for i in range(self.n - 1):
+            self.params.add(f'pKa_{i+1}', value=1, min=-np.inf, max=np.inf)
 
     def calc_C(self, params=None, C_out=None):
         super(PKA_Titration, self).calc_C(params, C_out)
 
-        c0, pKa = self.params['c0'].value, self.params['pKa'].value
+        c0, *pKas = [par[1].value for par in self.params.items()]
 
-        self.C = c0 * self.simulate([pKa], self.times)
+        self.C = c0 * self.simulate(pKas, self.times)
 
         return self.get_conc_matrix(C_out, self._connectivity)
-
-
 
 
 class Gibs_Eq(_Model):
