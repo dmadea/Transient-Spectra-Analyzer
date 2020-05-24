@@ -287,33 +287,35 @@ class Fitter:
 
         return True
 
-    # def obj_func(self, **kwargs):
-    #     self.update_options(**kwargs)
-    #     pass
-    #
-    #     def residuals(params):
-    #         # needed to use nonlocal because of nested functions, https://stackoverflow.com/questions/5218895/python-nested-functions-variable-scoping
-    #         nonlocal _C_opt
-    #         _C_opt = self.c_model.calc_C(params, _C_opt)
-    #
-    #         # calc of objective function
-    #         # ST =
-    #
-    #
-    #         if c_fix:
-    #             _C_opt[:, c_fix] = C_est[:, c_fix]
-    #
-    #         _ST_calc = NNLS(_C_opt, self.D)[0]
-    #
-    #         return _C_opt @ _ST_calc - self.D
-    #
-    #         # calculate the residual matrix by varpro (I - CC+)D
-    #         # return _res_varpro(_C_opt, self.D)
-    #
-    #     self.minimizer = lmfit.Minimizer(residuals, self.c_model.params)
-    #     self.last_result = self.minimizer.minimize(method=self.fit_alg)  # minimize the residuals
-    #
-    #     self.c_model.params = self.last_result.params
+    def obj_func_fit(self, C_est=None, **kwargs):
+        self.update_options(**kwargs)
+
+        _C_opt = self.C_est.copy() if C_est is None else C_est
+
+        def residuals(params):
+            nonlocal _C_opt
+
+            T = self.c_model.get_T(params)
+            ST = T.dot(self.c_model.VT)
+
+            # nonnegativity and norm. constraint
+            ST *= ST > 0
+            ST[0] *= 29043 / ST[0].max()
+
+            self.c_model.ST = ST
+
+            _C_opt = self.c_model.calc_C(params, _C_opt)
+
+            return _C_opt @ ST - self.D
+
+        self.minimizer = lmfit.Minimizer(residuals, self.c_model.params)
+        kws = {} if self.kwds is None else self.kwds
+        self.last_result = self.minimizer.minimize(method=self.fit_alg, **kws)  # minimize the residuals
+
+        self.c_model.params = self.last_result.params
+
+        self.C_opt = _C_opt
+        self.ST_opt = self.c_model.ST
 
 
     def var_pro(self, C_est=None, c_fix=None, **kwargs):
@@ -338,7 +340,8 @@ class Fitter:
             # return _res_varpro(_C_opt, self.D)
 
         self.minimizer = lmfit.Minimizer(residuals, self.c_model.params)
-        self.last_result = self.minimizer.minimize(method=self.fit_alg)  # minimize the residuals
+        kws = {} if self.kwds is None else self.kwds
+        self.last_result = self.minimizer.minimize(method=self.fit_alg, **kws)  # minimize the residuals
 
         self.c_model.params = self.last_result.params
 
@@ -353,6 +356,9 @@ class Fitter:
         assert self.au is not None
         idx_0, idx_1 = self.au._C_indiv_range(i, j=j)
         self.C_opt[idx_0:idx_1, :] = Ci
+
+
+
 
     # optimization of C profiles according to kinetic model in HS-MCR-AR
     def _C_fit_opt(self):

@@ -246,6 +246,7 @@ class FitWidget(QWidget, Ui_Form):
         # w = self.matrix.wavelengths.shape[0] if self._au is None else self._au.aug_mat.shape[1]
         t, w = self.matrix.times.shape[0], self.matrix.wavelengths.shape[0]
 
+        # try:
         # if ST and C are not initialized or if number of dimensions changed, initialize with zeros
         if self._ST is None or self._ST.shape[1] != w or self._C.shape[0] != t:
             self._ST = np.zeros((species_count, w))
@@ -260,6 +261,9 @@ class FitWidget(QWidget, Ui_Form):
             d = species_count - self._ST.shape[0]
             self._ST = np.vstack((self._ST, np.zeros((d, w))))
             self._C = np.hstack((self._C, np.zeros((t, d))))
+
+        # except Exception as e:
+        #     Logger.console_message(e.__str__())
 
     def sbN_value_changed(self):
         species_count = int(self.sbN.value())
@@ -296,6 +300,9 @@ class FitWidget(QWidget, Ui_Form):
         wls = self._au[0, 0].wavelengths if self._au else self.matrix.wavelengths
         setattr(self.current_model, 'wavelengths', wls)
         setattr(self.current_model, 'ST', self._ST)
+        if self._au:
+            setattr(self.current_model, 'aug_matrix', self._au)
+            self.current_model.update_n()
 
     def update_model_par_count(self):
         params_count = self.current_model.params.__len__()
@@ -370,6 +377,16 @@ class FitWidget(QWidget, Ui_Form):
         # self.matrix.times_fine = new_t
         # self.matrix.C_fine = C
 
+    def calc_T(self):
+        if hasattr(self.current_model, 'T'):
+            # D = U S V^T
+            # C = US T^-1, S^T = T V^T
+            V = self.current_model.VT.T
+            T = self._ST @ V
+
+            self.current_model.update_T(T)
+            self.update_model_par_count()
+
     def calc_ST(self):
         if self.matrix is None:
             return
@@ -379,6 +396,9 @@ class FitWidget(QWidget, Ui_Form):
             self.fitter.calc_ST()
             self._ST = self.fitter.ST_opt
             self.plot_opt_matrices()
+
+            self.calc_T()
+
         except Exception as e:
             Logger.console_message(e.__str__())
 
@@ -391,6 +411,9 @@ class FitWidget(QWidget, Ui_Form):
             self.fitter.calc_C()
             self._C = self.fitter.C_opt
             self.plot_opt_matrices()
+
+            self.calc_T()
+
         except Exception as e:
             Logger.console_message(e.__str__())
 
@@ -424,7 +447,10 @@ class FitWidget(QWidget, Ui_Form):
         if self.current_model.connectivity.count(0) == 0:
             # self.fitter.HS_MCR_fit(c_model=self.current_model)
             # self.fitter.var_pro()
-            self.fitter.HS_MCR_fit(c_model=self.current_model)
+            if self.current_model.method is 'RFA':
+                self.fitter.obj_func_fit()
+            else:
+                self.fitter.HS_MCR_fit(c_model=self.current_model)
             self.current_model = self.fitter.c_model
         elif self.current_model.connectivity.count(0) == n:  # pure MCR fit
             self.fitter.HS_MCR_fit(c_model=None)

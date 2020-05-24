@@ -47,6 +47,7 @@ class _Model(object):
         self.times = times
         self.C = None
         self._connectivity = connectivity
+        self.method = 'MCR-ALS'
 
         self.init_times(times)
 
@@ -85,6 +86,9 @@ class _Model(object):
         self.init_params()
         self.init_times(self.times)
 
+    def update_T(self, new_T):
+        pass
+
     def get_conc_matrix(self, C_out, connectivity=(1, 2, 3)):
         """Replaces the values in C_out according to calculated values based on conectivity"""
         if C_out is None:
@@ -122,7 +126,10 @@ class _Model(object):
 
 class _Photokinetic_Model(_Model):
 
-    def __init__(self, times=None, connectivity=(0, 1, 2), ST=None, wavelengths=None, aug_matrix=None, rot_mat=True):
+    def __init__(self, times=None, connectivity=(0, 1, 2), ST=None, wavelengths=None, aug_matrix=None, rot_mat=True,
+                 method='RFA'):
+
+        self.method = method  # or 'MCR-ALS'
 
         self.times = times
         self.C = None
@@ -152,23 +159,42 @@ class _Photokinetic_Model(_Model):
             U, S, VT = svd(self.aug_matrix.aug_mat, full_matrices=False)
             self.U, self.Sigma, self.VT = U[:, :self.n], np.diag(S[:self.n]), VT[:self.n, :]
 
-    def get_T(self):
+    def get_T(self, params):
         if self.T is None:
             return
 
         n = self.n
 
-        pars = [par[1].value for par in self.params.items()]
-        self.T = np.asarray(pars[:n]).reshape((n, n))
+        assert type(n) is int
+
+        pars = [par[1].value for par in params.items()]
+        self.T = np.asarray(pars[:n**2]).reshape((n, n))
 
         return self.T
 
     def init_params(self):
         self.params = Parameters()
+
+        if self.method is not 'RFA':
+            return
+
         if self.T is not None:
             for i in range(self.n):
                 for j in range(self.n):
                     self.params.add(f't_{i+1}{j+1}', value=1 if i == j else 0, min=-np.inf, max=np.inf, vary=True)
+
+    def update_T(self, new_T):
+        if self.method is not 'RFA':
+            return
+
+        assert isinstance(new_T, np.ndarray) and new_T.shape == self.T.shape
+        self.T = new_T
+
+        # update params
+        for i in range(self.n):
+            for j in range(self.n):
+                self.params[f't_{i + 1}{j + 1}'].value = self.T[i, j]
+
 
     @staticmethod
     @vectorize()
@@ -1436,8 +1462,7 @@ class Half_Bilirubin_1st_Model(_Model):
 #         return C_out
 
 
-
-class Half_Bilirubin_Multiset_Half(_Model):
+class Half_Bilirubin_Multiset_Half(_Photokinetic_Model):
     n = 4
     name = '(Half) Half-Bilirubin Multiset Model'
     n_pars_per_QY = 5
@@ -1450,15 +1475,15 @@ class Half_Bilirubin_Multiset_Half(_Model):
 
 
     def __init__(self, times=None, ST=None, wavelengths=None, aug_matrix=None):
-        super(Half_Bilirubin_Multiset_Half, self).__init__(times)
 
-        self.wavelengths = wavelengths
-        self.ST = ST
+        super(Half_Bilirubin_Multiset_Half, self).__init__(times, method='RFA')  # RSA - resolving factor analysis
+
+        # self.wavelengths = wavelengths
+        # self.ST = ST
         self.interp_kind = 'quadratic'
-        self.species_names = np.array(['Z', 'E', 'HL', 'D'], dtype=np.str)
 
-        # path = r"C:\Users\Dominik\Documents\MUNI\Organic Photochemistry\Projects\2019-Bilirubin project\UV-VIS\QY measurement\Photodiode\new setup"
-        path = r"C:\Users\dominik\Documents\Projects\Bilirubin\UV-Vis data"
+        path = r"C:\Users\Dominik\Documents\MUNI\Organic Photochemistry\Projects\2019-Bilirubin project\UV-VIS\QY measurement\Photodiode\new setup"
+        # path = r"C:\Users\dominik\Documents\Projects\Bilirubin\UV-Vis data"
 
         fname = path + r'\em sources.txt'
         data = np.loadtxt(fname, delimiter='\t', skiprows=1)
@@ -1502,9 +1527,6 @@ class Half_Bilirubin_Multiset_Half(_Model):
         self._overlap400p = np.trapz(self.Diode_q_rel * self.I_400p, x=self.wavelengths)
         self._overlap500p = np.trapz(self.Diode_q_rel * self.I_500p, x=self.wavelengths)
 
-        self.aug_matrix = aug_matrix
-
-        self.description = ""
 
     # def update_params(self, n_pars_per_QY=5, wl_range=(340, 480)):
     #     self.wl_range = wl_range
@@ -1512,7 +1534,8 @@ class Half_Bilirubin_Multiset_Half(_Model):
     #     self.init_params()
 
     def init_params(self):
-        self.params = Parameters()
+        super(Half_Bilirubin_Multiset_Half, self).init_params()
+        # self.params = Parameters()
 
         # wls_QY = np.linspace(self.wl_range[0], self.wl_range[1], self.n_pars_per_QY, endpoint=True, dtype=int)
 
@@ -1611,7 +1634,7 @@ class Half_Bilirubin_Multiset_Half(_Model):
     def save_QY_quantiles(self, quantiles, fname='fit_QY.txt'):
 
         pars = [par[1].value for par in self.params.items()]
-        pars = pars[5:]
+        pars = pars[5:] if self.method is not 'RFA' else pars[5 + self.n ** 2:]
 
         _Phi_ZE, _Phi_EZ, _Phi_EHL, _Phi_HLE, _Phi_HLD = self.get_interpolated_curves(pars, False)
 
@@ -1744,10 +1767,10 @@ class Half_Bilirubin_Multiset_Half(_Model):
             raise ValueError("Spectra matrix must not be none.")
 
         pars = [par[1].value for par in self.params.items()]
+        pars = pars if self.method is not 'RFA' else pars[self.n ** 2:]
         xZ_Z, xZ_E, q0_355_LED, q0_405_LED, q0_490_LED = pars[:5]
-        pars = pars[5:]
 
-        _Phi_ZE, _Phi_EZ, _Phi_EHL, _Phi_HLE, _Phi_HLD = self.get_interpolated_curves(pars)
+        _Phi_ZE, _Phi_EZ, _Phi_EHL, _Phi_HLE, _Phi_HLD = self.get_interpolated_curves(pars[5:])
 
         IZ330, IE330, IZ400, IE400, V = 16.7e-6, 17e-6, 38.1e-6, 37.7e-6, 3e-3
         IZ375, IZ450 = 24.9e-6, 47.9e-6
