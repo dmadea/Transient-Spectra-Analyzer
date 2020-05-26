@@ -159,11 +159,12 @@ class _Photokinetic_Model(_Model):
             U, S, VT = svd(self.aug_matrix.aug_mat, full_matrices=False)
             self.U, self.Sigma, self.VT = U[:, :self.n], np.diag(S[:self.n]), VT[:self.n, :]
 
-    def get_T(self, params):
+    def get_T(self, params=None):
         if self.T is None:
             return
 
         n = self.n
+        params = self.params if params is None else params
 
         assert type(n) is int
 

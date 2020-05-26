@@ -333,7 +333,6 @@ class FitWidget(QWidget, Ui_Form):
             self.value_list[i].setText(str(p.value))
             self.fixed_list[i].setChecked(not p.vary)
 
-
     def simulate_model_clicked(self):
         if self.current_model is None:
             return
@@ -341,14 +340,20 @@ class FitWidget(QWidget, Ui_Form):
         self.update_params()
         self.fitter_update_options()
 
-        self._C = self.current_model.calc_C(C_out=self._C)
-        # self._C = self.current_model.calc_C(C_out=None)
+        if self.current_model.method == 'RFA':
+            T = self.c_model.get_T()
+            self._ST = T.dot(self.c_model.VT)
 
-        self.fitter_update_options()
+            self.c_model.ST = self._ST
+            self._C = self.current_model.calc_C(C_out=self._C)
+        else:
+            self._C = self.current_model.calc_C(C_out=self._C)
 
-        self.fitter.calc_ST()
-        # self.fitter.ST_opt[0] *= 26139.01 / self.fitter.ST_opt[0].max()
-        self._ST = self.fitter.ST_opt
+            # self.fitter_update_options()
+            self.fitter.calc_ST()
+            # self.fitter.ST_opt[0] *= 26139.01 / self.fitter.ST_opt[0].max()
+            self._ST = self.fitter.ST_opt
+
         self.plot_opt_matrices()
 
 
