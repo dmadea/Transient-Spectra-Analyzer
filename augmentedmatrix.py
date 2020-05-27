@@ -534,8 +534,8 @@ def setup3_half():
     fw = FitWidget.instance
     pw = PlotWidget.instance
 
-    path = r"C:\Users\Dominik\Documents\MUNI\Organic Photochemistry\Projects\2019-Bilirubin project\UV-VIS\QY measurement\Photodiode\new setup"
-    # path = r"C:\Users\dominik\Documents\Projects\Bilirubin\UV-Vis data"
+    # path = r"C:\Users\Dominik\Documents\MUNI\Organic Photochemistry\Projects\2019-Bilirubin project\UV-VIS\QY measurement\Photodiode\new setup"
+    path = r"C:\Users\dominik\Documents\Projects\Bilirubin\new setup"
 
     paths = []
 
@@ -586,6 +586,8 @@ def setup3_half():
 
 
     m = au.get_aug_LFP_matrix()
+
+    m.wavelengths += 230
 
     pw.plot_matrix(m)
     fw.matrix = m

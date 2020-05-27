@@ -341,10 +341,10 @@ class FitWidget(QWidget, Ui_Form):
         self.fitter_update_options()
 
         if self.current_model.method == 'RFA':
-            T = self.c_model.get_T()
-            self._ST = T.dot(self.c_model.VT)
+            T = self.current_model.get_T()
+            self._ST = T.dot(self.current_model.VT)
 
-            self.c_model.ST = self._ST
+            self.current_model.ST = self._ST
             self._C = self.current_model.calc_C(C_out=self._C)
         else:
             self._C = self.current_model.calc_C(C_out=self._C)

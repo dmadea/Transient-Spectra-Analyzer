@@ -1483,8 +1483,10 @@ class Half_Bilirubin_Multiset_Half(_Photokinetic_Model):
         # self.ST = ST
         self.interp_kind = 'quadratic'
 
-        path = r"C:\Users\Dominik\Documents\MUNI\Organic Photochemistry\Projects\2019-Bilirubin project\UV-VIS\QY measurement\Photodiode\new setup"
-        # path = r"C:\Users\dominik\Documents\Projects\Bilirubin\UV-Vis data"
+        # path = r"C:\Users\Dominik\Documents\MUNI\Organic Photochemistry\Projects\2019-Bilirubin project\UV-VIS\QY measurement\Photodiode\new setup"
+        path = r"C:\Users\dominik\Documents\Projects\Bilirubin\new setup"
+
+        self.Z_true = np.loadtxt(path + r'\Z-epsilon.txt', delimiter='\t', skiprows=1, usecols=1)
 
         fname = path + r'\em sources.txt'
         data = np.loadtxt(fname, delimiter='\t', skiprows=1)
@@ -1606,10 +1608,30 @@ class Half_Bilirubin_Multiset_Half(_Photokinetic_Model):
         else:
             return _Phi_ZE, _Phi_EZ, _Phi_EHL, _Phi_HLE, _Phi_HLD
 
-    def get_quantiles(self, cov_mat, values, quantiles=(0.05, 0.95), n_samples=5000):
+    def get_quantiles_ST(self, cov_mat, values, quantiles=(0.025, 0.975), n_samples=5000):
 
-        values = values[5:]
-        cov_mat = cov_mat[3:, 3:]
+        if self.method is not 'RFA':
+            return
+
+        values = values[:self.n ** 2]
+        cov_mat = cov_mat[:self.n ** 2, :self.n ** 2]
+
+        X = multivariate_normal.rvs(mean=values, cov=cov_mat, size=n_samples)
+
+        samples = np.zeros((n_samples, self.n, self.wavelengths.shape[0]))
+
+        for i in range(n_samples):
+            T = np.asarray(X[i]).reshape((self.n, self.n))
+            samples[i] = T.dot(self.VT)  # ST samples
+
+        q = np.quantile(samples, quantiles, axis=0)
+
+        return q
+
+    def get_quantiles(self, cov_mat, values, quantiles=(0.025, 0.975), n_samples=5000):
+
+        values = values[5:] if self.method is not 'RFA' else values[5 + self.n ** 2:]
+        cov_mat = cov_mat[3:, 3:] if self.method is not 'RFA' else cov_mat[3 + self.n ** 2:, 3 + self.n ** 2:]
 
         X = multivariate_normal.rvs(mean=values, cov=cov_mat, size=n_samples)
 
@@ -1647,12 +1669,29 @@ class Half_Bilirubin_Multiset_Half(_Photokinetic_Model):
         with open(fname, 'w', encoding='utf8') as f:
             f.write(buffer)
 
+    def plot_ST(self, quantiles=None, alpha_q=0.2):
+
+        prop_cycle = plt.rcParams['axes.prop_cycle']
+        colors = prop_cycle.by_key()['color']
+
+        for i in range(self.n):
+            plt.plot(self.wavelengths, self.ST[i], color=colors[i], label=self.species_names[i])
+            if quantiles is not None:
+                plt.fill_between(self.wavelengths, quantiles[0][i], quantiles[1][i], alpha=alpha_q, color=colors[i])
+
+        plt.xlabel('Wavelength')
+        plt.ylabel('epsilon...')
+        plt.legend()
+
+        plt.show()
+
+
     def plot_phis(self, y_scale='log', quantiles=None, alpha_q=0.2):
         if self.params is None:
             return
 
         pars = [par[1].value for par in self.params.items()]
-        pars = pars[5:]
+        pars = pars[5:] if self.method is not 'RFA' else pars[5 + self.n ** 2:]
 
         p_ZE, p_EZ, p_EHL, p_HLE, p_HLD, _Phi_ZE, _Phi_EZ, _Phi_EHL, _Phi_HLE, _Phi_HLD = self.get_interpolated_curves(pars, True)
 

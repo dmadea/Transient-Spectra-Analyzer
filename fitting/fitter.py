@@ -287,7 +287,7 @@ class Fitter:
 
         return True
 
-    def obj_func_fit(self, C_est=None, **kwargs):
+    def obj_func_fit(self, C_est=None, **kwargs):  # resolving factor analysis
         self.update_options(**kwargs)
 
         _C_opt = self.C_est.copy() if C_est is None else C_est
@@ -298,15 +298,35 @@ class Fitter:
             T = self.c_model.get_T(params)
             ST = T.dot(self.c_model.VT)
 
-            # nonnegativity and norm. constraint
-            ST *= ST > 0
-            ST[0] *= 29043 / ST[0].max()
+            C_basis = self.c_model.U @ self.c_model.Sigma @ np.linalg.inv(T)
 
             self.c_model.ST = ST
 
+            t, w, n = self.D.shape[0], self.D.shape[1], T.shape[0]
+
             _C_opt = self.c_model.calc_C(params, _C_opt)
 
-            return _C_opt @ ST - self.D
+            # R = np.zeros((t + n + 1, w), dtype=np.float64)  # residual matrix
+            R = np.zeros((n + 1, w), dtype=np.float64)  # residual matrix
+
+
+            # nonnegativity of spectra
+            # put negative values, positives will be zero, normalization to maximum of individual spectrum
+            R_sp = ST * (ST < 0) / ST.max(axis=0, keepdims=True)
+
+            R[:n, :] = R_sp
+
+            # fixed spectrum
+            # R[n, :] = (self.c_model.Z_true - ST[0]) / self.c_model.Z_true.max()
+            R[n, :] = np.ones_like(w) * (self.c_model.Z_true.max() - ST[0].max())  # norm to maximum
+            #
+            # _C_opt = self.c_model.calc_C(params, _C_opt)
+            #
+            # R[n+1:, :] = (_C_opt @ ST - self.D) #  / self.D.max()
+
+            R_C = (_C_opt - C_basis) / _C_opt.max()
+
+            return np.hstack((R.flatten(), R_C.flatten()))
 
         self.minimizer = lmfit.Minimizer(residuals, self.c_model.params)
         kws = {} if self.kwds is None else self.kwds
