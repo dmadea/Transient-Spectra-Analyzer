@@ -468,8 +468,8 @@ def setup3():
     fw = FitWidget.instance
     pw = PlotWidget.instance
 
-    # path = r"C:\Users\Dominik\Documents\MUNI\Organic Photochemistry\Projects\2019-Bilirubin project\UV-VIS\QY measurement\Photodiode\new setup"
-    path = r"C:\Users\dominik\Documents\Projects\Bilirubin\UV-Vis data"
+    path = r"C:\Users\Dominik\Documents\MUNI\Organic Photochemistry\Projects\2019-Bilirubin project\UV-VIS\QY measurement\Photodiode\new setup"
+    # path = r"C:\Users\dominik\Documents\Projects\Bilirubin\UV-Vis data"
 
     paths = []
 
@@ -486,18 +486,31 @@ def setup3():
     paths.append(path + r"\Z 480 nm\cut.txt")
     paths.append(path + r"\E 480 nm\cut.txt")
 
-    path_reactors = r"C:\Users\dominik\Documents\Projects\Bilirubin\UV-Vis data\Kinetics Z degassed"
-    # path_reactors = r"C:\Users\Dominik\Documents\MUNI\Organic Photochemistry\Projects\2019-Bilirubin project\UV-VIS\Irradiation kinetics\for MCR\Kinetics Z degassed"
+    # path_reactors = r"C:\Users\dominik\Documents\Projects\Bilirubin\UV-Vis data\Kinetics Z degassed"
+    path += r"\reactor LEDs"
 
+    path_reactors = r"C:\Users\Dominik\Documents\MUNI\Organic Photochemistry\Projects\2019-Bilirubin project\UV-VIS\Irradiation kinetics\for MCR\Kinetics Z degassed"
+    #     #
+    #     #
+    #     # paths.append(path_reactors + r"\355 nm (both modules)\cut.txt")
+    #     # paths.append(path_reactors + r"\375 nm (both modules)\cut.txt")
+    #     # paths.append(path_reactors + r"\405 nm (both modules)\cut.txt")
+    #     # paths.append(path_reactors + r"\450 nm (one module)\cut.txt")
+    #     # paths.append(path_reactors + r"\470 nm (one module)\cut.txt")
+    #     #
+    #     # paths.append(path_reactors + r"\490 nm, then switched 355 nm (both modules)\cut490.txt")
+    #     # paths.append(path_reactors + r"\490 nm, then switched 355 nm (both modules)\cut355.txt")
 
-    paths.append(path_reactors + r"\355 nm (both modules)\cut.txt")
-    paths.append(path_reactors + r"\375 nm (both modules)\cut.txt")
-    paths.append(path_reactors + r"\405 nm (both modules)\cut.txt")
+    paths.append(path + r"\Z 355\cut.txt")
+    paths.append(path + r"\Z 400\cut.txt")
+
     paths.append(path_reactors + r"\450 nm (one module)\cut.txt")
     paths.append(path_reactors + r"\470 nm (one module)\cut.txt")
 
-    paths.append(path_reactors + r"\490 nm, then switched 355 nm (both modules)\cut490.txt")
-    paths.append(path_reactors + r"\490 nm, then switched 355 nm (both modules)\cut355.txt")
+    paths.append(path + r"\Z 490\cut.txt")
+    #
+    paths.append(path + r"\HL 355\cut.txt")
+    paths.append(path + r"\HL 400\cut.txt")
 
 
     # paths.append(path_reactors + r"\450 nm (one module)\cut.txt")
@@ -508,20 +521,13 @@ def setup3():
 
     for i in range(len(paths)):
         au.load_matrix(i, 0, paths[i])
-        au[i, 0].reduce(t_dim=2)
+        # au[i, 0].reduce(t_dim=2)
 
-
-    au[-7, 0].crop_data(t1=2000)
-    au[-6, 0].crop_data(t1=1800)
-    au[-5, 0].crop_data(t1=2000)
-    au[-4, 0].crop_data(t1=1000)
-    au[-3, 0].crop_data(t1=2000)
-
-    au[-1, 0].crop_data(t1=2000)
-
-
+    au[-7, 0].crop_data(t1=3000)
 
     m = au.get_aug_LFP_matrix()
+
+    m.wavelengths += 230
 
     pw.plot_matrix(m)
     fw.matrix = m
@@ -534,8 +540,8 @@ def setup3_half():
     fw = FitWidget.instance
     pw = PlotWidget.instance
 
-    # path = r"C:\Users\Dominik\Documents\MUNI\Organic Photochemistry\Projects\2019-Bilirubin project\UV-VIS\QY measurement\Photodiode\new setup"
-    path = r"C:\Users\dominik\Documents\Projects\Bilirubin\new setup"
+    path = r"C:\Users\Dominik\Documents\MUNI\Organic Photochemistry\Projects\2019-Bilirubin project\UV-VIS\QY measurement\Photodiode\new setup"
+    # path = r"C:\Users\dominik\Documents\Projects\Bilirubin\new setup"
 
     paths = []
 
@@ -571,7 +577,7 @@ def setup3_half():
     # paths.append(path + r"\450 nm (one module)\cut.txt")
     # paths.append(path + r"\470 nm (one module)\cut.txt")
 
-    paths.append(path + r"\Z 490\cut.txt")
+    # paths.append(path + r"\Z 490\cut.txt")
     #
     paths.append(path + r"\HL 355\cut.txt")
     paths.append(path + r"\HL 400\cut.txt")
@@ -582,7 +588,9 @@ def setup3_half():
         au.load_matrix(i, 0, paths[i])
         # au[i, 0].reduce(t_dim=2)
 
-    au[-5, 0].crop_data(t1=3000)
+    au[-4, 0].crop_data(t1=3000)
+    au[-3, 0].crop_data(t1=3000)
+
 
 
     m = au.get_aug_LFP_matrix()

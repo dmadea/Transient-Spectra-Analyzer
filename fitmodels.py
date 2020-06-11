@@ -40,6 +40,7 @@ class _Model(object):
 
     name = 'AB Model'
     description = "..."
+    _class = '-class-'
 
     _err = 1e-8
 
@@ -72,10 +73,6 @@ class _Model(object):
     def calc_C(self, params=None, C_out=None):
         if params is not None:
             self.params = params
-
-    # # virtual method
-    # def init_visible(self):
-    #     self.visible = (self.n_full - 1) * [True] + [False]
 
     @abstractmethod
     def init_params(self):
@@ -122,6 +119,55 @@ class _Model(object):
             return np.heaviside(t, 1) * c0 * k1 * t * np.exp(-(k1 + k0) * t) / (k1 + k0)
         else:
             return np.heaviside(t, 1) * (k1 * c0 / (k2 - k1 - k0)) * (np.exp(-(k1 + k0) * t) - np.exp(-k2 * t))
+
+class _Femto(_Model):
+
+    n_chirp = 3  # number of parameters to describe chirp
+
+    def __init__(self, times=None, connectivity=(0, 1, 2), wavelengths=None,  method='femto'):
+        self.method = method
+        self.description = ""
+
+        self.times = times
+        self.C = None
+        self._connectivity = connectivity
+        self.init_times(times)
+        self.species_names = np.array(list('ABCDEFGHIJ'), dtype=np.str)
+        self.wavelengths = wavelengths
+
+        self.update_n()
+
+    def update_n(self, new_n=None, n_chirp=None):
+        self.n_chirp = new_n if new_n is not None else self.n_chirp
+        super(_Femto, self).update_n(new_n)
+
+    def get_mu(self, params):
+        """Return the curve that defines chirp."""
+
+        if self.wavelengths is None:
+            return
+
+        params = self.params if params is None else params
+        pars = [par[1].value for par in params.items()]
+        mus = pars[1:self.n_chirp + 1]
+
+        u = np.ones(self.wavelengths.shape[0], dtype=np.float64) * mus[0]
+
+        for i in range(1, self.n_chirp):
+            u += mus[i] * ((self.wavelengths - pars[0]) / 100) ** i  # pars[0] is central wave
+
+        return u
+
+    def init_params(self):
+        self.params = Parameters()
+
+        if self.method is not 'Femto':
+            return
+
+        self.params.add('lambda_central_wave', value=388, min=-np.inf, max=np.inf, vary=False)
+
+        for i in self.n_chirp:
+            self.params.add(f'mu_{i+1}', value=0.5, min=-np.inf, max=np.inf, vary=True)
 
 
 class _Photokinetic_Model(_Model):
@@ -267,25 +313,26 @@ class _Photokinetic_Model(_Model):
 
         return C_out
 
-class First_Order_Consecutive_Model(_Model):
+class First_Order_Sequential_Model(_Model):
 
-    name = 'First order consecutive model'
+    name = 'Sequential model (1st order)'
+    _class = 'Nano'
 
     def init_params(self):
         self.params = Parameters()
-        self.params.add('c0', value=1, min=0, max=np.inf, vary=True)
+        self.params.add('c0', value=1, min=0, max=np.inf, vary=False)
 
         for i in range(self.n):
             sec_label = self.species_names[i+1] if i < self.n - 1 else ""
             self.params.add(f'k_{self.species_names[i]}{sec_label}', value=1, min=0, max=np.inf)
 
     def calc_C(self, params=None, C_out=None):
-        super(First_Order_Consecutive_Model, self).calc_C(params, C_out)
+        super(First_Order_Sequential_Model, self).calc_C(params, C_out)
 
         c0, *ks = [par[1].value for par in self.params.items()]
         n = self.n
 
-        # setup K matrix for consecutive model
+        # setup K matrix for sequential model, giving the EADS
         K = np.zeros((n, n))
 
         for i in range(n):
@@ -301,6 +348,27 @@ class First_Order_Consecutive_Model(_Model):
         return self.get_conc_matrix(C_out, self._connectivity)
 
 
+class First_Order_Parallel_Model(_Model):
+
+    name = 'Parallel model (1st order)'
+    _class = 'Nano'
+
+    def init_params(self):
+        self.params = Parameters()
+        self.params.add('c0', value=1, min=0, max=np.inf, vary=False)
+
+        for i in range(self.n):
+            self.params.add(f'k_{self.species_names[i]}', value=1, min=0, max=np.inf)
+
+    def calc_C(self, params=None, C_out=None):
+        super(First_Order_Parallel_Model, self).calc_C(params, C_out)
+
+        c0, *ks = [par[1].value for par in self.params.items()]
+        k = np.asarray(ks)
+
+        self.C = c0 * np.exp(-self.times[:, None] * k[None, :])
+
+        return self.get_conc_matrix(C_out, self._connectivity)
 
 class AB_Model(_Model):
     """Simple A->B model, default is 1st order reaction, 2nd order and n-th order can be selected as well. Also,
@@ -310,6 +378,7 @@ class AB_Model(_Model):
     order = '1st'
     n = 2
     name = 'A→B (variable order)'
+    _class = 'Nano'
 
     def __init__(self, times=None, order='1st'):
         """order == '1st' - 1st order kinetics (default)
@@ -355,6 +424,7 @@ class AB_mixed12_Model(_Model):
     """Mixed first and second order kinetics, d[A]/dt = -k1[A] - k2[A]^2"""
     n = 2
     name = 'A→B (mixed 1st and 2nd order)'
+    _class = 'Nano'
 
     def __init__(self, times=None):
         super(AB_mixed12_Model, self).__init__(times)
@@ -386,6 +456,7 @@ class ABDE_Model(_Model):
 
     n = 4
     name = 'TA-2 species: A→B, C→D (1st order)'
+    _class = 'Nano'
 
     def __init__(self, times=None):
         super(ABDE_Model, self).__init__(times)
@@ -450,6 +521,7 @@ class ABC_zero_Model(_Model):
 
     n = 3
     name = 'zero, A→B→C (1st, zero order)'
+    _class = 'Nano'
 
     def __init__(self, times=None):
         super(ABC_zero_Model, self).__init__(times)
@@ -653,6 +725,7 @@ class Delayed_Fl(_Model):
 
     n = 4
     name = 'Delayed_Fl'
+    _class = 'Nano'
 
     def __init__(self, times=None, visible=None):
         super(Delayed_Fl, self).__init__(times, visible)
@@ -707,6 +780,7 @@ class ABC_DEF_Model(_Model):
 
     n = 6
     name = 'A→B→C, D→E→F (1st order)'
+    _class = 'Nano'
 
     def __init__(self, times=None, visible=None):
         super(ABC_DEF_Model, self).__init__(times, visible)
@@ -744,6 +818,7 @@ class ABC_DEF_Model(_Model):
 class Photosens_Model_Aug(_Model):
     n = 2
     name = 'Photosensitizaton augmented A→B→C (1st order)'
+    _class = 'Nano'
 
     def __init__(self, times=None, aug_matrix=None):
         super(Photosens_Model_Aug, self).__init__(times)
@@ -817,6 +892,7 @@ class ABC_NR(_Model):
 
     n = 3
     name = 'A→B, A→C→B (1st order)'
+    _class = 'Nano'
 
     def __init__(self, times=None, visible=None):
         super(ABC_NR, self).__init__(times, visible)
@@ -856,12 +932,10 @@ class ABC_NR(_Model):
         return self.get_conc_matrix(C_out, self._connectivity)
 
 
-
-
-
 class Bridge_Splitting(_Model):
     n = 2
-    name = 'Bridge_Splitting equilibrium D+2L->2M'
+    name = 'Bridge Splitting: D+2L->2M'
+    _class = 'Equilibrium'
 
     def __init__(self, times=None, ST=None, wavelengths=None):
         super(Bridge_Splitting, self).__init__(times)
@@ -914,7 +988,8 @@ class Bridge_Splitting(_Model):
 
 class Bridge_Splitting_Simple(_Model):
     n = 2
-    name = 'Bridge_Splitting equilibrium D+L->M'
+    name = 'Bridge Splitting: D+L->M'
+    _class = 'Equilibrium'
 
     def __init__(self, times=None, ST=None, wavelengths=None):
         super(Bridge_Splitting_Simple, self).__init__(times)
@@ -953,6 +1028,7 @@ class Bridge_Splitting_Simple(_Model):
 class Half_Bilirubin_1st_Model(_Model):
     n = 4
     name = '1st Half Bilirubin Photokinetics'
+    _class = 'Steady state photokinetics'
 
     def __init__(self, times=None, ST=None, wavelengths=None):
         super(Half_Bilirubin_1st_Model, self).__init__(times)
@@ -1467,12 +1543,19 @@ class Half_Bilirubin_Multiset_Half(_Photokinetic_Model):
     n = 4
     name = '(Half) Half-Bilirubin Multiset Model'
     n_pars_per_QY = 5
+    _class = 'Steady state photokinetics'
     # wl_range_ZEHL = (340, 360, 402, 443, 480, 490)
     # wl_range_HLED = (370, 409, 490)
 
     wl_range_ZE = (355, 414, 490)
     wl_range_EHL = (355, 380, 414, 490)
-    wl_range_HLED = (370, 409, 485)
+    # wl_range_HLED = (370, 409, 485)
+    wl_range_HLED = (370, 409)
+
+    #
+    # wl_range_ZE = (355, 380, 414, 450, 490)
+    # wl_range_EHL = (355, 380, 414, 450, 490)
+    # wl_range_HLED = (370, 409, 450, 485)
 
 
     def __init__(self, times=None, ST=None, wavelengths=None, aug_matrix=None):
@@ -1483,8 +1566,8 @@ class Half_Bilirubin_Multiset_Half(_Photokinetic_Model):
         # self.ST = ST
         self.interp_kind = 'quadratic'
 
-        # path = r"C:\Users\Dominik\Documents\MUNI\Organic Photochemistry\Projects\2019-Bilirubin project\UV-VIS\QY measurement\Photodiode\new setup"
-        path = r"C:\Users\dominik\Documents\Projects\Bilirubin\new setup"
+        path = r"C:\Users\Dominik\Documents\MUNI\Organic Photochemistry\Projects\2019-Bilirubin project\UV-VIS\QY measurement\Photodiode\new setup"
+        # path = r"C:\Users\dominik\Documents\Projects\Bilirubin\new setup"
 
         self.Z_true = np.loadtxt(path + r'\Z-epsilon.txt', delimiter='\t', skiprows=1, usecols=1)
 
@@ -1544,13 +1627,13 @@ class Half_Bilirubin_Multiset_Half(_Photokinetic_Model):
 
         # amount of Z in the mixture, 1: only Z, 0:, only E
         self.params.add('xZ_Z', value=1, min=0, max=1, vary=False)
-        self.params.add('xZ_E', value=0.055, min=0, max=1, vary=False)
+        self.params.add('xZ_E', value=0.068, min=0, max=1, vary=False)
 
         self.params.add('q0_355_LED', value=5e-8, min=0, max=np.inf, vary=True)
         self.params.add('q0_405_LED', value=5e-8, min=0, max=np.inf, vary=True)
         # self.params.add('q0_450_LED', value=5e-8, min=0, max=np.inf, vary=True)
         # self.params.add('q0_470_LED', value=5e-8, min=0, max=np.inf, vary=True)
-        self.params.add('q0_490_LED', value=1e-7, min=0, max=np.inf, vary=True)
+        self.params.add('q0_490_LED', value=1e-7, min=0, max=np.inf, vary=False)
 
         for wl in self.wl_range_ZE:
             self.params.add(f'Phi_ZE_{wl}', value=0.20, min=0, max=1, vary=True)
@@ -1600,8 +1683,8 @@ class Half_Bilirubin_Multiset_Half(_Photokinetic_Model):
         _Phi_ZE = self.Phi_interp(p_ZE, self.wl_range_ZE, kind=self.interp_kind)
         _Phi_EZ = self.Phi_interp(p_EZ, self.wl_range_ZE, kind=self.interp_kind)
         _Phi_EHL = self.Phi_interp(p_EHL, self.wl_range_EHL, kind='cubic')
-        _Phi_HLE = self.Phi_interp(p_HLE, self.wl_range_HLED, kind=self.interp_kind)
-        _Phi_HLD = self.Phi_interp(p_HLD, self.wl_range_HLED, kind=self.interp_kind)
+        _Phi_HLE = self.Phi_interp(p_HLE, self.wl_range_HLED, kind='linear')
+        _Phi_HLD = self.Phi_interp(p_HLD, self.wl_range_HLED, kind='linear')
 
         if return_points:
             return p_ZE, p_EZ, p_EHL, p_HLE, p_HLD, _Phi_ZE, _Phi_EZ, _Phi_EHL, _Phi_HLE, _Phi_HLD
@@ -1631,7 +1714,10 @@ class Half_Bilirubin_Multiset_Half(_Photokinetic_Model):
     def get_quantiles(self, cov_mat, values, quantiles=(0.025, 0.975), n_samples=5000):
 
         values = values[5:] if self.method is not 'RFA' else values[5 + self.n ** 2:]
-        cov_mat = cov_mat[3:, 3:] if self.method is not 'RFA' else cov_mat[3 + self.n ** 2:, 3 + self.n ** 2:]
+        # cov_mat = cov_mat[3:, 3:] if self.method is not 'RFA' else cov_mat[3 + self.n ** 2:, 3 + self.n ** 2:]
+        cov_mat = cov_mat[2:, 2:] if self.method is not 'RFA' else cov_mat[2 + self.n ** 2:, 2 + self.n ** 2:]
+
+        # cov_mat = cov_mat[5:, 5:] if self.method is not 'RFA' else cov_mat[5 + self.n ** 2:, 5 + self.n ** 2:]
 
         X = multivariate_normal.rvs(mean=values, cov=cov_mat, size=n_samples)
 
@@ -1658,6 +1744,7 @@ class Half_Bilirubin_Multiset_Half(_Photokinetic_Model):
 
         pars = [par[1].value for par in self.params.items()]
         pars = pars[5:] if self.method is not 'RFA' else pars[5 + self.n ** 2:]
+        # pars = pars[7:] if self.method is not 'RFA' else pars[7 + self.n ** 2:]
 
         _Phi_ZE, _Phi_EZ, _Phi_EHL, _Phi_HLE, _Phi_HLD = self.get_interpolated_curves(pars, False)
 
@@ -1692,6 +1779,7 @@ class Half_Bilirubin_Multiset_Half(_Photokinetic_Model):
 
         pars = [par[1].value for par in self.params.items()]
         pars = pars[5:] if self.method is not 'RFA' else pars[5 + self.n ** 2:]
+        # pars = pars[7:] if self.method is not 'RFA' else pars[7 + self.n ** 2:]
 
         p_ZE, p_EZ, p_EHL, p_HLE, p_HLD, _Phi_ZE, _Phi_EZ, _Phi_EHL, _Phi_HLE, _Phi_HLD = self.get_interpolated_curves(pars, True)
 
@@ -1809,8 +1897,10 @@ class Half_Bilirubin_Multiset_Half(_Photokinetic_Model):
         pars = [par[1].value for par in self.params.items()]
         pars = pars if self.method is not 'RFA' else pars[self.n ** 2:]
         xZ_Z, xZ_E, q0_355_LED, q0_405_LED, q0_490_LED = pars[:5]
-
         _Phi_ZE, _Phi_EZ, _Phi_EHL, _Phi_HLE, _Phi_HLD = self.get_interpolated_curves(pars[5:])
+
+        # xZ_Z, xZ_E, q0_355_LED, q0_405_LED, q0_450_LED, q0_470_LED, q0_490_LED = pars[:7]
+        # _Phi_ZE, _Phi_EZ, _Phi_EHL, _Phi_HLE, _Phi_HLD = self.get_interpolated_curves(pars[7:])
 
         IZ330, IE330, IZ400, IE400, V = 16.7e-6, 17e-6, 38.1e-6, 37.7e-6, 3e-3
         IZ375, IZ450 = 24.9e-6, 47.9e-6
@@ -1835,24 +1925,38 @@ class Half_Bilirubin_Multiset_Half(_Photokinetic_Model):
 
         # q_tot_Z330, q_tot_E330 = IZ330 * self._overlap330, IE330 * self._overlap330
         # q_tot_Z400, q_tot_E400 = IZ400 * self._overlap400, IE400 * self._overlap400
-        q_tot_Z480, q_tot_E480 = IZ480 * self._overlap480, IE480 * self._overlap480
-        q_tot_Z375, q_tot_Z450 = IZ375 * self._overlap375, IZ450 * self._overlap450
+        # q_tot_Z480, q_tot_E480 = IZ480 * self._overlap480, IE480 * self._overlap480
+        # q_tot_Z375, q_tot_Z450 = IZ375 * self._overlap375, IZ450 * self._overlap450
 
         q_tot_Z350p, q_tot_E350p = IZ350p * self._overlap350p, IE350p * self._overlap350p
         q_tot_Z400p, q_tot_E400p = IZ400p * self._overlap400p, IE400p * self._overlap400p
         q_tot_Z500p, q_tot_E500p = IZ500p * self._overlap500p, IE500p * self._overlap500p
 
+        # args = [
+        #     ['Z', q_tot_Z330, '-initial concentraition vector', K, self.I_330],  # Z 330
+        #     ['E', q_tot_E330, '-initial concentraition vector', K, self.I_330],  # E start
+        #     ['Z', q_tot_Z375, '-initial concentraition vector', K, self.I_375],
+        #     ['Z', q_tot_Z400, '-initial concentraition vector', K, self.I_400],
+        #     ['E', q_tot_E400, '-initial concentraition vector', K, self.I_400],  # E start
+        #     ['Z', q_tot_Z450, '-initial concentraition vector', K, self.I_450],
+        #     ['Z', q_tot_Z480, '-initial concentraition vector', K, self.I_480],
+        #     ['E', q_tot_E480, '-initial concentraition vector', K, self.I_480],  # E start
+        #
+        #     ['Z', q0_355_LED, '-initial concentraition vector', K, self.LED_355],
+        #     ['Z', q0_405_LED, '-initial concentraition vector', K, self.LED_405],
+        #
+        #     ['Z', q0_450_LED, '-initial concentraition vector', K, self.LED_450],
+        #     ['Z', q0_470_LED, '-initial concentraition vector', K, self.LED_470],
+        #
+        #     ['Z', q0_490_LED, '-initial concentraition vector', K, self.LED_490],
+        #     #
+        #     ['HL', q0_355_LED, '-initial concentraition vector', K, self.LED_355],
+        #     ['HL', q0_405_LED, '-initial concentraition vector', K, self.LED_405],
+        #
+        # ]
 
+        # args new 'p'
         args = [
-            # ['Z', q_tot_Z330, '-initial concentraition vector', K, self.I_330],  # Z 330
-            # ['E', q_tot_E330, '-initial concentraition vector', K, self.I_330],  # E start
-            # ['Z', q_tot_Z375, '-initial concentraition vector', K, self.I_375],
-            # ['Z', q_tot_Z400, '-initial concentraition vector', K, self.I_400],
-            # ['E', q_tot_E400, '-initial concentraition vector', K, self.I_400],  # E start
-            # ['Z', q_tot_Z450, '-initial concentraition vector', K, self.I_450],
-            # ['Z', q_tot_Z480, '-initial concentraition vector', K, self.I_480],
-            # ['E', q_tot_E480, '-initial concentraition vector', K, self.I_480],  # E start
-            #
             ['Z', q_tot_Z350p, '-initial concentraition vector', K, self.I_350p],
             ['E', q_tot_E350p, '-initial concentraition vector', K, self.I_350p],
             ['Z', q_tot_Z400p, '-initial concentraition vector', K, self.I_400p],
@@ -1863,22 +1967,10 @@ class Half_Bilirubin_Multiset_Half(_Photokinetic_Model):
             ['Z', q0_355_LED, '-initial concentraition vector', K, self.LED_355],
             ['Z', q0_405_LED, '-initial concentraition vector', K, self.LED_405],
 
-            # ['Z', q0_450_LED, '-initial concentraition vector', K, self.LED_450],
-            # ['Z', q0_470_LED, '-initial concentraition vector', K, self.LED_470],
-
-
-            ['Z', q0_490_LED, '-initial concentraition vector', K, self.LED_490],
-            #
+            # ['Z', q0_490_LED, '-initial concentraition vector', K, self.LED_490],
             ['HL', q0_355_LED, '-initial concentraition vector', K, self.LED_355],
             ['HL', q0_405_LED, '-initial concentraition vector', K, self.LED_405],
-
-
         ]
-
-        # # E is combined spectrum of
-        # Z, E_com = self.ST[0], self.ST[0] * xZ_E + (1 - xZ_E) * self.ST[1]
-        # ZZ_sum = (Z * Z).sum()
-        # EE_com_sum = (E_com * E_com).sum()
 
         # t0s = [0] * 8 + [9.5, 9.5, 3.8, 3.8, 8.8, 8, 10]
 
@@ -1911,6 +2003,7 @@ class Half_Bilirubin_Multiset_Half(_Photokinetic_Model):
 
 class Test_Bilirubin_Multiset(_Photokinetic_Model):
     name = 'Test-Bilirubin Multiset Model'
+    _class = 'Steady state photokinetics'
 
     def __init__(self, times=None, ST=None, wavelengths=None, aug_matrix=None):
         super(Test_Bilirubin_Multiset, self).__init__(times)
@@ -2024,6 +2117,7 @@ class Test_Bilirubin_Multiset(_Photokinetic_Model):
 class Z_purified(_Model):
     n = 4
     name = 'Z_purified Multiset model'
+    _class = 'Steady state photokinetics'
     # n_pars_per_QY = 5
     wl_range = (340, 480)
 
@@ -2249,7 +2343,8 @@ class Z_purified(_Model):
 class PKA_Titration(_Model):
     """Mixed first and second order kinetics, d[A]/dt = -k1[A] - k2[A]^2"""
     n = 2   # subject of change
-    name = 'pKa determination'
+    name = 'pKa'
+    _class = 'Equilibrium'
 
     def __init__(self, times=None):
         super(PKA_Titration, self).__init__(times)
@@ -2290,7 +2385,8 @@ class PKA_Titration(_Model):
 
 class Gibs_Eq(_Model):
     n = 2
-    name = 'Gibs equlibrium'
+    name = 'Gibs'
+    _class = 'Equilibrium'
 
     def __init__(self, times=None):
         super(Gibs_Eq, self).__init__(times)

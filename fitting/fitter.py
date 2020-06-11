@@ -298,7 +298,7 @@ class Fitter:
             T = self.c_model.get_T(params)
             ST = T.dot(self.c_model.VT)
 
-            C_basis = self.c_model.U @ self.c_model.Sigma @ np.linalg.inv(T)
+            # C_basis = self.c_model.U @ self.c_model.Sigma @ np.linalg.inv(T)
 
             self.c_model.ST = ST
 
@@ -306,8 +306,8 @@ class Fitter:
 
             _C_opt = self.c_model.calc_C(params, _C_opt)
 
-            # R = np.zeros((t + n + 1, w), dtype=np.float64)  # residual matrix
-            R = np.zeros((n + 1, w), dtype=np.float64)  # residual matrix
+            R = np.zeros((t + n + 1, w), dtype=np.float64)  # residual matrix
+            # R = np.zeros((n + 1, w), dtype=np.float64)  # residual matrix
 
 
             # nonnegativity of spectra
@@ -322,11 +322,12 @@ class Fitter:
             #
             # _C_opt = self.c_model.calc_C(params, _C_opt)
             #
-            # R[n+1:, :] = (_C_opt @ ST - self.D) #  / self.D.max()
+            R[n+1:, :] = (_C_opt @ ST - self.D) / self.D.max()
 
-            R_C = (_C_opt - C_basis) / _C_opt.max()
+            # R_C = (_C_opt - C_basis) / _C_opt.max()
 
-            return np.hstack((R.flatten(), R_C.flatten()))
+            # return np.hstack((R.flatten(), R_C.flatten()))
+            return R
 
         self.minimizer = lmfit.Minimizer(residuals, self.c_model.params)
         kws = {} if self.kwds is None else self.kwds
@@ -352,12 +353,12 @@ class Fitter:
             if c_fix:
                 _C_opt[:, c_fix] = C_est[:, c_fix]
 
-            _ST_calc = NNLS(_C_opt, self.D)[0]
-
-            return _C_opt @ _ST_calc - self.D
+            # _ST_calc = NNLS(_C_opt, self.D)[0]
+            #
+            # return _C_opt @ _ST_calc - self.D
 
             # calculate the residual matrix by varpro (I - CC+)D
-            # return _res_varpro(_C_opt, self.D)
+            return _res_varpro(_C_opt, self.D)
 
         self.minimizer = lmfit.Minimizer(residuals, self.c_model.params)
         kws = {} if self.kwds is None else self.kwds
@@ -366,8 +367,8 @@ class Fitter:
         self.c_model.params = self.last_result.params
 
         self.C_opt = _C_opt
-        # self.ST_opt = lstsq(_C_opt, self.D)[0]
-        self.ST_opt = NNLS(_C_opt, self.D)[0]
+        self.ST_opt = lstsq(_C_opt, self.D)[0]
+        # self.ST_opt = NNLS(_C_opt, self.D)[0]
 
 
         return True
@@ -376,8 +377,6 @@ class Fitter:
         assert self.au is not None
         idx_0, idx_1 = self.au._C_indiv_range(i, j=j)
         self.C_opt[idx_0:idx_1, :] = Ci
-
-
 
 
     # optimization of C profiles according to kinetic model in HS-MCR-AR

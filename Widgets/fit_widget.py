@@ -65,14 +65,24 @@ class FitWidget(QWidget, Ui_Form):
 
         self.current_model = None
 
+        self.classes = []
+
         # get all models from fitmodels, get classes that inherits from Model base class and sort them by name
         # and number of species
         classes = inspect.getmembers(sys.modules[fitmodels.__name__], inspect.isclass)
-        tuples = filter(lambda tup: issubclass(tup[1], (fitmodels._Model)) and tup[1] is not (fitmodels._Model and fitmodels._Photokinetic_Model), classes)
-        self.models = sorted(list(map(lambda tup: tup[1], tuples)), key=lambda cls: (cls.name, cls.n))
+        tuples = list(filter(lambda tup: issubclass(tup[1], fitmodels._Model), classes))
+        # self.models = sorted(list(map(lambda tup: tup[1], tuples)), key=lambda cls: (cls.name, cls.n))
+
+        _classes = list(map(lambda tup: tup[1]._class, tuples))
+        for cls in _classes:
+            if cls == '-class-':
+                continue
+            if cls not in self.classes:
+                self.classes.append(cls)
+        self.classes.sort()
 
         # fill the combo box items with model names
-        self.cbModel.addItems(map(lambda m: m.name, self.models))
+        self.cbClass.addItems(self.classes)
 
         self.methods = [
             {'name': 'Levenberg–Marquardt', 'abbr': 'leastsq'},
@@ -94,6 +104,7 @@ class FitWidget(QWidget, Ui_Form):
         self.cbRegressorS.addItems(map(lambda m: m['name'], self.regressors))
 
         self.btnFit.clicked.connect(self.fit)
+        self.cbClass.currentIndexChanged.connect(self.model_class_changed)
         self.cbModel.currentIndexChanged.connect(self.model_changed)
         self.sbN.valueChanged.connect(self.sbN_value_changed)
         self.sbN.setMaximum(self.max_species)
@@ -173,6 +184,7 @@ class FitWidget(QWidget, Ui_Form):
 
             self.fixed_list[i].stateChanged.connect(self.fixed_checked_changed)
 
+        self.model_class_changed()
         self.model_changed()
         self.sbN_value_changed()
 
@@ -286,6 +298,16 @@ class FitWidget(QWidget, Ui_Form):
     def check_state(checked):
         return Qt.Checked if checked else 0
 
+    def model_class_changed(self):
+        index = self.cbClass.currentIndex()
+        _class = self.classes[index]
+
+        classes = inspect.getmembers(sys.modules[fitmodels.__name__], inspect.isclass)
+        tuples = filter(lambda tup: hasattr(tup[1], '_class') and tup[1]._class == _class, classes)
+        self.models = sorted(list(map(lambda tup: tup[1], tuples)), key=lambda cls: (cls.name, cls.n))
+        self.cbModel.clear()
+        self.cbModel.addItems(map(lambda m: m.name, self.models))
+
     def model_changed(self):
         index = self.cbModel.currentIndex()
         self.current_model = self.models[index]()
@@ -351,7 +373,6 @@ class FitWidget(QWidget, Ui_Form):
 
             # self.fitter_update_options()
             self.fitter.calc_ST()
-            # self.fitter.ST_opt[0] *= 26139.01 / self.fitter.ST_opt[0].max()
             self._ST = self.fitter.ST_opt
 
         self.plot_opt_matrices()
@@ -455,7 +476,8 @@ class FitWidget(QWidget, Ui_Form):
             if self.current_model.method is 'RFA':
                 self.fitter.obj_func_fit()
             else:
-                self.fitter.HS_MCR_fit(c_model=self.current_model)
+                # self.fitter.HS_MCR_fit(c_model=self.current_model)
+                self.fitter.var_pro()
             self.current_model = self.fitter.c_model
         elif self.current_model.connectivity.count(0) == n:  # pure MCR fit
             self.fitter.HS_MCR_fit(c_model=None)
