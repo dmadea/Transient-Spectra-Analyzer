@@ -370,8 +370,46 @@ class Fitter:
         self.ST_opt = lstsq(_C_opt, self.D)[0]
         # self.ST_opt = NNLS(_C_opt, self.D)[0]
 
+    def var_pro_femto(self, C_est=None, c_fix=None, **kwargs):
+        self.update_options(**kwargs)
 
-        return True
+        _C_opt = C_est.copy() if C_est is not None else None  # np.zeros_like(self.C_est)
+        D_fit = np.zeros_like(self.D)
+
+        def residuals(params):
+            # needed to use nonlocal because of nested functions, https://stackoverflow.com/questions/5218895/python-nested-functions-variable-scoping
+            nonlocal _C_opt, D_fit
+            mu = self.c_model.get_mu(params)  # real time zero: chirp
+
+            times_chirp = self.times - mu.max()
+            self.c_model.init_times(times_chirp)
+
+            _C_opt = self.c_model.calc_C(params, _C_opt)
+
+            C_interp = np.zeros((mu.shape[0], _C_opt.shape[0], _C_opt.shape[1]))
+
+            for i in range(mu.shape[0]):
+                for j in range(_C_opt.shape[1]):
+                    C_interp[i, :, j] = np.interp(self.times, times_chirp + mu[i], _C_opt[:, j])
+
+                self.ST_opt[:, i] = lstsq(C_interp[i], self.D[:, i])[0]
+
+            D_fit = np.matmul(C_interp, self.ST_opt.T[..., None]).squeeze().T
+
+            # calculate the residual matrix by varpro (I - CC+)D
+            return self.D - D_fit
+
+        self.minimizer = lmfit.Minimizer(residuals, self.c_model.params)
+        kws = {} if self.kwds is None else self.kwds
+        self.last_result = self.minimizer.minimize(method=self.fit_alg, **kws)  # minimize the residuals
+
+        self.c_model.params = self.last_result.params
+        self.c_model.init_times(self.times)
+
+        self.C_opt = self.c_model.calc_C(C_out=self.C_opt)
+
+        return D_fit
+
 
     def _set_C_indiv(self, Ci, i, j=0):
         assert self.au is not None

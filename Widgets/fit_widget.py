@@ -31,6 +31,8 @@ from fitting.fitresult import FitResult
 
 from gui_console import Console
 from fitting.constraints import ConstraintClosure
+from scipy.linalg import lstsq
+
 
 
 class FitWidget(QWidget, Ui_Form):
@@ -368,6 +370,32 @@ class FitWidget(QWidget, Ui_Form):
 
             self.current_model.ST = self._ST
             self._C = self.current_model.calc_C(C_out=self._C)
+
+        elif self.current_model.method is 'femto':
+
+            mu = self.current_model.get_mu()  # real time zero: chirp
+
+            times_chirp = self.matrix.times - mu.max()
+            self.current_model.init_times(times_chirp)
+
+            self._C = self.current_model.calc_C(C_out=self._C)
+
+            C_interp = np.zeros((mu.shape[0], self._C.shape[0], self._C.shape[1]))
+
+            for i in range(mu.shape[0]):
+                for j in range(self._C.shape[1]):
+                    C_interp[i, :, j] = np.interp(self.matrix.times, times_chirp + mu[i], self._C[:, j])
+
+                self._ST[:, i] = lstsq(C_interp[i], self.matrix.Y[:, i])[0]
+
+            D_fit = np.matmul(C_interp, self._ST.T[..., None]).squeeze().T
+
+            self.current_model.init_times(self.matrix.times)
+            self._C = self.current_model.calc_C(C_out=self._C)
+
+            self.plot_opt_matrices(D_fit)
+            return
+
         else:
             self._C = self.current_model.calc_C(C_out=self._C)
 
@@ -470,13 +498,16 @@ class FitWidget(QWidget, Ui_Form):
         # elif self.current_model.connectivity.count(0) == n:  # pure MCR fit
         #     self.fitter.HS_MCR_fit(c_model=None)
         # else:  # mix of two, HS-fit
+        D_fit = None
+
         if self.current_model.connectivity.count(0) == 0:
             # self.fitter.HS_MCR_fit(c_model=self.current_model)
             # self.fitter.var_pro()
             if self.current_model.method is 'RFA':
                 self.fitter.obj_func_fit()
+            elif self.current_model.method is 'femto':
+                D_fit = self.fitter.var_pro_femto()
             else:
-                # self.fitter.HS_MCR_fit(c_model=self.current_model)
                 self.fitter.var_pro()
             self.current_model = self.fitter.c_model
         elif self.current_model.connectivity.count(0) == n:  # pure MCR fit
@@ -490,15 +521,15 @@ class FitWidget(QWidget, Ui_Form):
         self._C = self.fitter.C_opt
         self._ST = self.fitter.ST_opt
 
-        self.plot_opt_matrices()
+        self.plot_opt_matrices(D_fit)
 
-    def plot_opt_matrices(self):
+    def plot_opt_matrices(self, D_fit=None):
         if self.matrix is None:
             return
 
         n = int(self.sbN.value())
 
-        D_fit = np.dot(self._C, self._ST)
+        D_fit = np.dot(self._C, self._ST) if D_fit is None else D_fit
         R = D_fit - self.matrix.Y
 
         # self.matrix.E = R

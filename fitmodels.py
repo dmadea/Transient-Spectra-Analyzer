@@ -14,6 +14,7 @@ from numba import njit, prange, vectorize
 from scipy.interpolate import interp2d, interp1d
 from scipy.linalg import expm
 from scipy.linalg import svd
+from scipy.special import erfc
 
 
 def find_nearest_idx(array, value):
@@ -137,11 +138,21 @@ class _Femto(_Model):
 
         self.update_n()
 
+    @staticmethod
+    def conv_exp(t, k, fwhm):
+
+        w = fwhm / 1.6651092223153954  # w = fwhm / (2 * np.sqrt(np.log(2)))
+
+        if w > 0:
+            return 0.5 * np.exp(k * (k * w * w / 4 - t)) * erfc(w * k / 2 - t / w)
+        else:
+            return np.exp(-t * k) * np.heaviside(t, 1)
+
     def update_n(self, new_n=None, n_chirp=None):
-        self.n_chirp = new_n if new_n is not None else self.n_chirp
+        self.n_chirp = n_chirp if n_chirp is not None else self.n_chirp
         super(_Femto, self).update_n(new_n)
 
-    def get_mu(self, params):
+    def get_mu(self, params=None):
         """Return the curve that defines chirp."""
 
         if self.wavelengths is None:
@@ -151,23 +162,25 @@ class _Femto(_Model):
         pars = [par[1].value for par in params.items()]
         mus = pars[1:self.n_chirp + 1]
 
-        u = np.ones(self.wavelengths.shape[0], dtype=np.float64) * mus[0]
+        mu = np.ones(self.wavelengths.shape[0], dtype=np.float64) * mus[0]
 
         for i in range(1, self.n_chirp):
-            u += mus[i] * ((self.wavelengths - pars[0]) / 100) ** i  # pars[0] is central wave
+            mu += mus[i] * ((self.wavelengths - pars[0]) / 100) ** i  # pars[0] is central wave
 
-        return u
+        return mu
 
     def init_params(self):
         self.params = Parameters()
 
-        if self.method is not 'Femto':
+        if self.method is not 'femto':
             return
 
-        self.params.add('lambda_central_wave', value=388, min=-np.inf, max=np.inf, vary=False)
+        self.params.add('lambda_c', value=388, min=-np.inf, max=np.inf, vary=False)
 
-        for i in self.n_chirp:
+        for i in range(self.n_chirp):
             self.params.add(f'mu_{i+1}', value=0.5, min=-np.inf, max=np.inf, vary=True)
+
+        self.params.add('FWHM', value=1, min=0, max=np.inf, vary=True)
 
 
 class _Photokinetic_Model(_Model):
@@ -312,6 +325,64 @@ class _Photokinetic_Model(_Model):
             raise ValueError("Spectra matrix must not be None.")
 
         return C_out
+
+class Global_Analysis_Femto(_Femto):
+
+    name = 'Global Analysis'
+    _class = 'Femto'
+
+    spectra = 'EADS'  # or 'DADS'
+
+    def init_params(self):
+        super(Global_Analysis_Femto, self).init_params()
+
+        # evolution model
+        if self.spectra == 'EADS':
+            for i in range(self.n):
+                sec_label = self.species_names[i+1] if i < self.n - 1 else ""
+                self.params.add(f'k_{self.species_names[i]}{sec_label}', value=1, min=0, max=np.inf)
+
+        else:  # decay model
+            for i in range(self.n):
+                self.params.add(f'k_{self.species_names[i]}', value=1, min=0, max=np.inf)
+
+
+    def calc_C(self, params=None, C_out=None):
+        super(Global_Analysis_Femto, self).calc_C(params, C_out)
+
+        pars = [par[1].value for par in self.params.items()]
+        fwhm, *ks = pars[1 + self.n_chirp:]
+        ks = np.asarray(ks)
+
+        n = self.n
+
+        if self.spectra == 'EADS':
+            K = np.zeros((n, n))
+            for i in range(n):
+                K[i, i] = -ks[i]
+                if i < n - 1:
+                    K[i + 1, i] = ks[i]
+
+            # https://en.wikipedia.org/wiki/Gaussian_function
+            sigma = fwhm / 2.3548200450309493   # sigma = fwhm / (2 * np.sqrt(2 * np.log(2)))
+
+            def dC_dt(c, t):
+                j = np.zeros(n)
+                j[0] = np.exp(- t*t / (2 * sigma * sigma)) / (sigma * np.sqrt(2 * np.pi))
+                return K.dot(c) + j
+
+            if sigma > 0:
+                self.C = odeint(dC_dt, np.zeros(n), self.times)
+            else:
+                j = np.zeros(n)
+                j[0] = 1
+                self.C = odeint(lambda c, t: K.dot(c), j, self.times)
+
+        else:  # for DADS
+            self.C = self.conv_exp(self.times[:, None], ks[None, :], fwhm)
+
+        return self.get_conc_matrix(C_out, self._connectivity)
+
 
 class First_Order_Sequential_Model(_Model):
 
@@ -1566,8 +1637,8 @@ class Half_Bilirubin_Multiset_Half(_Photokinetic_Model):
         # self.ST = ST
         self.interp_kind = 'quadratic'
 
-        path = r"C:\Users\Dominik\Documents\MUNI\Organic Photochemistry\Projects\2019-Bilirubin project\UV-VIS\QY measurement\Photodiode\new setup"
-        # path = r"C:\Users\dominik\Documents\Projects\Bilirubin\new setup"
+        # path = r"C:\Users\Dominik\Documents\MUNI\Organic Photochemistry\Projects\2019-Bilirubin project\UV-VIS\QY measurement\Photodiode\new setup"
+        path = r"C:\Users\dominik\Documents\Projects\Bilirubin\new setup"
 
         self.Z_true = np.loadtxt(path + r'\Z-epsilon.txt', delimiter='\t', skiprows=1, usecols=1)
 
@@ -2131,8 +2202,8 @@ class Z_purified(_Model):
         # self.interp_kind = 'quadratic'
         self.species_names = np.array(list('ZEHD'), dtype=np.str)
 
-        # path = r"C:\Users\dominik\Documents\Projects\Bilirubin\UV-Vis Z purified"
-        path = r"C:\Users\Dominik\Documents\MUNI\Organic Photochemistry\Projects\2019-Bilirubin project\UV-VIS\QY measurement\Photodiode\Z purified"
+        path = r"C:\Users\dominik\Documents\Projects\Bilirubin\UV-Vis Z purified"
+        # path = r"C:\Users\Dominik\Documents\MUNI\Organic Photochemistry\Projects\2019-Bilirubin project\UV-VIS\QY measurement\Photodiode\Z purified"
 
         data_led = np.loadtxt(path + r'\LED sources.txt', delimiter='\t', skiprows=1)
 
