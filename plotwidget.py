@@ -209,11 +209,17 @@ class PlotWidget(DockArea):
         self.spectra_vline.sigPositionChanged.connect(self.update_trace_and_spectrum)
         self.trace_vline.sigPositionChanged.connect(self.update_trace_and_spectrum)
 
+        self.chirp = self.heat_map_plot.heat_map_plot.plot([])
+
 
         # self.heat_map_vline.sigPositionChangeFinished.connect(self.update_trace_and_spectrum)
         # self.heat_map_hline.sigPositionChangeFinished.connect(self.update_trace_and_spectrum)
         # self.spectrum_vline.sigPositionChangeFinished.connect(self.update_trace_and_spectrum)
         # self.trace_vline.sigPositionChangeFinished.connect(self.update_trace_and_spectrum)
+
+    def add_chirp(self, wls,  mu):
+        pen = pg.mkPen(color=QColor('black'), width=2)
+        self.chirp.setData(wls, mu, pen=pen)
 
     @staticmethod
     def is_int(num):

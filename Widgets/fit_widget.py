@@ -52,7 +52,9 @@ class FitWidget(QWidget, Ui_Form):
         # visible ST and C matrices - used as initial estimates for fitter
         self._ST = None
         self._C = None
+        self.D_fit = None
         self.fit_result = None
+        self.plot_chirp = True
         self.fitter = Fitter()
 
         self._au = None  # augmented matrix
@@ -190,6 +192,7 @@ class FitWidget(QWidget, Ui_Form):
         self.model_changed()
         self.sbN_value_changed()
 
+
     def set_ST_full(self, data):
         if self.matrix is None:
             return
@@ -206,13 +209,14 @@ class FitWidget(QWidget, Ui_Form):
         self.plot_opt_matrices()
 
     def ssq(self):
-        return ((self.matrix.Y - self._C @ self._ST) ** 2).sum()
+        self.D_fit = self._C @ self._ST if self.D_fit is None else self.D_fit
+        return ((self.matrix.D - self.D_fit) ** 2).sum()
 
     def lof(self):
-        return np.sqrt(self.ssq() / (self.matrix.Y ** 2).sum()) * 100
+        return np.sqrt(self.ssq() / (self.matrix.D ** 2).sum()) * 100
 
     def R2(self):
-        return (1 - self.ssq() / (self.matrix.Y ** 2).sum()) * 100
+        return (1 - self.ssq() / (self.matrix.D ** 2).sum()) * 100
 
     def print_stats(self):
         print(f"Lack of Fit:    {self.lof():.05g}")
@@ -373,28 +377,27 @@ class FitWidget(QWidget, Ui_Form):
 
         elif self.current_model.method is 'femto':
 
-            mu = self.current_model.get_mu()  # real time zero: chirp
+            _C_tensor = self.current_model.calc_C()
+            _ST = np.zeros((self._ST.shape[0] + self.current_model.coh_spec_order + 1, self._ST.shape[1])) if self.current_model.coh_spec else np.zeros_like(self._ST)
 
-            times_chirp = self.matrix.times - mu.max()
-            self.current_model.init_times(times_chirp)
+            coh_idx = fitmodels.find_nearest_idx(self.matrix.wavelengths, 450)
+            coh_scale = np.ones_like(self.matrix.wavelengths)
+            coh_scale[coh_idx:] = 0
 
-            self._C = self.current_model.calc_C(C_out=self._C)
+            if self.current_model.coh_spec:
+                _C_COH = self.current_model.simulate_coh_gaussian(coh_scale=coh_scale)
+                _C_tensor = np.concatenate((_C_tensor, _C_COH), axis=-1)
 
-            C_interp = np.zeros((mu.shape[0], self._C.shape[0], self._C.shape[1]))
+            for i in range(self.matrix.wavelengths.shape[0]):
+                _ST[:, i] = lstsq(_C_tensor[i], self.matrix.D[:, i])[0]
 
-            for i in range(mu.shape[0]):
-                for j in range(self._C.shape[1]):
-                    C_interp[i, :, j] = np.interp(self.matrix.times, times_chirp + mu[i], self._C[:, j])
+            if self.current_model.coh_spec:
+                self.current_model.ST_COH = _ST[-self.current_model.coh_spec_order - 1:]
 
-                self._ST[:, i] = lstsq(C_interp[i], self.matrix.Y[:, i])[0]
+            self.D_fit = np.matmul(_C_tensor, _ST.T[..., None]).squeeze().T
 
-            D_fit = np.matmul(C_interp, self._ST.T[..., None]).squeeze().T
-
-            self.current_model.init_times(self.matrix.times)
-            self._C = self.current_model.calc_C(C_out=self._C)
-
-            self.plot_opt_matrices(D_fit)
-            return
+            self._C = _C_tensor[0, :, :-self.current_model.coh_spec_order - 1] if self.current_model.coh_spec else _C_tensor[0]
+            self._ST = _ST[:-self.current_model.coh_spec_order - 1] if self.current_model.coh_spec else _ST
 
         else:
             self._C = self.current_model.calc_C(C_out=self._C)
@@ -498,7 +501,6 @@ class FitWidget(QWidget, Ui_Form):
         # elif self.current_model.connectivity.count(0) == n:  # pure MCR fit
         #     self.fitter.HS_MCR_fit(c_model=None)
         # else:  # mix of two, HS-fit
-        D_fit = None
 
         if self.current_model.connectivity.count(0) == 0:
             # self.fitter.HS_MCR_fit(c_model=self.current_model)
@@ -506,7 +508,7 @@ class FitWidget(QWidget, Ui_Form):
             if self.current_model.method is 'RFA':
                 self.fitter.obj_func_fit()
             elif self.current_model.method is 'femto':
-                D_fit = self.fitter.var_pro_femto()
+                self.D_fit = self.fitter.var_pro_femto()
             else:
                 self.fitter.var_pro()
             self.current_model = self.fitter.c_model
@@ -521,16 +523,16 @@ class FitWidget(QWidget, Ui_Form):
         self._C = self.fitter.C_opt
         self._ST = self.fitter.ST_opt
 
-        self.plot_opt_matrices(D_fit)
+        self.plot_opt_matrices()
 
-    def plot_opt_matrices(self, D_fit=None):
+    def plot_opt_matrices(self):
         if self.matrix is None:
             return
 
         n = int(self.sbN.value())
 
-        D_fit = np.dot(self._C, self._ST) if D_fit is None else D_fit
-        R = D_fit - self.matrix.Y
+        D_fit = np.dot(self._C, self._ST) if self.D_fit is None else self.D_fit
+        R = D_fit - self.matrix.D
 
         # self.matrix.E = R
         self.matrix.C_fit = self._C
@@ -547,16 +549,32 @@ class FitWidget(QWidget, Ui_Form):
 
         for i in range(n):
             pen_fit = pg.mkPen(color=FitLayout.int_default_color(i), width=1)
+            name = self.current_model.species_names[i]
+
             self.fit_plot_layout.C_plot.plot(self.matrix.times, self._C[:, i], pen=pen_fit,
-                                             name=f"Component {i + 1}")
+                                             name=name)
             self.fit_plot_layout.ST_plot.plot(self.matrix.wavelengths, self._ST[i], pen=pen_fit,
-                                              name=f"Component {i + 1}")
+                                              name=name)
+
+        if self.current_model.method is 'femto' and self.current_model.coh_spec is True:
+            for i in range(self.current_model.coh_spec_order + 1):
+
+                pen_coh_spec = pg.mkPen(color=FitLayout.int_default_color(n + i), width=1, style=Qt.DashLine)
+                name = f'CohSpec_{i}'
+
+                self.fit_plot_layout.C_plot.plot(self.matrix.times, self.current_model.C_COH[0, :, i],
+                                                 pen=pen_coh_spec, name=name)
+                self.fit_plot_layout.ST_plot.plot(self.matrix.wavelengths, self.current_model.ST_COH[i],
+                                                  pen=pen_coh_spec, name=name)
 
         self.fit_plot_layout.heat_map_plot.set_matrix(R, self.matrix.times, self.matrix.wavelengths,
                                                       gradient=HeatMapPlot.seismic)
 
         mat = LFP_matrix.from_value_matrix(D_fit, self.matrix.times, self.matrix.wavelengths)
         PlotWidget.instance.set_fit_matrix(mat)
+
+        if self.plot_chirp and self.current_model.method is 'femto':
+            PlotWidget.instance.add_chirp(self.matrix.wavelengths, self.current_model.get_mu())
 
     # def set_Closure_constraint(self, set=True, value=1, hard_closure=True):
     #     if set:

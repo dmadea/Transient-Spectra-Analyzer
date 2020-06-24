@@ -9,11 +9,19 @@ from numba import njit
 import math
 
 def find_nearest_idx(array, value):
-    idx = np.searchsorted(array, value, side="left")
-    if idx > 0 and (idx == len(array) or math.fabs(value - array[idx - 1]) < math.fabs(value - array[idx])):
-        return idx - 1
+    if isinstance(value, (int, float)):
+        value = np.asarray([value])
     else:
-        return idx
+        value = np.asarray(value)
+
+    result = np.empty_like(value, dtype=int)
+    for i in range(value.shape[0]):
+        idx = np.searchsorted(array, value[i], side="left")
+        if idx > 0 and (idx == len(array) or math.fabs(value[i] - array[idx - 1]) < math.fabs(value[i] - array[idx])):
+            result[i] = idx - 1
+        else:
+            result[i] = idx
+    return result if result.shape[0] > 1 else result[0]
 
 from .constraints import ConstraintNonneg
 
@@ -292,6 +300,11 @@ class Fitter:
 
         _C_opt = self.C_est.copy() if C_est is None else C_est
 
+        w_idx = find_nearest_idx(self.wls, 260)
+        weights = np.ones((self.D.shape[0] + 5, self.D.shape[1]))
+
+        weights[:, :w_idx] = 0.1  # weights in the region of 230 - 260 are 0.1
+
         def residuals(params):
             nonlocal _C_opt
 
@@ -312,7 +325,7 @@ class Fitter:
 
             # nonnegativity of spectra
             # put negative values, positives will be zero, normalization to maximum of individual spectrum
-            R_sp = ST * (ST < 0) / ST.max(axis=0, keepdims=True)
+            R_sp = ST * (ST < 0) / ST.max(axis=0, keepdims=True) * 2
 
             R[:n, :] = R_sp
 
@@ -327,7 +340,7 @@ class Fitter:
             # R_C = (_C_opt - C_basis) / _C_opt.max()
 
             # return np.hstack((R.flatten(), R_C.flatten()))
-            return R
+            return R * weights
 
         self.minimizer = lmfit.Minimizer(residuals, self.c_model.params)
         kws = {} if self.kwds is None else self.kwds
@@ -370,43 +383,58 @@ class Fitter:
         self.ST_opt = lstsq(_C_opt, self.D)[0]
         # self.ST_opt = NNLS(_C_opt, self.D)[0]
 
-    def var_pro_femto(self, C_est=None, c_fix=None, **kwargs):
+    def var_pro_femto(self, **kwargs):
         self.update_options(**kwargs)
 
-        _C_opt = C_est.copy() if C_est is not None else None  # np.zeros_like(self.C_est)
+        # _C_opt = C_est.copy() if C_est is not None else None  # np.zeros_like(self.C_est)
         D_fit = np.zeros_like(self.D)
+        _C_tensor = None
+        _ST = np.zeros((self.ST_opt.shape[0] + self.c_model.coh_spec_order + 1,
+                        self.ST_opt.shape[1])) if self.c_model.coh_spec else np.zeros_like(self.ST_opt)
+
+        w_idxs = find_nearest_idx(self.wls, [378, 393])
+        weights = np.ones_like(self.D)
+
+        weights[:, w_idxs[0]:w_idxs[1]] = 0.1  # weights in the region of 378 to 393 nm is set to 0.1
+
+        coh_idx = find_nearest_idx(self.wls, 450)
+        coh_scale = np.ones_like(self.wls)
+        coh_scale[coh_idx:] = 0
+
+        coh_scale = None
 
         def residuals(params):
             # needed to use nonlocal because of nested functions, https://stackoverflow.com/questions/5218895/python-nested-functions-variable-scoping
-            nonlocal _C_opt, D_fit
-            mu = self.c_model.get_mu(params)  # real time zero: chirp
+            nonlocal _C_tensor, D_fit
 
-            times_chirp = self.times - mu.max()
-            self.c_model.init_times(times_chirp)
+            _C_tensor = self.c_model.calc_C(params)
 
-            _C_opt = self.c_model.calc_C(params, _C_opt)
+            if self.c_model.coh_spec:
+                _C_COH = self.c_model.simulate_coh_gaussian(params, coh_scale)
+                _C_tensor = np.concatenate((_C_tensor, _C_COH), axis=-1)
 
-            C_interp = np.zeros((mu.shape[0], _C_opt.shape[0], _C_opt.shape[1]))
+            _C_tensor = np.nan_to_num(_C_tensor)
 
-            for i in range(mu.shape[0]):
-                for j in range(_C_opt.shape[1]):
-                    C_interp[i, :, j] = np.interp(self.times, times_chirp + mu[i], _C_opt[:, j])
+            for i in range(self.wls.shape[0]):
+                _ST[:, i] = lstsq(_C_tensor[i], self.D[:, i])[0]
 
-                self.ST_opt[:, i] = lstsq(C_interp[i], self.D[:, i])[0]
+            if self.c_model.coh_spec:
+                self.c_model.ST_COH = _ST[-self.c_model.coh_spec_order - 1:]
 
-            D_fit = np.matmul(C_interp, self.ST_opt.T[..., None]).squeeze().T
+            D_fit = np.matmul(_C_tensor, _ST.T[..., None]).squeeze().T
 
-            # calculate the residual matrix by varpro (I - CC+)D
-            return self.D - D_fit
+            R = self.D - D_fit
+
+            return R * weights
 
         self.minimizer = lmfit.Minimizer(residuals, self.c_model.params)
         kws = {} if self.kwds is None else self.kwds
         self.last_result = self.minimizer.minimize(method=self.fit_alg, **kws)  # minimize the residuals
 
         self.c_model.params = self.last_result.params
-        self.c_model.init_times(self.times)
 
-        self.C_opt = self.c_model.calc_C(C_out=self.C_opt)
+        self.C_opt = _C_tensor[0, :, :-self.c_model.coh_spec_order - 1] if self.c_model.coh_spec else _C_tensor[0]
+        self.ST_opt = _ST[:-self.c_model.coh_spec_order - 1] if self.c_model.coh_spec else _ST
 
         return D_fit
 

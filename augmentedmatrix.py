@@ -103,13 +103,13 @@ class AugmentedMatrix(object):
 
         return q_rel.squeeze()
 
-    def save_Cs(self, fname='C'):
+    def save_Cs(self, path=''):
         for i in range(self.r):
 
             C = self._C_indiv(i)
             C_aug = np.hstack((self[i, 0].times[:, None], C))
 
-            np.savetxt(f'{fname}{i:03d}.txt', C_aug, delimiter='\t')
+            np.savetxt(f'{path}\\C{i:03d}.txt', C_aug, delimiter='\t')
 
     def change_to_fitted_data(self):
         fw = FitWidget.instance
@@ -590,8 +590,6 @@ def setup3_half():
 
     au[-4, 0].crop_data(t1=3000)
     au[-3, 0].crop_data(t1=3000)
-
-
 
     m = au.get_aug_LFP_matrix()
 

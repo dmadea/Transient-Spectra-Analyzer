@@ -92,12 +92,12 @@ class _Model(object):
         if C_out is None:
             return self.C
         else:
-            assert C_out.shape[1] == len(connectivity)
+            assert C_out.shape[-1] == len(connectivity)
 
             for i in range(len(connectivity)):
                 # for values > 0 - 0 means MCR fit, replace the values, then 1 - A, 2 - B, 3 - C, etc.
                 if connectivity[i] > 0:
-                    C_out[:, i] = self.C[:, connectivity[i] - 1]
+                    C_out[..., i] = self.C[..., connectivity[i] - 1]
 
         return C_out
 
@@ -123,7 +123,8 @@ class _Model(object):
 
 class _Femto(_Model):
 
-    n_chirp = 3  # number of parameters to describe chirp
+    n_poly_chirp = 2  # number of parameters to describe chirp for mu_type = 'poly'
+    n_exp_chirp = 1  # number of exponentials to describe chirp for mu_type = 'exp'
 
     def __init__(self, times=None, connectivity=(0, 1, 2), wavelengths=None,  method='femto'):
         self.method = method
@@ -136,7 +137,15 @@ class _Femto(_Model):
         self.species_names = np.array(list('ABCDEFGHIJ'), dtype=np.str)
         self.wavelengths = wavelengths
 
+        self.coh_spec = False
+        self.coh_spec_order = 2
+
+        self.chirp_type = 'poly'  # or 'poly' for polynomial
+
         self.update_n()
+
+        self.C_COH = None
+        self.ST_COH = None
 
     @staticmethod
     def conv_exp(t, k, fwhm):
@@ -144,13 +153,78 @@ class _Femto(_Model):
         w = fwhm / 1.6651092223153954  # w = fwhm / (2 * np.sqrt(np.log(2)))
 
         if w > 0:
-            return 0.5 * np.exp(k * (k * w * w / 4 - t)) * erfc(w * k / 2 - t / w)
+            return 0.5 * np.exp(k * (k * w * w / 4.0 - t)) * erfc(w * k / 2.0 - t / w)
         else:
             return np.exp(-t * k) * np.heaviside(t, 1)
 
-    def update_n(self, new_n=None, n_chirp=None):
-        self.n_chirp = n_chirp if n_chirp is not None else self.n_chirp
+    @staticmethod
+    def simulate_model(t, K, j, mu=None, fwhm=0):
+        # based on Ivo H.M. van Stokkum equation in doi:10.1016/j.bbabio.2004.04.011
+        L, Q = np.linalg.eig(K)
+        Q_inv = np.linalg.inv(Q)
+
+        A2_T = Q @ np.diag(Q_inv.dot(j))
+
+        if mu is not None:
+            C = _Femto.conv_exp(t[None, :, None] - mu[:, None, None], -L[None, None, :], fwhm)
+        else:
+            C = _Femto.conv_exp(t[:, None], -L[None, :], fwhm)
+
+        return C.dot(A2_T.T)
+
+    def simulate_coh_gaussian(self, params=None, coh_scale=None):
+
+        order = self.coh_spec_order
+
+        fwhm, ks = self.get_kin_pars(params)
+        mu = self.get_mu(params)
+
+        if fwhm == 0:
+            return np.zeros((mu.shape[0], self.times.shape[0], order + 1))
+
+        s = fwhm / 2.3548200450309493  # sigma = fwhm / (2 * np.sqrt(2 * np.log(2)))
+
+        tt = self.times[None, :, None] - mu[:, None, None]
+
+        y = np.exp(-0.5 * tt * tt / (s * s))
+        y = np.tile(y, (1, 1, order + 1))
+
+        if order == 0:
+            self.C_COH = y
+            return self.C_COH
+
+        tt = tt.squeeze()
+        # y[..., 1] *= -tt / (s * s)
+        # y[..., 2] *= tt * tt / s ** 4 - 1 / (s * s)
+        y[..., 1] *= -tt
+        y[..., 1] /= y[0, :, 1].max()
+
+        if order == 1:
+            self.C_COH = y
+            return self.C_COH
+
+        y[..., 2] *= tt * tt - s * s
+        y[..., 2] /= y[0, :, 2].max()
+
+        self.C_COH = y
+
+        if coh_scale is not None:
+            self.C_COH *= coh_scale[:, None, None]
+
+        return self.C_COH
+
+    def update_n(self, new_n=None, n_poly_chirp=None, n_exp_chirp=None):
+        self.n_poly_chirp = n_poly_chirp if n_poly_chirp is not None else self.n_poly_chirp
+        self.n_exp_chirp = n_exp_chirp if n_exp_chirp is not None else self.n_exp_chirp
         super(_Femto, self).update_n(new_n)
+
+    def get_kin_pars(self, params=None):
+        params = params if params is not None else self.params
+
+        pars = [par[1].value for par in params.items()]
+        fwhm, *ks = pars[2 + 2 * self.n_exp_chirp:] if self.chirp_type is 'exp' else pars[2 + self.n_poly_chirp:]
+        ks = np.asarray(ks)
+        return fwhm, ks
 
     def get_mu(self, params=None):
         """Return the curve that defines chirp."""
@@ -160,12 +234,19 @@ class _Femto(_Model):
 
         params = self.params if params is None else params
         pars = [par[1].value for par in params.items()]
-        mus = pars[1:self.n_chirp + 1]
 
-        mu = np.ones(self.wavelengths.shape[0], dtype=np.float64) * mus[0]
+        lambda_c, mu_lambda_c = pars[:2]
+        pars = pars[2:]
 
-        for i in range(1, self.n_chirp):
-            mu += mus[i] * ((self.wavelengths - pars[0]) / 100) ** i  # pars[0] is central wave
+        mu = np.ones(self.wavelengths.shape[0], dtype=np.float64) * mu_lambda_c
+
+        if self.chirp_type is 'exp':
+            for i in range(self.n_exp_chirp):
+                mu += pars[2*i] * (1 - np.exp((lambda_c - self.wavelengths) / pars[2*i+1]))
+
+        else:  #  polynomial
+            for i in range(1, self.n_poly_chirp):
+                mu += pars[i - 1] * ((self.wavelengths - lambda_c) / 100) ** i  # pars[0] is central wave
 
         return mu
 
@@ -175,12 +256,18 @@ class _Femto(_Model):
         if self.method is not 'femto':
             return
 
-        self.params.add('lambda_c', value=388, min=-np.inf, max=np.inf, vary=False)
+        self.params.add('lambda_c', value=388, min=0, max=1000, vary=False)
+        self.params.add('mu_lambda_c', value=1.3, min=0, max=np.inf, vary=True)
 
-        for i in range(self.n_chirp):
-            self.params.add(f'mu_{i+1}', value=0.5, min=-np.inf, max=np.inf, vary=True)
+        if self.chirp_type is 'exp':
+            for i in range(self.n_exp_chirp):
+                self.params.add(f'mu_A{i+1}', value=0.5, min=-np.inf, max=np.inf, vary=True)
+                self.params.add(f'mu_B{i+1}', value=70, min=-np.inf, max=np.inf, vary=True)
+        else:  # polynomial
+            for i in range(self.n_poly_chirp):
+                self.params.add(f'mu_p{i+1}', value=0.5, min=-np.inf, max=np.inf, vary=True)
 
-        self.params.add('FWHM', value=1, min=0, max=np.inf, vary=True)
+        self.params.add('FWHM', value=0.12, min=0, max=np.inf, vary=True)
 
 
 class _Photokinetic_Model(_Model):
@@ -331,29 +418,28 @@ class Global_Analysis_Femto(_Femto):
     name = 'Global Analysis'
     _class = 'Femto'
 
-    spectra = 'EADS'  # or 'DADS'
+    spectra = 'DADS'  # or 'EADS'
 
     def init_params(self):
         super(Global_Analysis_Femto, self).init_params()
 
         # evolution model
         if self.spectra == 'EADS':
+            self.species_names = [f'EADS{i + 1}' for i in range(self.n)]
             for i in range(self.n):
                 sec_label = self.species_names[i+1] if i < self.n - 1 else ""
                 self.params.add(f'k_{self.species_names[i]}{sec_label}', value=1, min=0, max=np.inf)
 
         else:  # decay model
+            self.species_names = [f'DADS{i + 1}' for i in range(self.n)]
             for i in range(self.n):
                 self.params.add(f'k_{self.species_names[i]}', value=1, min=0, max=np.inf)
-
 
     def calc_C(self, params=None, C_out=None):
         super(Global_Analysis_Femto, self).calc_C(params, C_out)
 
-        pars = [par[1].value for par in self.params.items()]
-        fwhm, *ks = pars[1 + self.n_chirp:]
-        ks = np.asarray(ks)
-
+        fwhm, ks = self.get_kin_pars(params)
+        mu = self.get_mu(params)
         n = self.n
 
         if self.spectra == 'EADS':
@@ -363,25 +449,18 @@ class Global_Analysis_Femto(_Femto):
                 if i < n - 1:
                     K[i + 1, i] = ks[i]
 
-            # https://en.wikipedia.org/wiki/Gaussian_function
-            sigma = fwhm / 2.3548200450309493   # sigma = fwhm / (2 * np.sqrt(2 * np.log(2)))
-
-            def dC_dt(c, t):
-                j = np.zeros(n)
-                j[0] = np.exp(- t*t / (2 * sigma * sigma)) / (sigma * np.sqrt(2 * np.pi))
-                return K.dot(c) + j
-
-            if sigma > 0:
-                self.C = odeint(dC_dt, np.zeros(n), self.times)
-            else:
-                j = np.zeros(n)
-                j[0] = 1
-                self.C = odeint(lambda c, t: K.dot(c), j, self.times)
+            j = np.zeros(n)
+            j[0] = 1
+            self.C = self.simulate_model(self.times, K, j, mu, fwhm)
 
         else:  # for DADS
-            self.C = self.conv_exp(self.times[:, None], ks[None, :], fwhm)
+            self.C = self.conv_exp(self.times[None, :, None] - mu[:, None, None], ks[None, None, :], fwhm)
 
         return self.get_conc_matrix(C_out, self._connectivity)
+
+
+
+
 
 
 class First_Order_Sequential_Model(_Model):
@@ -1637,8 +1716,8 @@ class Half_Bilirubin_Multiset_Half(_Photokinetic_Model):
         # self.ST = ST
         self.interp_kind = 'quadratic'
 
-        # path = r"C:\Users\Dominik\Documents\MUNI\Organic Photochemistry\Projects\2019-Bilirubin project\UV-VIS\QY measurement\Photodiode\new setup"
-        path = r"C:\Users\dominik\Documents\Projects\Bilirubin\new setup"
+        path = r"C:\Users\Dominik\Documents\MUNI\Organic Photochemistry\Projects\2019-Bilirubin project\UV-VIS\QY measurement\Photodiode\new setup"
+        # path = r"C:\Users\dominik\Documents\Projects\Bilirubin\new setup"
 
         self.Z_true = np.loadtxt(path + r'\Z-epsilon.txt', delimiter='\t', skiprows=1, usecols=1)
 
@@ -1923,33 +2002,37 @@ class Half_Bilirubin_Multiset_Half(_Photokinetic_Model):
         c_tot = c0.sum()
 
         # get absorbances from real data
-        abs_at = interp2d(wavelengths, times, D, kind='linear', copy=True)
+        # abs_at = interp2d(wavelengths, times, D, kind='linear', copy=True)
 
         # const = l * np.log(10)
         # tol = 1e-3
 
         def dc_dt(c, t):
 
-            # c_eps = c[..., None] * eps  # hadamard product
-
             _c = np.append(c, c_tot - c.sum())
-
-            c_dot_eps = abs_at(wavelengths, t)
-
-            # I = c_eps * Half_Bilirubin_Multiset_Half.photokin_factor(c_dot_eps) * I_source
-            FI0 = Half_Bilirubin_Multiset_Half.photokin_factor(c_dot_eps) * I_source
-
-            tensor = FI0[:, None, None] * K * eps.T[:, None, :]  # I0 * F * K x diag(epsilon)
-
-            return q0 / V * tensor.sum(axis=0).dot(_c)
-
+            # #
+            # c_dot_eps = abs_at(wavelengths, t)
             #
+            # # I = c_eps * Half_Bilirubin_Multiset_Half.photokin_factor(c_dot_eps) * I_source
+            # FI0 = Half_Bilirubin_Multiset_Half.photokin_factor(c_dot_eps) * I_source
+            #
+            # tensor = FI0[:, None, None] * K * eps.T[:, None, :]  # I0 * F * K x diag(epsilon)
+            #
+            # return q0 / V * tensor.sum(axis=0).dot(_c)
+
+            c_dot_eps = _c[:, None] * eps
+            c_eps = c_dot_eps.sum(axis=0)
+
+            FI0 = c_dot_eps * Half_Bilirubin_Multiset_Half.photokin_factor(c_eps) * I_source
+
             # # w x n x n   x   w x n x 1
-            # product = np.matmul(K, I.T[..., None])  # w x n x 1
+            product = np.matmul(K, FI0.T[..., None])  # w x n x 1
             #
             # irr_on = 1 if t >= t0 else 0
             #
             # return irr_on * q0 / V * product.sum(axis=0).squeeze()
+            return q0 / V * product.sum(axis=0).squeeze()
+
 
         result = odeint(dc_dt, c0, times)
 
@@ -1989,6 +2072,12 @@ class Half_Bilirubin_Multiset_Half(_Photokinetic_Model):
                            [_Phi_ZE, -_Phi_EHL -_Phi_EZ,  _Phi_HLE,  _0],
                            [_0, _Phi_EHL, -_Phi_HLE - _Phi_HLD,      _0],
                            [_0, _0, _Phi_HLD,                       _0]])
+
+        # # alternative model if HL would be formed from Z
+        # K = np.asarray([[-_Phi_ZE -_Phi_EHL, _Phi_EZ, _Phi_HLE, _0],
+        #                 [_Phi_ZE,  - _Phi_EZ, _0, _0],
+        #                 [_Phi_EHL, _0, -_Phi_HLE - _Phi_HLD, _0],
+        #                 [_0, _0, _Phi_HLD, _0]])
 
         K = K[:-1]  # remove last row of matrix
 
@@ -2202,8 +2291,8 @@ class Z_purified(_Model):
         # self.interp_kind = 'quadratic'
         self.species_names = np.array(list('ZEHD'), dtype=np.str)
 
-        path = r"C:\Users\dominik\Documents\Projects\Bilirubin\UV-Vis Z purified"
-        # path = r"C:\Users\Dominik\Documents\MUNI\Organic Photochemistry\Projects\2019-Bilirubin project\UV-VIS\QY measurement\Photodiode\Z purified"
+        # path = r"C:\Users\dominik\Documents\Projects\Bilirubin\UV-Vis Z purified"
+        path = r"C:\Users\Dominik\Documents\MUNI\Organic Photochemistry\Projects\2019-Bilirubin project\UV-VIS\QY measurement\Photodiode\Z purified"
 
         data_led = np.loadtxt(path + r'\LED sources.txt', delimiter='\t', skiprows=1)
 

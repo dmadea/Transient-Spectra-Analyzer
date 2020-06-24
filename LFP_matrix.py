@@ -520,6 +520,28 @@ class LFP_matrix(object):
         with open(filepath + '-C.csv', 'w') as f:
             f.write(buff_C)
 
+    def save_matrix(self, fname='output.txt', delimiter='\t', encoding='utf8', t0=None, t1=None, w0=None, w1=None):
+        # cut data if necessary
+
+        t_idx_start = Spectrum.find_nearest_idx(self.times, t0) if t0 is not None else 0
+        t_idx_end = Spectrum.find_nearest_idx(self.times, t1) + 1 if t1 is not None else self.D.shape[0]
+
+        wl_idx_start = Spectrum.find_nearest_idx(self.wavelengths, w0) if w0 is not None else 0
+        wl_idx_end = Spectrum.find_nearest_idx(self.wavelengths, w1) + 1 if w1 is not None else self.D.shape[1]
+
+        # crop the data if necessary
+        D_crop = self.D[t_idx_start:t_idx_end, wl_idx_start:wl_idx_end]
+        times_crop = self.times[t_idx_start:t_idx_end]
+        wavelengths_crop = self.wavelengths[wl_idx_start:wl_idx_end]
+
+        mat = np.vstack((wavelengths_crop, D_crop))
+        buffer = delimiter + delimiter.join(f"{num}" for num in times_crop) + '\n'
+        buffer += '\n'.join(delimiter.join(f"{num}" for num in row) for row in mat.T)
+
+        with open(fname, 'w', encoding=encoding) as f:
+            f.write(buffer)
+
+
     def plot_data(self, symlog=False, t_unit='s', z_unit='$\Delta A$', c_map='inferno_r', zmin=None, zmax=None,
                   w0=None, w1=None, t0=None, t1=None, fig_size=(6, 4), dpi=500, filepath=None, transparent=True,
                   linthreshy=10, linscaley=0.5):

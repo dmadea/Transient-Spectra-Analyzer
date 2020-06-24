@@ -35,7 +35,7 @@ class FitResult(object):
 
         self.model.plot_phis(y_scale=y_scale, quantiles=Q, alpha_q=alpha_q)
 
-    def plot_ST(self, quantiles=(0.025, 0.975), n_samples=10000, alpha_q=0.2):
+    def plot_ST(self, quantiles=(0.025, 0.975), n_samples=100, alpha_q=0.2):
 
         Q = self.model.get_quantiles_ST(self.result.covar, self.values_errors[:, 0], quantiles=quantiles,
                                      n_samples=n_samples)
