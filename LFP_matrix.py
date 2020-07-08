@@ -520,7 +520,7 @@ class LFP_matrix(object):
         with open(filepath + '-C.csv', 'w') as f:
             f.write(buff_C)
 
-    def save_matrix(self, fname='output.txt', delimiter='\t', encoding='utf8', t0=None, t1=None, w0=None, w1=None):
+    def save_matrix(self, D=None, fname='output.txt', delimiter='\t', encoding='utf8', t0=None, t1=None, w0=None, w1=None):
         # cut data if necessary
 
         t_idx_start = Spectrum.find_nearest_idx(self.times, t0) if t0 is not None else 0
@@ -529,8 +529,10 @@ class LFP_matrix(object):
         wl_idx_start = Spectrum.find_nearest_idx(self.wavelengths, w0) if w0 is not None else 0
         wl_idx_end = Spectrum.find_nearest_idx(self.wavelengths, w1) + 1 if w1 is not None else self.D.shape[1]
 
+        D = self.D if D is None else D
+
         # crop the data if necessary
-        D_crop = self.D[t_idx_start:t_idx_end, wl_idx_start:wl_idx_end]
+        D_crop = D[t_idx_start:t_idx_end, wl_idx_start:wl_idx_end]
         times_crop = self.times[t_idx_start:t_idx_end]
         wavelengths_crop = self.wavelengths[wl_idx_start:wl_idx_end]
 

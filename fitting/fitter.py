@@ -401,7 +401,7 @@ class Fitter:
         coh_scale = np.ones_like(self.wls)
         coh_scale[coh_idx:] = 0
 
-        coh_scale = None
+        # coh_scale = None
 
         def residuals(params):
             # needed to use nonlocal because of nested functions, https://stackoverflow.com/questions/5218895/python-nested-functions-variable-scoping

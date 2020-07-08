@@ -12,7 +12,7 @@ from multiprocessing import Pool
 import math
 from numba import njit, prange, vectorize
 from scipy.interpolate import interp2d, interp1d
-from scipy.linalg import expm
+# from scipy.linalg import expm
 from scipy.linalg import svd
 from scipy.special import erfc
 
@@ -123,7 +123,7 @@ class _Model(object):
 
 class _Femto(_Model):
 
-    n_poly_chirp = 2  # number of parameters to describe chirp for mu_type = 'poly'
+    n_poly_chirp = 3  # number of parameters to describe chirp for mu_type = 'poly'
     n_exp_chirp = 1  # number of exponentials to describe chirp for mu_type = 'exp'
 
     def __init__(self, times=None, connectivity=(0, 1, 2), wavelengths=None,  method='femto'):
@@ -245,8 +245,8 @@ class _Femto(_Model):
                 mu += pars[2*i] * (1 - np.exp((lambda_c - self.wavelengths) / pars[2*i+1]))
 
         else:  #  polynomial
-            for i in range(1, self.n_poly_chirp):
-                mu += pars[i - 1] * ((self.wavelengths - lambda_c) / 100) ** i  # pars[0] is central wave
+            for i in range(0, self.n_poly_chirp):
+                mu += pars[i] * ((self.wavelengths - lambda_c) / 100) ** (i + 1)
 
         return mu
 
@@ -256,8 +256,8 @@ class _Femto(_Model):
         if self.method is not 'femto':
             return
 
-        self.params.add('lambda_c', value=388, min=0, max=1000, vary=False)
-        self.params.add('mu_lambda_c', value=1.3, min=0, max=np.inf, vary=True)
+        self.params.add('lambda_c', value=433, min=0, max=1000, vary=False)
+        self.params.add('mu_lambda_c', value=1.539, min=0, max=np.inf, vary=True)
 
         if self.chirp_type is 'exp':
             for i in range(self.n_exp_chirp):
@@ -267,7 +267,7 @@ class _Femto(_Model):
             for i in range(self.n_poly_chirp):
                 self.params.add(f'mu_p{i+1}', value=0.5, min=-np.inf, max=np.inf, vary=True)
 
-        self.params.add('FWHM', value=0.12, min=0, max=np.inf, vary=True)
+        self.params.add('FWHM', value=0.1135, min=0, max=np.inf, vary=True)
 
 
 class _Photokinetic_Model(_Model):
@@ -460,6 +460,43 @@ class Global_Analysis_Femto(_Femto):
 
 
 
+class Target_Analysis_Femto(_Femto):
+
+    name = 'Target Analysis'
+    _class = 'Femto'
+
+    def init_params(self):
+        super(Target_Analysis_Femto, self).init_params()
+
+        self.params.add('phi', value=0.5, min=0, max=1, vary=False)
+        self.params.add('k_1', value=6, min=0, max=np.inf)
+        self.params.add('k_2', value=1.8, min=0, max=np.inf)
+        self.params.add('k_3', value=0.2, min=0, max=np.inf)
+        self.params.add('k_4', value=0.08358, min=0, max=np.inf)
+        self.params.add('k_5', value=0.02984, min=0, max=np.inf)
+
+    def calc_C(self, params=None, C_out=None):
+        super(Target_Analysis_Femto, self).calc_C(params, C_out)
+
+        fwhm, ks = self.get_kin_pars(params)
+        mu = self.get_mu(params)
+        n = self.n
+
+        phi, k1, k2, k3, k4, k5 = ks
+
+        K = np.asarray([[-k1,        0,  0, 0, 0, 0],
+                        [phi*k1,   -k2,  0, 0, 0, 0],
+                        [(1-phi)*k1, 0,-k3, 0, 0, 0],
+                        [0,        k2, 0, -k4, 0, 0],
+                        [0,        0, k3, 0, -k5, 0],
+                        [0,        0,  0, k4, k5, 0]])
+
+        j = np.zeros(n)
+        j[0] = 1
+
+        self.C = self.simulate_model(self.times, K, j, mu, fwhm)
+
+        return self.get_conc_matrix(C_out, self._connectivity)
 
 
 
