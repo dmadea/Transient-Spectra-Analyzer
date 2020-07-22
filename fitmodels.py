@@ -123,7 +123,7 @@ class _Model(object):
 
 class _Femto(_Model):
 
-    n_poly_chirp = 3  # number of parameters to describe chirp for mu_type = 'poly'
+    n_poly_chirp = 3  # order of polynomial for chirp_type: 'poly' or 'poly_stokkum'
     n_exp_chirp = 1  # number of exponentials to describe chirp for mu_type = 'exp'
 
     def __init__(self, times=None, connectivity=(0, 1, 2), wavelengths=None,  method='femto'):
@@ -140,7 +140,7 @@ class _Femto(_Model):
         self.coh_spec = False
         self.coh_spec_order = 2
 
-        self.chirp_type = 'poly'  # or 'poly' for polynomial
+        self.chirp_type = 'poly'  # poly, poly_stokkum, exp
 
         self.update_n()
 
@@ -222,7 +222,13 @@ class _Femto(_Model):
         params = params if params is not None else self.params
 
         pars = [par[1].value for par in params.items()]
-        fwhm, *taus = pars[2 + 2 * self.n_exp_chirp:] if self.chirp_type is 'exp' else pars[2 + self.n_poly_chirp:]
+        if self.chirp_type is 'exp':
+            fwhm, *taus = pars[2 + 2 * self.n_exp_chirp:]
+        elif self.chirp_type is 'poly_stokkun':
+            fwhm, *taus  = pars[2 + self.n_poly_chirp:]
+        else:
+            fwhm, *taus = pars[2 + self.n_poly_chirp+1:]
+
         ks = 1 / np.asarray(taus)
         return fwhm, ks
 
@@ -244,11 +250,21 @@ class _Femto(_Model):
             for i in range(self.n_exp_chirp):
                 mu += pars[2*i] * (1 - np.exp((lambda_c - self.wavelengths) / pars[2*i+1]))
 
-        else:  #  polynomial
+        elif self.chirp_type is 'poly_stokkum':
             for i in range(0, self.n_poly_chirp):
                 mu += pars[i] * ((self.wavelengths - lambda_c) / 100) ** (i + 1)
+        else:  # polynomial
+            pars = pars[:self.n_poly_chirp + 1]
+            mu = np.polyval(pars, self.wavelengths)
 
         return mu
+
+    # works only for poly type, normal polynomial coefficients
+    def set_parmu(self, coefs, type='poly'):
+        assert(len(coefs) == self.n_poly_chirp + 1)
+
+        for i in range(self.n_poly_chirp+1):
+            self.params[f'p{i}'].value = coefs[i]
 
     def init_params(self):
         self.params = Parameters()
@@ -263,9 +279,13 @@ class _Femto(_Model):
             for i in range(self.n_exp_chirp):
                 self.params.add(f'mu_A{i+1}', value=0.5, min=-np.inf, max=np.inf, vary=True)
                 self.params.add(f'mu_B{i+1}', value=70, min=-np.inf, max=np.inf, vary=True)
-        else:  # polynomial
+        elif self.chirp_type is 'poly_stokkum':  # polynomial by Ivo von Stokkum
             for i in range(self.n_poly_chirp):
                 self.params.add(f'mu_p{i+1}', value=0.5, min=-np.inf, max=np.inf, vary=True)
+        else:  # polynomial
+            self.params['mu_lambda_c'].vary = False
+            for i in range(self.n_poly_chirp + 1):
+                self.params.add(f'p{i}', value=0.5, min=-np.inf, max=np.inf, vary=True)
 
         self.params.add('FWHM', value=0.1135, min=0, max=np.inf, vary=True)
 

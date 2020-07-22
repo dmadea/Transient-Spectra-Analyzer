@@ -34,7 +34,6 @@ from fitting.constraints import ConstraintClosure
 from scipy.linalg import lstsq
 
 
-
 class FitWidget(QWidget, Ui_Form):
     max_params = 50
     max_species = 10
@@ -660,15 +659,29 @@ class FitWidget(QWidget, Ui_Form):
             self.current_model.params[param].value = val
             self.current_model.params[param].vary = not self.fixed_list[i].isChecked()
 
+    def fit_chirp_params(self):
+        if PlotWidget.instance is None:
+            return
+
+        if self.current_model.method is not 'femto':
+            return
+
+        roi_pos = PlotWidget.instance.get_roi_pos()
+
+        coefs = np.polyfit(roi_pos[:, 0], roi_pos[:, 1], self.current_model.n_poly_chirp)
+
+        self.current_model.set_parmu(coefs)
+        self.update_fields_H_fit()
+
     def update_fields_H_fit(self):
 
         values_errors = np.zeros((self.current_model.params.__len__(), 2), dtype=np.float32)
 
         for i in range(self.current_model.params.__len__()):
             param = self.params_list[i].text()
-            self.value_list[i].setText("{:.4g}".format(self.current_model.params[param].value))
+            self.value_list[i].setText("{:.6g}".format(self.current_model.params[param].value))
             error = self.current_model.params[param].stderr
-            self.error_list[i].setText("{:.4g}".format(error) if error is not None else '')
+            self.error_list[i].setText("{:.6g}".format(error) if error is not None else '')
 
             values_errors[i, 0] = self.current_model.params[param].value
             values_errors[i, 1] = error if error is not None else 0

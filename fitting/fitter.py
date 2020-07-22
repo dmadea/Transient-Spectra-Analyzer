@@ -425,6 +425,8 @@ class Fitter:
 
             R = self.D - D_fit
 
+            R = np.nan_to_num(R)
+
             return R * weights
 
         self.minimizer = lmfit.Minimizer(residuals, self.c_model.params)
