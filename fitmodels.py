@@ -222,8 +222,8 @@ class _Femto(_Model):
         params = params if params is not None else self.params
 
         pars = [par[1].value for par in params.items()]
-        fwhm, *ks = pars[2 + 2 * self.n_exp_chirp:] if self.chirp_type is 'exp' else pars[2 + self.n_poly_chirp:]
-        ks = np.asarray(ks)
+        fwhm, *taus = pars[2 + 2 * self.n_exp_chirp:] if self.chirp_type is 'exp' else pars[2 + self.n_poly_chirp:]
+        ks = 1 / np.asarray(taus)
         return fwhm, ks
 
     def get_mu(self, params=None):
@@ -428,12 +428,12 @@ class Global_Analysis_Femto(_Femto):
             self.species_names = [f'EADS{i + 1}' for i in range(self.n)]
             for i in range(self.n):
                 sec_label = self.species_names[i+1] if i < self.n - 1 else ""
-                self.params.add(f'k_{self.species_names[i]}{sec_label}', value=1, min=0, max=np.inf)
+                self.params.add(f'tau_{self.species_names[i]}{sec_label}', value=1, min=0, max=np.inf)
 
         else:  # decay model
             self.species_names = [f'DADS{i + 1}' for i in range(self.n)]
             for i in range(self.n):
-                self.params.add(f'k_{self.species_names[i]}', value=1, min=0, max=np.inf)
+                self.params.add(f'tau_{self.species_names[i]}', value=1, min=0, max=np.inf)
 
     def calc_C(self, params=None, C_out=None):
         super(Global_Analysis_Femto, self).calc_C(params, C_out)
@@ -457,7 +457,6 @@ class Global_Analysis_Femto(_Femto):
             self.C = self.conv_exp(self.times[None, :, None] - mu[:, None, None], ks[None, None, :], fwhm)
 
         return self.get_conc_matrix(C_out, self._connectivity)
-
 
 
 class Target_Analysis_Femto(_Femto):

@@ -68,6 +68,8 @@ class PlotWidget(DockArea):
 
         # self.surface_widget = SurfacePlot(self)
 
+        #  heat map
+
         self.heat_map_dock = Dock("Heat Map", size=(50, 7))
         self.heat_map_plot = HeatMapPlot(title="Heat Map")
         self.heat_map_plot.range_changed.connect(self.heat_map_range_changed)
@@ -211,11 +213,37 @@ class PlotWidget(DockArea):
 
         self.chirp = self.heat_map_plot.heat_map_plot.plot([])
 
+        self.r2b = None
 
         # self.heat_map_vline.sigPositionChangeFinished.connect(self.update_trace_and_spectrum)
         # self.heat_map_hline.sigPositionChangeFinished.connect(self.update_trace_and_spectrum)
         # self.spectrum_vline.sigPositionChangeFinished.connect(self.update_trace_and_spectrum)
         # self.trace_vline.sigPositionChangeFinished.connect(self.update_trace_and_spectrum)
+
+    def get_roi_pos(self):
+        """This shit took me half a day to figure out."""
+        if self.roi is None:
+            return
+
+        hs = self.roi.getHandles()
+        n = len(hs)
+
+        positions = np.zeros((n, 2))
+        for i, h in enumerate(self.roi.getHandles()):
+            qPoint = self.roi.mapSceneToParent(h.scenePos())
+
+            positions[i, 0] = qPoint.x()
+            positions[i, 1] = qPoint.y()
+
+        return positions
+
+    def plot_chirp_points(self):
+        self.roi = pg.PolyLineROI([[350, 1], [500, 1], [650, 1]], closed=False,
+                       handlePen=pg.mkPen(color=(0, 255, 0), width=5),
+                       hoverPen=pg.mkPen(color=(0, 150, 0), width=2),
+                       handleHoverPen=pg.mkPen(color=(0, 150, 0), width=3))
+
+        self.heat_map_plot.heat_map_plot.addItem(self.roi)
 
     def add_chirp(self, wls,  mu):
         pen = pg.mkPen(color=QColor('black'), width=2)
@@ -532,6 +560,8 @@ class PlotWidget(DockArea):
         self.update_trace_and_spectrum()
 
         self.update_spectra()
+
+        self.plot_chirp_points()
 
 
 
