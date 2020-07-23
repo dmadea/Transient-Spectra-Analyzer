@@ -667,10 +667,20 @@ class FitWidget(QWidget, Ui_Form):
             return
 
         roi_pos = PlotWidget.instance.get_roi_pos()
+        x, y = roi_pos[:, 0], roi_pos[:, 1]
 
-        coefs = np.polyfit(roi_pos[:, 0], roi_pos[:, 1], self.current_model.n_poly_chirp)
+        n = self.current_model.n_poly_chirp + 1
 
-        self.current_model.set_parmu(coefs)
+        lambda_c = self.current_model.get_lambda_c()
+
+        X = np.ones((x.shape[0], n))  # polynomial regression matrix
+
+        for i in range(1, n):
+            X[:, i:] *= (x[:, None] - lambda_c) / 100
+
+        parmu = lstsq(X, y)[0]
+
+        self.current_model.set_parmu(parmu)
         self.update_fields_H_fit()
 
     def update_fields_H_fit(self):

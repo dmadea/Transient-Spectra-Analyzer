@@ -224,13 +224,16 @@ class _Femto(_Model):
         pars = [par[1].value for par in params.items()]
         if self.chirp_type is 'exp':
             fwhm, *taus = pars[2 + 2 * self.n_exp_chirp:]
-        elif self.chirp_type is 'poly_stokkun':
+        else:  # poly
             fwhm, *taus  = pars[2 + self.n_poly_chirp:]
-        else:
-            fwhm, *taus = pars[2 + self.n_poly_chirp+1:]
+        # else:
+        #     fwhm, *taus = pars[2 + self.n_poly_chirp+1:]
 
         ks = 1 / np.asarray(taus)
         return fwhm, ks
+
+    def get_lambda_c(self):
+        return self.params['lambda_c'].value
 
     def get_mu(self, params=None):
         """Return the curve that defines chirp."""
@@ -250,12 +253,12 @@ class _Femto(_Model):
             for i in range(self.n_exp_chirp):
                 mu += pars[2*i] * (1 - np.exp((lambda_c - self.wavelengths) / pars[2*i+1]))
 
-        elif self.chirp_type is 'poly_stokkum':
+        else:
             for i in range(0, self.n_poly_chirp):
                 mu += pars[i] * ((self.wavelengths - lambda_c) / 100) ** (i + 1)
-        else:  # polynomial
-            pars = pars[:self.n_poly_chirp + 1]
-            mu = np.polyval(pars, self.wavelengths)
+        # else:  # polynomial
+        #     pars = pars[:self.n_poly_chirp + 1]
+        #     mu = np.polyval(pars, self.wavelengths)
 
         return mu
 
@@ -263,8 +266,10 @@ class _Femto(_Model):
     def set_parmu(self, coefs, type='poly'):
         assert(len(coefs) == self.n_poly_chirp + 1)
 
-        for i in range(self.n_poly_chirp+1):
-            self.params[f'p{i}'].value = coefs[i]
+        self.params['mu_lambda_c'].value = coefs[0]
+
+        for i in range(self.n_poly_chirp):
+            self.params[f'mu_p{i+1}'].value = coefs[i+1]
 
     def init_params(self):
         self.params = Parameters()
@@ -279,13 +284,13 @@ class _Femto(_Model):
             for i in range(self.n_exp_chirp):
                 self.params.add(f'mu_A{i+1}', value=0.5, min=-np.inf, max=np.inf, vary=True)
                 self.params.add(f'mu_B{i+1}', value=70, min=-np.inf, max=np.inf, vary=True)
-        elif self.chirp_type is 'poly_stokkum':  # polynomial by Ivo von Stokkum
+        else:  # polynomial by Ivo von Stokkum
             for i in range(self.n_poly_chirp):
                 self.params.add(f'mu_p{i+1}', value=0.5, min=-np.inf, max=np.inf, vary=True)
-        else:  # polynomial
-            self.params['mu_lambda_c'].vary = False
-            for i in range(self.n_poly_chirp + 1):
-                self.params.add(f'p{i}', value=0.5, min=-np.inf, max=np.inf, vary=True)
+        # else:  # polynomial
+        #     self.params['mu_lambda_c'].vary = False
+        #     for i in range(self.n_poly_chirp + 1):
+        #         self.params.add(f'p{i}', value=0.5, min=-np.inf, max=np.inf, vary=True)
 
         self.params.add('FWHM', value=0.1135, min=0, max=np.inf, vary=True)
 

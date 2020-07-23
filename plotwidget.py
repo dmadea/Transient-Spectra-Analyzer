@@ -167,6 +167,7 @@ class PlotWidget(DockArea):
         self.data_panel.txb_n_spectra.focus_lost.connect(self.txb_n_spectra_focus_lost)
 
         self.data_panel.txb_SVD_filter.focus_lost.connect(self.txb_SVD_filter_changed)
+        self.data_panel.txb_SVD_filter.returnPressed.connect(self.txb_SVD_filter_changed)
         self.data_panel.cb_SVD_filter.toggled.connect(self.cb_SVD_filter_toggled)
 
         self.data_panel.btn_center_levels.clicked.connect(self.btn_center_levels_clicked)
@@ -211,9 +212,8 @@ class PlotWidget(DockArea):
         self.spectra_vline.sigPositionChanged.connect(self.update_trace_and_spectrum)
         self.trace_vline.sigPositionChanged.connect(self.update_trace_and_spectrum)
 
+        self.roi = None
         self.chirp = self.heat_map_plot.heat_map_plot.plot([])
-
-        self.r2b = None
 
         # self.heat_map_vline.sigPositionChangeFinished.connect(self.update_trace_and_spectrum)
         # self.heat_map_hline.sigPositionChangeFinished.connect(self.update_trace_and_spectrum)
@@ -238,12 +238,13 @@ class PlotWidget(DockArea):
         return positions
 
     def plot_chirp_points(self):
-        self.roi = pg.PolyLineROI([[350, 1], [500, 1], [650, 1]], closed=False,
-                       handlePen=pg.mkPen(color=(0, 255, 0), width=5),
-                       hoverPen=pg.mkPen(color=(0, 150, 0), width=2),
-                       handleHoverPen=pg.mkPen(color=(0, 150, 0), width=3))
+        if self.roi is None:
+            self.roi = pg.PolyLineROI([[350, 1], [500, 1], [650, 1]], closed=False,
+                           handlePen=pg.mkPen(color=(0, 255, 0), width=5),
+                           hoverPen=pg.mkPen(color=(0, 150, 0), width=2),
+                           handleHoverPen=pg.mkPen(color=(0, 150, 0), width=3))
 
-        self.heat_map_plot.heat_map_plot.addItem(self.roi)
+            self.heat_map_plot.heat_map_plot.addItem(self.roi)
 
     def add_chirp(self, wls,  mu):
         pen = pg.mkPen(color=QColor('black'), width=2)

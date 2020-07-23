@@ -10,6 +10,7 @@ import os
 from copy import deepcopy
 
 import matplotlib.pyplot as plt
+import matplotlib.cm as cm
 
 from gui_console import Console
 
@@ -1003,25 +1004,54 @@ class LFP_matrix(object):
 
         plt.show()
 
-    def EFA(self, forward=True, backward=False, sing_values_num=10, points=100):
-        """Performs forward and/or backward Evolving factor analysis over time domain on the current matrix."""
+    def fEFA(self, sing_values_num=7, points=200):
+        """Performs forward Evolving factor analysis over time domain on the current matrix."""
 
-        t = np.linspace(int(self.times.shape[0] / points), self.times.shape[0] - 1, num=points).astype(int)
-        sing_values = np.zeros((points, sing_values_num), dtype=np.float64)
+        t_idxs = np.linspace(int(self.times.shape[0] / points), self.times.shape[0] - 1, num=points).astype(int)
+        self.sing_values = np.ones((points, sing_values_num), dtype=np.float64) * np.nan
+        self.fEFA_VTs = np.ones((points, sing_values_num, self.D.shape[1])) * np.nan
+        # self.fEFA_Us = np.ones((points, sing_values_num, self.D.shape[0])) * np.nan
 
         for i in range(points):
-            U, S, V_T = svd(self.Y[:t[i], :], full_matrices=False, lapack_driver='gesdd')
-            sing_values[i] = S[:sing_values_num]
+            U, S, V_T = svd(self.D[:t_idxs[i], :], full_matrices=False, lapack_driver='gesdd')
+            n = int(min(sing_values_num, S.shape[0]))
+            self.sing_values[i, :n] = S[:n]
 
-        times = self.times[t]
+            self.fEFA_VTs[i, :n] = V_T[:n, :]
+            # self.fEFA_Us[i, :n] = U[:, :n].T
+
+        times = self.times[t_idxs]
 
         for i in range(sing_values_num):
-            plt.plot(times, sing_values[:, i], label='{}'.format(i + 1))
+            plt.plot(times, self.sing_values[:, i], label=f'{i+1}')
         plt.xlabel('Time / s')
         plt.ylabel('Singular value')
         plt.title('Evolving factor analysis')
         plt.yscale('log')
         plt.legend()
+
+        plt.show()
+
+    def fEFA_plot_VTs(self, component=1, norm=False):
+        if not hasattr(self, 'fEFA_VTs'):
+            return
+
+        assert self.sing_values.shape[0] == self.fEFA_VTs.shape[0]
+
+        n = self.sing_values.shape[0]
+
+        cmap = cm.get_cmap('jet', n)
+
+        for i in range(n):
+            vector = self.fEFA_VTs[i, component - 1, :]
+            if norm:
+                vector /= vector.max()
+            plt.plot(self.wavelengths, vector, label=f'SV={self.sing_values[i]}',
+                     color=cmap(i), lw=0.5)
+        plt.xlabel('Wavelength / nm')
+        plt.ylabel('Amplitude')
+        plt.title(f'{component}-th V_T vector')
+        # plt.legend()
 
         plt.show()
 
