@@ -265,7 +265,7 @@ def L_corner_search(func, max_iter=60, treshold=1e-4, verbose=True, end_alphas=(
 
     if run_parallel:
         with multiprocessing.Pool() as pool:
-            result = pool.map(_func, a)
+            result = pool.map(func, a)
             P = np.asarray(result, dtype=np.float64)
     else:
         P = np.asarray([func(ai) for ai in a], dtype=np.float64)
@@ -336,8 +336,8 @@ X = np.exp(-t[:, None] * ks[None, :])
 
 def calc_W_norms_Lasso(alpha):
     # mod = lm.Ridge(alpha=alpha, fit_intercept=False)
-    mod = lm.Lasso(alpha=alpha, max_iter=1e5, warm_start=False, fit_intercept=False)
-    mod.fit(X, data)
+    mod = lm.Lasso(alpha=alpha, max_iter=1e6, warm_start=False, fit_intercept=False)
+    mod.fit(X.copy(), data.copy())
     W = mod.coef_.T
     fit = mod.predict(X)
 
@@ -349,7 +349,7 @@ def calc_W_norms_Lasso(alpha):
 def calc_W_norms_Ridge(alpha):
     # mod = lm.Ridge(alpha=alpha, fit_intercept=False)
     mod = lm.Ridge(alpha=alpha, fit_intercept=False)
-    mod.fit(X, data)
+    mod.fit(X.copy(), data.copy())
     W = mod.coef_.T
     fit = mod.predict(X)
 
@@ -359,22 +359,22 @@ def calc_W_norms_Ridge(alpha):
     return W, fit, log_R_norm, log_W_norm
 
 def _func(alpha):
-    W, fit, log_R_norm, log_W_norm = calc_W_norms_Lasso(alpha)
+    W, fit, log_R_norm, log_W_norm = calc_W_norms_Ridge(alpha)
     return log_R_norm, log_W_norm
 
 # alpha_MC = L_corner_search(_func, end_alphas=(1e-10, 1e-1), run_parallel=False)
 
-alphas = np.logspace(-7, -1, 40)
-norms = np.zeros((alphas.shape[0], 2))
-Ws = np.zeros((alphas.shape[0], ks.shape[0]))
-
-for i in range(alphas.shape[0]):
-    W, fit, log_R_norm, log_W_norm = calc_W_norms_Lasso(alphas[i])
-
-    norms[i, 0] = log_R_norm
-    norms[i, 1] = log_W_norm
-    Ws[i] = W
-    print(f'{alphas[i]:.3g}: {log_R_norm:.3g}')
+# alphas = np.logspace(-7, -1, 40)
+# norms = np.zeros((alphas.shape[0], 2))
+# Ws = np.zeros((alphas.shape[0], ks.shape[0]))
+#
+# for i in range(alphas.shape[0]):
+#     W, fit, log_R_norm, log_W_norm = calc_W_norms_Lasso(alphas[i])
+#
+#     norms[i, 0] = log_R_norm
+#     norms[i, 1] = log_W_norm
+#     Ws[i] = W
+#     print(f'{alphas[i]:.3g}: {log_R_norm:.3g}')
 
 # print(norms)
 #
@@ -387,8 +387,8 @@ for i in range(alphas.shape[0]):
 #
 # plt.show()
 # #
-plt.scatter(norms[:, 0], norms[:, 1])
-plt.show()
+# plt.scatter(norms[:, 0], norms[:, 1])
+# plt.show()
 #
 # plt.plot(t, data)
 # plt.plot(t, fit)
@@ -406,15 +406,15 @@ def run_parallel():
 def run_serial():
     print([_func(a) for a in np.logspace(-9, -1, 40)])
 
-# if __name__ == '__main__':
-#     alpha_MC, trajectory = L_corner_search(_func, end_alphas=(1e-9, 0.1), run_parallel=False)
+if __name__ == '__main__':
+    alpha_MC, trajectory = L_corner_search(_func, end_alphas=(1e-9, 1e-3), run_parallel=False)
 # #     alpha_MC = L_corner_search(_func, end_alphas=(1e-10, 1e-1), run_parallel=False)
 #
 #     print(trajectory.shape)
-#     print(trajectory)
+    print(trajectory)
 #
-#     plt.scatter(trajectory[:, 1], trajectory[:, 2])
-#     plt.show()
+    plt.scatter(trajectory[:, 1], trajectory[:, 2])
+    plt.show()
 
     # ret = timeit.timeit(lambda: run_serial(), number=1)
     # print(f"serial: {ret}")
