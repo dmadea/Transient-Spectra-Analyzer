@@ -240,7 +240,7 @@ def menger(x1, y1, x2, y2, x3, y3):
     return C2
 
 
-def L_corner_search(func, max_iter=60, treshold=1e-4, verbose=True, end_alphas=(1e-9, 1e3), run_parallel=False):
+def L_corner_search(func, max_iter=60, treshold=1e-1, verbose=True, end_alphas=(1e-9, 1e3)):
     """Finds the regularization parameter alpha on the L-curve at maximum curvature.
     Based on L-curve corner search algorithm described in https://arxiv.org/pdf/1608.04571.pdf
 
@@ -261,14 +261,7 @@ def L_corner_search(func, max_iter=60, treshold=1e-4, verbose=True, end_alphas=(
     a[1] = 10 ** ((np.log10(a[3]) + phi * np.log10(a[0])) / (1 + phi))
     a[2] = 10 ** (np.log10(a[0]) + np.log10(a[3]) - np.log10(a[1]))
 
-    # P = np.zeros((4, 2), dtype=np.float64)
-
-    if run_parallel:
-        with multiprocessing.Pool() as pool:
-            result = pool.map(func, a)
-            P = np.asarray(result, dtype=np.float64)
-    else:
-        P = np.asarray([func(ai) for ai in a], dtype=np.float64)
+    P = np.asarray([func(ai) for ai in a], dtype=np.float64)
 
     trajectory = np.hstack((a[:, None].copy(), P.copy()))
 
@@ -326,7 +319,7 @@ d1, d2, d3 = a1*np.exp(-t*k1),  a2*np.exp(-t*k2), a3*np.exp(-t*k3)
 
 # plt.show()
 data = d1+d2+d3
-data += np.random.normal(0, scale=0.05, size=data.shape)
+data += np.random.normal(0, scale=0.01, size=data.shape)
 
 ks = np.logspace(-2, 1, 200)
 X = np.exp(-t[:, None] * ks[None, :])
@@ -336,7 +329,7 @@ X = np.exp(-t[:, None] * ks[None, :])
 
 def calc_W_norms_Lasso(alpha):
     # mod = lm.Ridge(alpha=alpha, fit_intercept=False)
-    mod = lm.Lasso(alpha=alpha, max_iter=1e6, warm_start=False, fit_intercept=False)
+    mod = lm.Lasso(alpha=alpha, max_iter=1e6, fit_intercept=False)
     mod.fit(X.copy(), data.copy())
     W = mod.coef_.T
     fit = mod.predict(X)
@@ -359,7 +352,7 @@ def calc_W_norms_Ridge(alpha):
     return W, fit, log_R_norm, log_W_norm
 
 def _func(alpha):
-    W, fit, log_R_norm, log_W_norm = calc_W_norms_Ridge(alpha)
+    W, fit, log_R_norm, log_W_norm = calc_W_norms_Lasso(alpha)
     return log_R_norm, log_W_norm
 
 # alpha_MC = L_corner_search(_func, end_alphas=(1e-10, 1e-1), run_parallel=False)
@@ -378,14 +371,7 @@ def _func(alpha):
 
 # print(norms)
 #
-# W, fit, log_R_norm, log_W_norm = calc_W_norms(alpha_MC)
-#
-# plt.semilogx(1/ks, W)
-# # plt.vlines(1/k1, W.min(), W.max())
-# # plt.vlines(1/k2, W.min(), W.max())
-# # plt.vlines(1/k3, W.min(), W.max())
-#
-# plt.show()
+
 # #
 # plt.scatter(norms[:, 0], norms[:, 1])
 # plt.show()
@@ -398,7 +384,7 @@ def _func(alpha):
 # def f(x):
 #     time.sleep(1)
 #     return x + 1
-#
+
 def run_parallel():
     with multiprocessing.Pool() as pool:
         print(pool.map(_func, np.logspace(-9, -1, 40)))
@@ -407,7 +393,7 @@ def run_serial():
     print([_func(a) for a in np.logspace(-9, -1, 40)])
 
 if __name__ == '__main__':
-    alpha_MC, trajectory = L_corner_search(_func, end_alphas=(1e-9, 1e-3), run_parallel=False)
+    alpha_MC, trajectory = L_corner_search(_func, end_alphas=(1e-9, 1e-1), run_parallel=False)
 # #     alpha_MC = L_corner_search(_func, end_alphas=(1e-10, 1e-1), run_parallel=False)
 #
 #     print(trajectory.shape)
@@ -415,6 +401,21 @@ if __name__ == '__main__':
 #
     plt.scatter(trajectory[:, 1], trajectory[:, 2])
     plt.show()
+
+    W, fit, log_R_norm, log_W_norm = calc_W_norms_Lasso(alpha_MC)
+
+    plt.semilogx(1 / ks, W)
+    plt.vlines(1 / k1, W.min(), W.max())
+    plt.vlines(1 / k2, W.min(), W.max())
+    plt.vlines(1 / k3, W.min(), W.max())
+
+    plt.show()
+
+    plt.plot(t, data)
+    plt.plot(t, fit)
+    plt.show()
+
+
 
     # ret = timeit.timeit(lambda: run_serial(), number=1)
     # print(f"serial: {ret}")
