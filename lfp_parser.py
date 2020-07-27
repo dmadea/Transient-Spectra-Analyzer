@@ -38,11 +38,13 @@ def parse_file(path_to_file):
         delimiter = '\t'
         transpose = True
     try:
-        data = np.genfromtxt(path_to_file, dtype=np.float32, skip_header=0, delimiter=delimiter, filling_values=None,
+        data = np.genfromtxt(path_to_file, dtype=np.float32, skip_header=0, delimiter=delimiter, filling_values=0,
                          autostrip=True)
     except ValueError:
-        data = np.genfromtxt(path_to_file, dtype=np.float32, skip_header=0, delimiter=delimiter, filling_values=None,
+        data = np.genfromtxt(path_to_file, dtype=np.float32, skip_header=0, delimiter=delimiter, filling_values=0,
                              autostrip=True, encoding='utf16')
+
+    data = np.nan_to_num(data)
 
     # with open(path_to_file, mode='r') as tsf:
     #     buffer = [[float_try_parse(num.strip()) for num in line.strip().split(delimiter)]

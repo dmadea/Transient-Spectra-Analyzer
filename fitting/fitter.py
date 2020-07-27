@@ -395,11 +395,11 @@ class Fitter:
         w_idxs = find_nearest_idx(self.wls, [378, 393])
         weights = np.ones_like(self.D)
 
-        weights[:, w_idxs[0]:w_idxs[1]] = 0.1  # weights in the region of 378 to 393 nm is set to 0.1
+        # weights[:, w_idxs[0]:w_idxs[1]] = 0.1  # weights in the region of 378 to 393 nm is set to 0.1
 
         coh_idx = find_nearest_idx(self.wls, 450)
         coh_scale = np.ones_like(self.wls)
-        coh_scale[coh_idx:] = 0
+        # coh_scale[coh_idx:] = 0
 
         # coh_scale = None
 

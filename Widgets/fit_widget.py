@@ -381,7 +381,7 @@ class FitWidget(QWidget, Ui_Form):
 
             coh_idx = fitmodels.find_nearest_idx(self.matrix.wavelengths, 450)
             coh_scale = np.ones_like(self.matrix.wavelengths)
-            coh_scale[coh_idx:] = 0
+            # coh_scale[coh_idx:] = 0
 
             if self.current_model.coh_spec:
                 _C_COH = self.current_model.simulate_coh_gaussian(coh_scale=coh_scale)
