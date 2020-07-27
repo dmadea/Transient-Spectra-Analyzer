@@ -221,216 +221,213 @@
 #
 
 
-import multiprocessing
-import time
-import matplotlib.pyplot as plt
-import sklearn.linear_model as lm
-import numpy as np
-import timeit
-
-
-def menger(x1, y1, x2, y2, x3, y3):
-    # x - log R norm, y - log W norm
-
-    P1P2 = (x2 - x1) ** 2 + (y2 - y1) ** 2
-    P2P3 = (x3 - x2) ** 2 + (y3 - y2) ** 2
-    P3P1 = (x1 - x3) ** 2 + (y1 - y3) ** 2
-
-    C2 = 2 * (x1 * y2 + x2 * y3 + x3 * y1 - x2 * y1 - x3 * y2 - x1 * y3) / np.sqrt(P1P2 * P2P3 * P3P1)
-    return C2
-
-
-def L_corner_search(func, max_iter=60, treshold=1e-1, verbose=True, end_alphas=(1e-9, 1e3)):
-    """Finds the regularization parameter alpha on the L-curve at maximum curvature.
-    Based on L-curve corner search algorithm described in https://arxiv.org/pdf/1608.04571.pdf
-
-    func is a function that takes alpha as an argument and returns the log_R norm and log_W norm tuple"""
-
-    def _shuffle(a, P):
-        a[3] = a[2]
-        P[3] = P[2]
-        a[2] = a[1]
-        P[2] = P[1]
-        a[1] = 10 ** ((np.log10(a[3]) + phi * np.log10(a[0])) / (1 + phi))
-        P[1, 0], P[1, 1] = func(a[1])
-
-    a = np.asarray([end_alphas[0], 0, 0, end_alphas[1]])
-
-    phi = (1 + np.sqrt(5)) / 2  # golden ratio
-
-    a[1] = 10 ** ((np.log10(a[3]) + phi * np.log10(a[0])) / (1 + phi))
-    a[2] = 10 ** (np.log10(a[0]) + np.log10(a[3]) - np.log10(a[1]))
-
-    P = np.asarray([func(ai) for ai in a], dtype=np.float64)
-
-    trajectory = np.hstack((a[:, None].copy(), P.copy()))
-
-    alpha_MC = a[0]
-    for i in range(max_iter):
-        C2 = menger(P[0, 0], P[0, 1], P[1, 0], P[1, 1], P[2, 0], P[2, 1])
-        C3 = menger(P[1, 0], P[1, 1], P[2, 0], P[2, 1], P[3, 0], P[3, 1])
-
-        while C3 < 0:
-            _shuffle(a, P)
-            C3 = menger(P[1, 0], P[1, 1], P[2, 0], P[2, 1], P[3, 0], P[3, 1])
-
-        if C2 > C3:
-            alpha_MC = a[1]
-            _shuffle(a, P)
-        else:
-            alpha_MC = a[2]
-            a[0] = a[1]
-            P[0] = P[1]
-            a[1] = a[2]
-            P[1] = P[2]
-            a[2] = 10 ** (np.log10(a[0]) + np.log10(a[3]) - np.log10(a[1]))
-            P[2, 0], P[2, 1] = func(a[2])
-
-        for j in range(4):
-            if a[j] not in trajectory[:, 0]:
-                trajectory = np.vstack((trajectory, np.asarray([a[j], P[j, 0], P[j, 1]])))
-
-        cost = (a[3] - a[0]) / a[3]
-
-        if verbose:
-            print(f'Iteration {i + 1}:')
-            print(f'Alphas: {a[0]:.4g}, {a[1]:.4g}, {a[2]:.4g}, {a[3]:.4g}; Alpha_MC: {alpha_MC:.4g}')
-            print(f'Cost: {cost:.4g}\n')
-
-        if cost < treshold:
-            break
-
-    return alpha_MC, trajectory[np.argsort(trajectory[:, 0])]
-
-
-t = np.linspace(0, 30, 1000)
-
-alpha = 1e-2
-
-k1, k2, k3 = 2, 1, 0.1
-a1, a2, a3 = 1, 0.8, 0.5
-
-d1, d2, d3 = a1*np.exp(-t*k1),  a2*np.exp(-t*k2), a3*np.exp(-t*k3)
-
-# plt.plot(t, d1)
-# plt.plot(t, d2)
-# plt.plot(t, d3)
-# plt.plot(t, d1+d2+d3)
-
-# plt.show()
-data = d1+d2+d3
-data += np.random.normal(0, scale=0.01, size=data.shape)
-
-ks = np.logspace(-2, 1, 200)
-X = np.exp(-t[:, None] * ks[None, :])
+# import multiprocessing
+# import time
+# import matplotlib.pyplot as plt
+# import sklearn.linear_model as lm
+# import numpy as np
+# import timeit
 #
-# plt.plot(t, X)
-# plt.show()
-
-def calc_W_norms_Lasso(alpha):
-    # mod = lm.Ridge(alpha=alpha, fit_intercept=False)
-    mod = lm.Lasso(alpha=alpha, max_iter=1e6, fit_intercept=False)
-    mod.fit(X.copy(), data.copy())
-    W = mod.coef_.T
-    fit = mod.predict(X)
-
-    log_R_norm = np.log10(((data - fit) * (data - fit)).sum())  # log10 residual norm
-    log_W_norm = np.log10(np.abs(W).sum())  # log10 smoothing norm - norm of parameters
-
-    return W, fit, log_R_norm, log_W_norm
-
-def calc_W_norms_Ridge(alpha):
-    # mod = lm.Ridge(alpha=alpha, fit_intercept=False)
-    mod = lm.Ridge(alpha=alpha, fit_intercept=False)
-    mod.fit(X.copy(), data.copy())
-    W = mod.coef_.T
-    fit = mod.predict(X)
-
-    log_R_norm = np.log10(((data - fit) * (data - fit)).sum())  # log10 residual norm
-    log_W_norm = np.log10((W*W).sum())  # log10 smoothing norm - norm of parameters
-
-    return W, fit, log_R_norm, log_W_norm
-
-def _func(alpha):
-    W, fit, log_R_norm, log_W_norm = calc_W_norms_Lasso(alpha)
-    return log_R_norm, log_W_norm
-
-# alpha_MC = L_corner_search(_func, end_alphas=(1e-10, 1e-1), run_parallel=False)
-
-# alphas = np.logspace(-7, -1, 40)
-# norms = np.zeros((alphas.shape[0], 2))
-# Ws = np.zeros((alphas.shape[0], ks.shape[0]))
 #
-# for i in range(alphas.shape[0]):
-#     W, fit, log_R_norm, log_W_norm = calc_W_norms_Lasso(alphas[i])
+# def menger(x1, y1, x2, y2, x3, y3):
+#     # x - log R norm, y - log W norm
 #
-#     norms[i, 0] = log_R_norm
-#     norms[i, 1] = log_W_norm
-#     Ws[i] = W
-#     print(f'{alphas[i]:.3g}: {log_R_norm:.3g}')
-
-# print(norms)
+#     P1P2 = (x2 - x1) ** 2 + (y2 - y1) ** 2
+#     P2P3 = (x3 - x2) ** 2 + (y3 - y2) ** 2
+#     P3P1 = (x1 - x3) ** 2 + (y1 - y3) ** 2
 #
-
+#     C2 = 2 * (x1 * y2 + x2 * y3 + x3 * y1 - x2 * y1 - x3 * y2 - x1 * y3) / np.sqrt(P1P2 * P2P3 * P3P1)
+#     return C2
+#
+#
+# def L_corner_search(func, max_iter=60, treshold=1e-4, verbose=True, end_alphas=(1e-9, 1e3), run_parallel=False):
+#     """Finds the regularization parameter alpha on the L-curve at maximum curvature.
+#     Based on L-curve corner search algorithm described in https://arxiv.org/pdf/1608.04571.pdf
+#
+#     func is a function that takes alpha as an argument and returns the log_R norm and log_W norm tuple"""
+#
+#     def _shuffle(a, P):
+#         a[3] = a[2]
+#         P[3] = P[2]
+#         a[2] = a[1]
+#         P[2] = P[1]
+#         a[1] = 10 ** ((np.log10(a[3]) + phi * np.log10(a[0])) / (1 + phi))
+#         P[1, 0], P[1, 1] = func(a[1])
+#
+#     a = np.asarray([end_alphas[0], 0, 0, end_alphas[1]])
+#
+#     phi = (1 + np.sqrt(5)) / 2  # golden ratio
+#
+#     a[1] = 10 ** ((np.log10(a[3]) + phi * np.log10(a[0])) / (1 + phi))
+#     a[2] = 10 ** (np.log10(a[0]) + np.log10(a[3]) - np.log10(a[1]))
+#
+#     # P = np.zeros((4, 2), dtype=np.float64)
+#
+#     if run_parallel:
+#         with multiprocessing.Pool() as pool:
+#             result = pool.map(func, a)
+#             P = np.asarray(result, dtype=np.float64)
+#     else:
+#         P = np.asarray([func(ai) for ai in a], dtype=np.float64)
+#
+#     trajectory = np.hstack((a[:, None].copy(), P.copy()))
+#
+#     alpha_MC = a[0]
+#     for i in range(max_iter):
+#         C2 = menger(P[0, 0], P[0, 1], P[1, 0], P[1, 1], P[2, 0], P[2, 1])
+#         C3 = menger(P[1, 0], P[1, 1], P[2, 0], P[2, 1], P[3, 0], P[3, 1])
+#
+#         while C3 < 0:
+#             _shuffle(a, P)
+#             C3 = menger(P[1, 0], P[1, 1], P[2, 0], P[2, 1], P[3, 0], P[3, 1])
+#
+#         if C2 > C3:
+#             alpha_MC = a[1]
+#             _shuffle(a, P)
+#         else:
+#             alpha_MC = a[2]
+#             a[0] = a[1]
+#             P[0] = P[1]
+#             a[1] = a[2]
+#             P[1] = P[2]
+#             a[2] = 10 ** (np.log10(a[0]) + np.log10(a[3]) - np.log10(a[1]))
+#             P[2, 0], P[2, 1] = func(a[2])
+#
+#         for j in range(4):
+#             if a[j] not in trajectory[:, 0]:
+#                 trajectory = np.vstack((trajectory, np.asarray([a[j], P[j, 0], P[j, 1]])))
+#
+#         cost = (a[3] - a[0]) / a[3]
+#
+#         if verbose:
+#             print(f'Iteration {i + 1}:')
+#             print(f'Alphas: {a[0]:.4g}, {a[1]:.4g}, {a[2]:.4g}, {a[3]:.4g}; Alpha_MC: {alpha_MC:.4g}')
+#             print(f'Cost: {cost:.4g}\n')
+#
+#         if cost < treshold:
+#             break
+#
+#     return alpha_MC, trajectory[np.argsort(trajectory[:, 0])]
+#
+#
+# t = np.linspace(0, 30, 1000)
+#
+# alpha = 1e-2
+#
+# k1, k2, k3 = 2, 1, 0.1
+# a1, a2, a3 = 1, 0.8, 0.5
+#
+# d1, d2, d3 = a1*np.exp(-t*k1),  a2*np.exp(-t*k2), a3*np.exp(-t*k3)
+#
+# # plt.plot(t, d1)
+# # plt.plot(t, d2)
+# # plt.plot(t, d3)
+# # plt.plot(t, d1+d2+d3)
+#
+# # plt.show()
+# data = d1+d2+d3
+# data += np.random.normal(0, scale=0.05, size=data.shape)
+#
+# ks = np.logspace(-2, 1, 200)
+# X = np.exp(-t[:, None] * ks[None, :])
 # #
-# plt.scatter(norms[:, 0], norms[:, 1])
-# plt.show()
+# # plt.plot(t, X)
+# # plt.show()
 #
-# plt.plot(t, data)
-# plt.plot(t, fit)
-# plt.show()
-
-
-# def f(x):
-#     time.sleep(1)
-#     return x + 1
-
-def run_parallel():
-    with multiprocessing.Pool() as pool:
-        print(pool.map(_func, np.logspace(-9, -1, 40)))
+# def calc_W_norms_Lasso(alpha):
+#     # mod = lm.Ridge(alpha=alpha, fit_intercept=False)
+#     mod = lm.Lasso(alpha=alpha, max_iter=1e6, warm_start=False, fit_intercept=False)
+#     mod.fit(X.copy(), data.copy())
+#     W = mod.coef_.T
+#     fit = mod.predict(X)
 #
-def run_serial():
-    print([_func(a) for a in np.logspace(-9, -1, 40)])
-
-if __name__ == '__main__':
-    alpha_MC, trajectory = L_corner_search(_func, end_alphas=(1e-9, 1e-1), run_parallel=False)
-# #     alpha_MC = L_corner_search(_func, end_alphas=(1e-10, 1e-1), run_parallel=False)
+#     log_R_norm = np.log10(((data - fit) * (data - fit)).sum())  # log10 residual norm
+#     log_W_norm = np.log10(np.abs(W).sum())  # log10 smoothing norm - norm of parameters
 #
-#     print(trajectory.shape)
-    print(trajectory)
+#     return W, fit, log_R_norm, log_W_norm
 #
-    plt.scatter(trajectory[:, 1], trajectory[:, 2])
-    plt.show()
+# def calc_W_norms_Ridge(alpha):
+#     # mod = lm.Ridge(alpha=alpha, fit_intercept=False)
+#     mod = lm.Ridge(alpha=alpha, fit_intercept=False)
+#     mod.fit(X.copy(), data.copy())
+#     W = mod.coef_.T
+#     fit = mod.predict(X)
+#
+#     log_R_norm = np.log10(((data - fit) * (data - fit)).sum())  # log10 residual norm
+#     log_W_norm = np.log10((W*W).sum())  # log10 smoothing norm - norm of parameters
+#
+#     return W, fit, log_R_norm, log_W_norm
+#
+# def _func(alpha):
+#     W, fit, log_R_norm, log_W_norm = calc_W_norms_Ridge(alpha)
+#     return log_R_norm, log_W_norm
+#
+# # alpha_MC = L_corner_search(_func, end_alphas=(1e-10, 1e-1), run_parallel=False)
+#
+# # alphas = np.logspace(-7, -1, 40)
+# # norms = np.zeros((alphas.shape[0], 2))
+# # Ws = np.zeros((alphas.shape[0], ks.shape[0]))
+# #
+# # for i in range(alphas.shape[0]):
+# #     W, fit, log_R_norm, log_W_norm = calc_W_norms_Lasso(alphas[i])
+# #
+# #     norms[i, 0] = log_R_norm
+# #     norms[i, 1] = log_W_norm
+# #     Ws[i] = W
+# #     print(f'{alphas[i]:.3g}: {log_R_norm:.3g}')
+#
+# # print(norms)
+# #
+# # W, fit, log_R_norm, log_W_norm = calc_W_norms(alpha_MC)
+# #
+# # plt.semilogx(1/ks, W)
+# # # plt.vlines(1/k1, W.min(), W.max())
+# # # plt.vlines(1/k2, W.min(), W.max())
+# # # plt.vlines(1/k3, W.min(), W.max())
+# #
+# # plt.show()
+# # #
+# # plt.scatter(norms[:, 0], norms[:, 1])
+# # plt.show()
+# #
+# # plt.plot(t, data)
+# # plt.plot(t, fit)
+# # plt.show()
+#
+#
+# # def f(x):
+# #     time.sleep(1)
+# #     return x + 1
+# #
+# def run_parallel():
+#     with multiprocessing.Pool() as pool:
+#         print(pool.map(_func, np.logspace(-9, -1, 40)))
+# #
+# def run_serial():
+#     print([_func(a) for a in np.logspace(-9, -1, 40)])
+#
+# if __name__ == '__main__':
+#     alpha_MC, trajectory = L_corner_search(_func, end_alphas=(1e-9, 1e-3), run_parallel=False)
+# # #     alpha_MC = L_corner_search(_func, end_alphas=(1e-10, 1e-1), run_parallel=False)
+# #
+# #     print(trajectory.shape)
+#     print(trajectory)
+# #
+#     plt.scatter(trajectory[:, 1], trajectory[:, 2])
+#     plt.show()
+#
+#     # ret = timeit.timeit(lambda: run_serial(), number=1)
+#     # print(f"serial: {ret}")
+#
+#     # ret = timeit.timeit(lambda: run_parallel(), number=1)
+#     # print(f"parallel: {ret}")
+#
+#     # run_parallel()
+#     # run_serial()
 
-    W, fit, log_R_norm, log_W_norm = calc_W_norms_Lasso(alpha_MC)
 
-    plt.semilogx(1 / ks, W)
-    plt.vlines(1 / k1, W.min(), W.max())
-    plt.vlines(1 / k2, W.min(), W.max())
-    plt.vlines(1 / k3, W.min(), W.max())
-
-    plt.show()
-
-    plt.plot(t, data)
-    plt.plot(t, fit)
-    plt.show()
-
-
-
-    # ret = timeit.timeit(lambda: run_serial(), number=1)
-    # print(f"serial: {ret}")
-
-    # ret = timeit.timeit(lambda: run_parallel(), number=1)
-    # print(f"parallel: {ret}")
-
-    # run_parallel()
-    # run_serial()
-
-
-
-
-# import pyqtgraph.examples
-# pyqtgraph.examples.run()
+import pyqtgraph.examples
+pyqtgraph.examples.run()
 
 #
 # # # import multiprocessing as mp
