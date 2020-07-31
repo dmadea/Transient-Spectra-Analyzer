@@ -12,7 +12,7 @@ class DataPanelSVD(QWidget):
         self.main_layout = QVBoxLayout()
         self.setLayout(self.main_layout)
 
-        self.cb_SVD = QCheckBox("SVD from selection")
+        self.cb_SVD = QCheckBox("From selection")
         self.main_layout.addWidget(self.cb_SVD)
 
         # EFA settings
