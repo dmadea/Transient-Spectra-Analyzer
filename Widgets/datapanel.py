@@ -59,6 +59,9 @@ class DataPanel(QWidget):
         hlayout.addWidget(self.txb_n_spectra)
         self.main_layout.addLayout(hlayout)
 
+        self.btn_redraw_spectra = QPushButton("Redraw spectra to selection")
+        self.main_layout.addWidget(self.btn_redraw_spectra)
+
         self.cb_SVD_filter = QCheckBox("SVD filter:")
         self.txb_SVD_filter = MyLineEdit()
 

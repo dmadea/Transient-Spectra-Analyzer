@@ -1,7 +1,7 @@
 # from __future__ import division
 
-from spectrum import Spectrum
 from copy import deepcopy
+from misc import find_nearest_idx
 from PyQt5.QtWidgets import QApplication
 
 import numpy as np
@@ -343,8 +343,8 @@ def cut_time_dim(t_start, t_end):
 
     mw = UserNamespace.instance.main_widget
 
-    t_idx_start = Spectrum.find_nearest_idx(mw.matrix.times, t_start)
-    t_idx_end = Spectrum.find_nearest_idx(mw.matrix.times, t_end) + 1
+    t_idx_start = find_nearest_idx(mw.matrix.times, t_start)
+    t_idx_end = find_nearest_idx(mw.matrix.times, t_end) + 1
 
     mw.matrix.Y = mw.matrix.Y[t_idx_start:t_idx_end, :]
     mw.matrix.times = mw.matrix.times[t_idx_start:t_idx_end]
@@ -360,8 +360,8 @@ def cut_wavelength_dim(wl_start, wl_end):
 
     mw = UserNamespace.instance.main_widget
 
-    wl_idx_start = Spectrum.find_nearest_idx(mw.matrix.wavelengths, wl_start)
-    wl_idx_end = Spectrum.find_nearest_idx(mw.matrix.wavelengths, wl_end) + 1
+    wl_idx_start = find_nearest_idx(mw.matrix.wavelengths, wl_start)
+    wl_idx_end = find_nearest_idx(mw.matrix.wavelengths, wl_end) + 1
 
     mw.matrix.Y = mw.matrix.Y[:, wl_idx_start:wl_idx_end]
     mw.matrix.wavelengths = mw.matrix.wavelengths[wl_idx_start:wl_idx_end]

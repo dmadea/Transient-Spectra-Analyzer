@@ -3,8 +3,8 @@
 
 import  numpy as np
 import os
-from spectrum import Spectrum
 from LFP_matrix import LFP_matrix
+from misc import find_nearest_idx
 
 
 import glob
@@ -67,7 +67,7 @@ def get_spectra(filepath, lin_space, count):
     t_len = lfp_matrix.get_time_dimension()
     min, max = lfp_matrix.times[0], lfp_matrix.times[t_len - 1]
     print(t_len, min, max)
-    idx_buffer = [Spectrum.find_nearest_idx(lfp_matrix.times, i) for i in lin_space]
+    idx_buffer = [find_nearest_idx(lfp_matrix.times, i) for i in lin_space]
     # count = 50
 
     # DiMe-CP+BP, 395nm-40us, 128 flashes

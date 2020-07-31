@@ -12,6 +12,7 @@ from PyQt5 import QtCore, QtGui
 
 from PyQt5.QtGui import *
 from PyQt5.QtWidgets import *
+from misc import find_nearest_idx, find_nearest, crop_data
 
 
 from PyQt5.QtCore import *
@@ -24,8 +25,8 @@ from PyQt5.QtCore import Qt
 
 import numpy as np
 
-from spectrum import Spectrum
 from Widgets.datapanel import DataPanel
+from Widgets.svd_widget import SVDWidget
 
 
 class PlotWidget(DockArea):
@@ -151,20 +152,28 @@ class PlotWidget(DockArea):
         # data panel
 
         self.data_panel = DataPanel()
-        self.settings_dock = Dock("Properties", widget=self.data_panel, size=(1, 7))
+        self.settings_dock = Dock("Properties", widget=self.data_panel, size=(1, 1))
 
         self.data_panel.txb_t0.focus_lost.connect(self.update_range)
+        self.data_panel.txb_t0.returnPressed.connect(self.update_range)
         self.data_panel.txb_t1.focus_lost.connect(self.update_range)
+        self.data_panel.txb_t1.returnPressed.connect(self.update_range)
         self.data_panel.txb_w0.focus_lost.connect(self.update_range)
+        self.data_panel.txb_w0.returnPressed.connect(self.update_range)
         self.data_panel.txb_w1.focus_lost.connect(self.update_range)
+        self.data_panel.txb_w1.returnPressed.connect(self.update_range)
         self.data_panel.txb_z0.focus_lost.connect(self.update_levels)
+        self.data_panel.txb_z0.returnPressed.connect(self.update_levels)
         self.data_panel.txb_z1.focus_lost.connect(self.update_levels)
+        self.data_panel.txb_z1.returnPressed.connect(self.update_levels)
 
         self.data_panel.txb_n_spectra.setText(str(self.n_spectra))
 
         self.data_panel.btn_crop_matrix.clicked.connect(self.btn_crop_matrix_clicked)
         self.data_panel.btn_restore_matrix.clicked.connect(self.btn_restore_matrix_clicked)
         self.data_panel.txb_n_spectra.focus_lost.connect(self.txb_n_spectra_focus_lost)
+        self.data_panel.txb_n_spectra.returnPressed.connect(self.txb_n_spectra_focus_lost)
+        self.data_panel.btn_redraw_spectra.clicked.connect(self.update_spectra)
 
         self.data_panel.txb_SVD_filter.focus_lost.connect(self.txb_SVD_filter_changed)
         self.data_panel.txb_SVD_filter.returnPressed.connect(self.txb_SVD_filter_changed)
@@ -313,7 +322,7 @@ class PlotWidget(DockArea):
     def txb_n_spectra_focus_lost(self):
         try:
             n = int(self.data_panel.txb_n_spectra.text())
-            self.n_spectra = 2 if n < 2 else n
+            self.n_spectra = max(2, n)
 
             self.data_panel.txb_n_spectra.setText(str(self.n_spectra))
 
@@ -332,6 +341,21 @@ class PlotWidget(DockArea):
             self.heat_map_plot.heat_map_plot.getViewBox().setYRange(range[0][0], range[0][1], padding=0)
 
         self.change_range_lock = False
+
+    def get_selected_range(self):
+        if self.matrix is None:
+            return
+
+        try:
+            t0, t1 = float(self.data_panel.txb_t0.text()), float(self.data_panel.txb_t1.text())
+            w0, w1 = float(self.data_panel.txb_w0.text()), float(self.data_panel.txb_w1.text())
+
+            if t0 > t1 or w0 > w1:
+                return
+        except ValueError:
+            return
+
+        return w0, w1, t0, t1
 
     def heat_map_range_changed(self, vb, range):
         if self.change_range_lock:
@@ -369,8 +393,8 @@ class PlotWidget(DockArea):
 
             if t0 <= t1 and w0 <= w1:
                 # find true values that correspond to data
-                _t0, _t1 = Spectrum.find_nearest(self.matrix.times, t0), Spectrum.find_nearest(self.matrix.times, t1)
-                _w0, _w1 = Spectrum.find_nearest(self.matrix.wavelengths, w0), Spectrum.find_nearest(
+                _t0, _t1 = find_nearest(self.matrix.times, t0), find_nearest(self.matrix.times, t1)
+                _w0, _w1 = find_nearest(self.matrix.wavelengths, w0), find_nearest(
                     self.matrix.wavelengths, w1)
 
                 self.heat_map_plot.set_xy_range(_w0, _w1, _t0, _t1, 0)
@@ -399,18 +423,13 @@ class PlotWidget(DockArea):
         if self.matrix is None:
             return
 
-        try:
-            t0, t1 = float(self.data_panel.txb_t0.text()), float(self.data_panel.txb_t1.text())
-            w0, w1 = float(self.data_panel.txb_w0.text()), float(self.data_panel.txb_w1.text())
-
-            if t0 > t1 and w0 > w1:
-                return
-        except ValueError:
-            return
+        w0, w1, t0, t1 = self.get_selected_range()
 
         self.matrix.crop_data(t0, t1, w0, w1)
+        SVDWidget.instance.set_data(self.matrix)
 
         self.cb_SVD_filter_toggled()
+
         # self.plot_matrix(self.matrix, False)
 
     def btn_restore_matrix_clicked(self):
@@ -438,8 +457,8 @@ class PlotWidget(DockArea):
         wavelengths = self.matrix.wavelengths
         times = self.matrix.times
 
-        t_idx = Spectrum.find_nearest_idx(times, time_pos)
-        wl_idx = Spectrum.find_nearest_idx(wavelengths, wl_pos)
+        t_idx = find_nearest_idx(times, time_pos)
+        wl_idx = find_nearest_idx(wavelengths, wl_pos)
 
         trace_y_data = self.matrix.D[:, wl_idx]
 
@@ -493,13 +512,16 @@ class PlotWidget(DockArea):
 
         self.spectra_plot.clearPlots()
 
-        # print("range changed")
+        w0, w1, t0, t1 = self.get_selected_range()
+
+        D_crop, times, wavelengths = crop_data(self.matrix.Y, self.matrix.times, self.matrix.wavelengths, t0,
+                                                         t1, w0, w1)
 
         for i in range(self.n_spectra):
-            sp = self.matrix.D[int(i * self.matrix.D.shape[0] / self.n_spectra)]
+            sp = D_crop[int(i * D_crop.shape[0] / self.n_spectra)]
             color = pg.intColor(i, hues=self.n_spectra, values=1, maxHue=360, minHue=0)
             pen = pg.mkPen(color=color, width=1)
-            self.spectra_plot.plot(self.matrix.wavelengths, sp, pen=pen)
+            self.spectra_plot.plot(wavelengths, sp, pen=pen)
 
     def plot_matrix(self, matrix, center_lines=True, keep_range=False, keep_fits=False):
 
@@ -563,8 +585,6 @@ class PlotWidget(DockArea):
         self.update_spectra()
 
         self.plot_chirp_points()
-
-
 
     def save_plot_to_clipboard_as_png(self, plot_item):
         self.img_exporter = ImageExporter(plot_item)

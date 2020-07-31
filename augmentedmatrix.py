@@ -5,7 +5,7 @@ from LFP_matrix import LFP_matrix, MinorSymLogLocator
 from Widgets.fit_widget import FitWidget
 from plotwidget import PlotWidget
 
-from spectrum import Spectrum
+from misc import crop_data, find_nearest, find_nearest_idx
 from gui_console import Console
 
 import pyqtgraph as pg
@@ -359,7 +359,7 @@ class AugmentedMatrix(object):
         for r in range(self.r):
             t_idxs = []
             for t in ts:
-                t_idxs.append(Spectrum.find_nearest_idx(self[r, 0].times, t))
+                t_idxs.append(find_nearest_idx(self[r, 0].times, t))
 
             for i, idx in enumerate(t_idxs):
                 qc = pg.intColor(i, len(ts))

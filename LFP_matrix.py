@@ -28,8 +28,7 @@ from gui_console import Console
 from logger import Logger
 from matplotlib.ticker import Locator
 
-from spectrum import Spectrum
-
+from misc import crop_data, find_nearest, find_nearest_idx
 from matplotlib.colors import LinearSegmentedColormap
 from matplotlib import cm
 
@@ -502,7 +501,7 @@ class LFP_matrix(object):
             f.write(buff_mat)
 
         if ST is None and C is None:
-            ST = self.ST_fit
+            ST = self.ST_fi
             C = self.C_fit
 
         buff_A = 'Wavelength,' + ','.join([str(i + 1) for i in range(ST.shape[0])]) + '\n'
@@ -524,11 +523,11 @@ class LFP_matrix(object):
     def save_matrix(self, D=None, fname='output.txt', delimiter='\t', encoding='utf8', t0=None, t1=None, w0=None, w1=None):
         # cut data if necessary
 
-        t_idx_start = Spectrum.find_nearest_idx(self.times, t0) if t0 is not None else 0
-        t_idx_end = Spectrum.find_nearest_idx(self.times, t1) + 1 if t1 is not None else self.D.shape[0]
+        t_idx_start = find_nearest_idx(self.times, t0) if t0 is not None else 0
+        t_idx_end = find_nearest_idx(self.times, t1) + 1 if t1 is not None else self.D.shape[0]
 
-        wl_idx_start = Spectrum.find_nearest_idx(self.wavelengths, w0) if w0 is not None else 0
-        wl_idx_end = Spectrum.find_nearest_idx(self.wavelengths, w1) + 1 if w1 is not None else self.D.shape[1]
+        wl_idx_start = find_nearest_idx(self.wavelengths, w0) if w0 is not None else 0
+        wl_idx_end = find_nearest_idx(self.wavelengths, w1) + 1 if w1 is not None else self.D.shape[1]
 
         D = self.D if D is None else D
 
@@ -556,11 +555,11 @@ class LFP_matrix(object):
 
         # cut data if necessary
 
-        t_idx_start = Spectrum.find_nearest_idx(self.times, t0) if t0 is not None else 0
-        t_idx_end = Spectrum.find_nearest_idx(self.times, t1) + 1 if t1 is not None else self.Y.shape[0]
+        t_idx_start = find_nearest_idx(self.times, t0) if t0 is not None else 0
+        t_idx_end = find_nearest_idx(self.times, t1) + 1 if t1 is not None else self.Y.shape[0]
 
-        wl_idx_start = Spectrum.find_nearest_idx(self.wavelengths, w0) if w0 is not None else 0
-        wl_idx_end = Spectrum.find_nearest_idx(self.wavelengths, w1) + 1 if w1 is not None else self.Y.shape[1]
+        wl_idx_start = find_nearest_idx(self.wavelengths, w0) if w0 is not None else 0
+        wl_idx_end = find_nearest_idx(self.wavelengths, w1) + 1 if w1 is not None else self.Y.shape[1]
 
         D = self.Y[t_idx_start:t_idx_end, wl_idx_start:wl_idx_end]
         times = self.times[t_idx_start:t_idx_end]
@@ -696,7 +695,7 @@ class LFP_matrix(object):
 
         wl_idxs = []
         for wl in wls:
-            wl_idxs.append(Spectrum.find_nearest_idx(self.wavelengths, wl))
+            wl_idxs.append(find_nearest_idx(self.wavelengths, wl))
 
         plt.subplot(235)  # # of rows, # of columns, index counting form 1
 
@@ -719,7 +718,7 @@ class LFP_matrix(object):
 
         t_idxs = []
         for t in times:
-            t_idxs.append(Spectrum.find_nearest_idx(self.times, t))
+            t_idxs.append(find_nearest_idx(self.times, t))
 
         plt.subplot(236)  # # of rows, # of columns, index counting form 1
 
@@ -868,7 +867,7 @@ class LFP_matrix(object):
 
         wl_idxs = []
         for wl in wls:
-            wl_idxs.append(Spectrum.find_nearest_idx(self.wavelengths, wl))
+            wl_idxs.append(find_nearest_idx(self.wavelengths, wl))
 
         plt.subplot(235)  # # of rows, # of columns, index counting form 1
 
@@ -1003,6 +1002,24 @@ class LFP_matrix(object):
         # plt.tight_layout()
 
         plt.show()
+
+    @staticmethod
+    def _fEFA(matrix, sing_values_num=7, points=200):
+        """Performs forward Evolving factor analysis over time domain on the current matrix."""
+
+        t_idxs = np.linspace(int(matrix.shape[0] / points), matrix.shape[0] - 1, num=points).astype(int)
+        sing_values = np.ones((points, sing_values_num), dtype=np.float64) * np.nan
+        fEFA_VTs = np.ones((points, sing_values_num, matrix.shape[1])) * np.nan
+        # self.fEFA_Us = np.ones((points, sing_values_num, self.D.shape[0])) * np.nan
+
+        for i in range(points):
+            U, S, V_T = svd(matrix[:t_idxs[i], :], full_matrices=False, lapack_driver='gesdd')
+            n = int(min(sing_values_num, S.shape[0]))
+            sing_values[i, :n] = S[:n]
+
+            fEFA_VTs[i, :n] = V_T[:n, :]
+
+        return sing_values, fEFA_VTs, t_idxs
 
     def fEFA(self, sing_values_num=7, points=200):
         """Performs forward Evolving factor analysis over time domain on the current matrix."""
@@ -1243,15 +1260,8 @@ class LFP_matrix(object):
     #     return LFP_matrix.from_value_matrix(self.Yr, self.times, self.wavelengths)
 
     def crop_data(self, t0=None, t1=None, w0=None, w1=None):
-        t_idx_start = Spectrum.find_nearest_idx(self.times, t0) if t0 is not None else 0
-        t_idx_end = Spectrum.find_nearest_idx(self.times, t1) + 1 if t1 is not None else self.Y.shape[0]
 
-        wl_idx_start = Spectrum.find_nearest_idx(self.wavelengths, w0) if w0 is not None else 0
-        wl_idx_end = Spectrum.find_nearest_idx(self.wavelengths, w1) + 1 if w1 is not None else self.Y.shape[1]
-
-        self.Y = self.Y[t_idx_start:t_idx_end, wl_idx_start:wl_idx_end]
-        self.times = self.times[t_idx_start:t_idx_end]
-        self.wavelengths = self.wavelengths[wl_idx_start:wl_idx_end]
+        self.Y, self.times, self.wavelengths = crop_data(self.Y, self.times, self.wavelengths)
 
         self.SVD()
 

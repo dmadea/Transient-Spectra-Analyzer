@@ -15,12 +15,12 @@ from logger import Logger
 from dialogs.settingsdialog import SettingsDialog
 from plotwidget import PlotWidget
 
-from spectrum import Spectrum
 
 # import code
 
 from user_namespace import UserNamespace
 from Widgets.fit_widget import FitWidget
+from Widgets.svd_widget import SVDWidget
 
 from menubar import MenuBar
 from gui_console import Console
@@ -103,30 +103,29 @@ class fMain(QMainWindow):
         #
         # self.tabWidget.addTab(self.area, "Data")
 
-
-        self.tSVD = QtWidgets.QWidget()
+        self.tSVD = SVDWidget(self)
         self.tabWidget.addTab(self.tSVD, "SVD")
 
-        self.l = QVBoxLayout()
-
-        model = QStandardItemModel(3, 1)
-
-        for i in range(3):
-            item = QStandardItem(f"Item {i}")
-
-            item.setFlags(Qt.ItemIsUserCheckable | Qt.ItemIsEnabled)
-            item.setData(Qt.Unchecked, Qt.CheckStateRole)
-
-            model.setItem(i, 0, item)
-
-            # model.dataChanged.connect()
-
-        combo = QComboBox()
-        combo.setModel(model)
-        combo.setCurrentText('asdda')
-
-        self.l.addWidget(combo)
-        self.tSVD.setLayout(self.l)
+        # self.l = QVBoxLayout()
+        #
+        # model = QStandardItemModel(3, 1)
+        #
+        # for i in range(3):
+        #     item = QStandardItem(f"Item {i}")
+        #
+        #     item.setFlags(Qt.ItemIsUserCheckable | Qt.ItemIsEnabled)
+        #     item.setData(Qt.Unchecked, Qt.CheckStateRole)
+        #
+        #     model.setItem(i, 0, item)
+        #
+        #     # model.dataChanged.connect()
+        #
+        # combo = QComboBox()
+        # combo.setModel(model)
+        # combo.setCurrentText('asdda')
+        #
+        # self.l.addWidget(combo)
+        # self.tSVD.setLayout(self.l)
 
 
         # self.tFit = QtWidgets.QWidget()
@@ -375,6 +374,7 @@ class fMain(QMainWindow):
         self.matrix = lfp_parser.parse_file(path_to_file)
 
         self.grpView.plot_matrix(self.matrix)
+        self.tSVD.set_data(self.matrix)
 
         tail = os.path.split(path_to_file)[1]
         name_of_file = os.path.splitext(tail)[0]  # without extension

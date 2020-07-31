@@ -12,8 +12,7 @@ from pyqtgraphmodif.legend_item import LegendItem
 
 import numpy as np
 
-from spectrum import Spectrum
-
+from misc import find_nearest_idx
 
 class FitLayout(pg.GraphicsLayoutWidget):
     instance = None
@@ -370,7 +369,9 @@ class HeatMapPlot(pg.GraphicsLayout):
     def set_xy_range(self, x0, x1, y0, y1, padding=0):
         self.heat_map_plot.getViewBox().setRange(xRange=[x0, x1], yRange=[y0, y1], padding=padding)
 
+
 from scipy.interpolate import interp2d
+
 
 class Heatmap(pg.ImageItem):
 
