@@ -34,6 +34,7 @@ class SVDWidget(DockArea):
 
         self.f_EFA_log_sing_vals = None
         self.t_idxs_fEFA = None
+        self.EFA_vectors = None
 
         # SVD data panel
 
@@ -102,7 +103,7 @@ class SVDWidget(DockArea):
         points = min(int(self.data_panel.sb_n_t_points.value()), self.D.shape[0])
         s_nums = min(self.D.shape[0], self.D.shape[1])
 
-        s_vals, vectors, self.t_idxs_fEFA = LFP_matrix._fEFA(self.D, s_nums, points)
+        s_vals, self.EFA_vectors, self.t_idxs_fEFA = LFP_matrix._fEFA(self.D, s_nums, points)
         self.f_EFA_log_sing_vals = np.log10(s_vals)
 
         self.redraw_fEFA_vals()

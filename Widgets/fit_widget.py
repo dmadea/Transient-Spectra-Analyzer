@@ -61,7 +61,6 @@ class FitWidget(QWidget, Ui_Form):
         self.C_matrix_constraints = []
 
         Console.push_variables({'f': self.fitter})
-        Console.push_variables({'fw': self})
 
         self.fit_plot_layout = FitLayout(None, self)
         self.main_layout.addWidget(self.fit_plot_layout)

@@ -52,15 +52,16 @@ class fMain(QMainWindow):
 
         self.coor_label = QLabel()  # coordinates
 
-        self.grpView = PlotWidget(set_coordinate_func=self.coor_label.setText, parent=self)
-        self.tSVD = SVDWidget(self)
+        self.plot_widget = PlotWidget(set_coordinate_func=self.coor_label.setText, parent=self)
+        self.SVD_widget = SVDWidget(self)
         self.fit_widget = FitWidget(None, self)
 
         self.tabWidget = QtWidgets.QTabWidget(self)
-        self.tabWidget.addTab(self.grpView, "Data")
-        self.tabWidget.addTab(self.tSVD, "SVD + EFA")
+        self.tabWidget.addTab(self.plot_widget, "Data")
+        self.tabWidget.addTab(self.SVD_widget, "SVD + EFA")
         self.tabWidget.addTab(self.fit_widget, "Fit")
 
+        self.tabWidget.currentChanged.connect(self.tabChanged)
 
         self.setCentralWidget(self.tabWidget)
 
@@ -82,7 +83,13 @@ class fMain(QMainWindow):
                                 "import matplotlib.pyplot as plt\nfrom Widgets.fit_widget import FitWidget\n"
                                 "import augmentedmatrix")
 
-        Console.push_variables({'pw': self.grpView})
+        Console.push_variables({'pw': self.plot_widget})
+        Console.push_variables({'fw': self.fit_widget})
+        Console.push_variables({'sw': self.SVD_widget})
+
+    def tabChanged(self):
+        if self.tabWidget.currentIndex() == 1 and self.SVD_widget.data_panel.cb_SVD.isChecked():
+            self.SVD_widget.SVD_from_selection_toggled()  # recalculate SVD from selection
 
     def createStatusBar(self):
         statusBar = QStatusBar()
@@ -129,13 +136,13 @@ class fMain(QMainWindow):
     def test(self):
 
         # try:
-        self.grpView.save_plot_to_clipboard_as_png()
+        self.plot_widget.save_plot_to_clipboard_as_png()
         # except Exception as ex:
         #     print(ex.__str__(), ex)
 
     def actioncopy_to_svg_clicked(self):
 
-        self.grpView.save_plot_to_clipboard_as_svg()
+        self.plot_widget.save_plot_to_clipboard_as_svg()
 
 
 
@@ -151,7 +158,7 @@ class fMain(QMainWindow):
         if not sett_dialog.accepted:
             return
 
-        self.grpView.update_settings()
+        self.plot_widget.update_settings()
 
         self.redraw_all_spectra()
 
@@ -252,8 +259,8 @@ class fMain(QMainWindow):
 
         self.matrix = lfp_parser.parse_file(path_to_file)
 
-        self.grpView.plot_matrix(self.matrix)
-        self.tSVD.set_data(self.matrix)
+        self.plot_widget.plot_matrix(self.matrix)
+        self.SVD_widget.set_data(self.matrix)
 
         tail = os.path.split(path_to_file)[1]
         name_of_file = os.path.splitext(tail)[0]  # without extension

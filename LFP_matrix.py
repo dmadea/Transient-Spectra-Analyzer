@@ -1261,7 +1261,7 @@ class LFP_matrix(object):
 
     def crop_data(self, t0=None, t1=None, w0=None, w1=None):
 
-        self.Y, self.times, self.wavelengths = crop_data(self.Y, self.times, self.wavelengths)
+        self.Y, self.times, self.wavelengths = crop_data(self.Y, self.times, self.wavelengths, t0, t1, w0, w1)
 
         self.SVD()
 

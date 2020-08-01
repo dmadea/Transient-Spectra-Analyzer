@@ -66,6 +66,7 @@ class PlotWidget(DockArea):
         self.spectrum_plot_item_fit = None
 
         self.heat_map_levels = None
+        self.selected_range_idxs = None
 
         # self.surface_widget = SurfacePlot(self)
 
@@ -380,7 +381,15 @@ class PlotWidget(DockArea):
         if not range[1][0] <= h_pos <= range[1][1]:
             self.heat_map_hline.setPos(range[1][0] if np.abs(h_pos - range[1][0]) < np.abs(h_pos - range[1][1]) else range[1][1])
 
+        it0, it1 = find_nearest_idx(self.matrix.times, range[1][0]), find_nearest_idx(self.matrix.times, range[1][1]) + 1
+        iw0, iw1 = find_nearest_idx(self.matrix.wavelengths, range[0][0]), find_nearest_idx(self.matrix.wavelengths, range[0][1]) + 1
+
+        self.selected_range_idxs = (it0, it1, iw0, iw1)
+
+        self.data_panel.lbl_visible_area_msize.setText(f'{it1 - it0} x {iw1 - iw0}')
+
         self.change_range_lock = False
+
     def heat_map_levels_changed(self, hist):
         z_levels = self.heat_map_plot.get_z_range()
         self.data_panel.txb_z0.setText(f'{z_levels[0]:.4g}')

@@ -20,11 +20,13 @@ class DataPanel(QWidget):
 
         self.lbl_matrix_size = QLabel("")
         self.lbl_cr_matrix_size = QLabel("")
+        self.lbl_visible_area_msize = QLabel("")
 
         self.grid.addWidget(self.lbl_matrix_size, 0, 1, Qt.AlignLeft, 1)
         self.grid.addWidget(self.lbl_cr_matrix_size, 1, 1, Qt.AlignLeft, 1)
 
         self.grid.addWidget(QLabel("Visible area:"), 2, 0, Qt.AlignLeft, 1)
+        self.grid.addWidget(self.lbl_visible_area_msize, 2, 1, Qt.AlignLeft, 1)
 
         self.txb_t0 = MyLineEdit()
         self.txb_t1 = MyLineEdit()
