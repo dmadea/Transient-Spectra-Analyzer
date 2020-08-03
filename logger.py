@@ -1,9 +1,6 @@
 
-
+import sys
 # import logging
-
-
-
 
 class Logger(object):
 
@@ -39,7 +36,21 @@ class Logger(object):
         cls._instance.statusbar_message(text, 3000)
 
 
+class Transcript:
+    """Class used to redirect std output to pyqtconsole"""
 
+    def __init__(self):
+        self.terminal = sys.stdout
+
+    def __getattr__(self, attr):
+        return getattr(self.terminal, attr)
+
+    def write(self, message):
+        self.terminal.write(message)
+        Logger.console_message(message)
+
+    def flush(self):
+        pass
 
 
 

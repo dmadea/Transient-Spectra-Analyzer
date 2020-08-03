@@ -7,6 +7,7 @@ from numba import njit
 # # from theano.ode import DifferentalEquation
 # from pymc3.ode import DifferentialEquation
 import math
+import sys
 
 def find_nearest_idx(array, value):
     if isinstance(value, (int, float)):
@@ -351,7 +352,6 @@ class Fitter:
         self.C_opt = _C_opt
         self.ST_opt = self.c_model.ST
 
-
     def var_pro(self, C_est=None, c_fix=None, **kwargs):
         self.update_options(**kwargs)
 
@@ -430,7 +430,8 @@ class Fitter:
             return R * weights
 
         self.minimizer = lmfit.Minimizer(residuals, self.c_model.params)
-        kws = {} if self.kwds is None else self.kwds
+        kws = {'ftol': 1e-10, 'xtol': 1e-10, 'gtol': 1e-10, 'loss': 'linear', 'verbose': 2}
+        kws.update(kwargs)
         self.last_result = self.minimizer.minimize(method=self.fit_alg, **kws)  # minimize the residuals
 
         self.c_model.params = self.last_result.params

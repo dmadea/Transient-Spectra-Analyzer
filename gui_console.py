@@ -88,9 +88,10 @@ class Console(QDockWidget):
         Console._instance = self
 
         banner = """Simple Spectra Manipulator console based on IPython. Numpy package was imported as np. Three variables are setup:
-    item - this is used to interact with spectra in TreeWidget and perform various calculations
-    treeWidget - instance of TreeWidget
-    mainWidget - instance of MainWidget (Main Window)
+    pw - Plot Widget
+    sw - SVD widget - factor anaylsis
+    fw - Fit widget
+    f - fitter
 
 Enjoy.
         
@@ -149,10 +150,11 @@ matplotlib.cm.register_cmap('div', _)
         QDockWidget.setVisible(self, visible)
         if visible:
             self.console_widget.setFocus()
+
     @staticmethod
     def show_message(message):
         if Console._instance is not None:
-            Console._instance.console_widget.print_text('\n' + message)
+            Console._instance.console_widget.print_text(message)
 
     def print_html(self, text):
         self.console_widget.print_html('\n' + text)

@@ -10,7 +10,7 @@ import pyqtgraph as pg
 
 
 from settings import Settings
-from logger import Logger
+from logger import Logger, Transcript
 
 from dialogs.settingsdialog import SettingsDialog
 from plotwidget import PlotWidget
@@ -30,6 +30,7 @@ import Widgets.Fit_gui
 
 import lfp_parser
 from LFP_matrix import LFP_matrix
+import sys
 
 
 class fMain(QMainWindow):
@@ -67,6 +68,7 @@ class fMain(QMainWindow):
 
         self.createStatusBar()
         self.logger = Logger(self.console.show_message, self.statusBar().showMessage)
+        sys.stdout = Transcript()
 
         self.user_namespace = UserNamespace(self)
 
