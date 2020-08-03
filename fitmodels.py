@@ -123,7 +123,7 @@ class _Model(object):
 
 class _Femto(_Model):
 
-    n_poly_chirp = 3  # order of polynomial for chirp_type: 'poly' or 'poly_stokkum'
+    n_poly_chirp = 6  # order of polynomial for chirp_type: 'poly' or 'poly_stokkum'
     n_exp_chirp = 1  # number of exponentials to describe chirp for mu_type = 'exp'
 
     def __init__(self, times=None, connectivity=(0, 1, 2), wavelengths=None,  method='femto'):
@@ -137,7 +137,7 @@ class _Femto(_Model):
         self.species_names = np.array(list('ABCDEFGHIJ'), dtype=np.str)
         self.wavelengths = wavelengths
 
-        self.coh_spec = False
+        self.coh_spec = True
         self.coh_spec_order = 2
 
         self.chirp_type = 'poly'  # poly, poly_stokkum, exp
@@ -443,7 +443,7 @@ class Global_Analysis_Femto(_Femto):
     name = 'Global Analysis'
     _class = 'Femto'
 
-    spectra = 'DADS'  # or 'EADS'
+    spectra = 'EADS'  # or 'EADS'
 
     def init_params(self):
         super(Global_Analysis_Femto, self).init_params()

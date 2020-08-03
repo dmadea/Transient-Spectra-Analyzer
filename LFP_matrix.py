@@ -501,7 +501,7 @@ class LFP_matrix(object):
             f.write(buff_mat)
 
         if ST is None and C is None:
-            ST = self.ST_fi
+            ST = self.ST_fit
             C = self.C_fit
 
         buff_A = 'Wavelength,' + ','.join([str(i + 1) for i in range(ST.shape[0])]) + '\n'

@@ -252,6 +252,14 @@ class FitWidget(QWidget, Ui_Form):
 
         self.plot_opt_matrices()
 
+    def save_fit_matrix(self, fname='output.txt', delimiter='\t', encoding='utf8'):
+        mat = np.vstack((self.matrix.wavelengths, self.D_fit))
+        buffer = delimiter + delimiter.join(f"{num}" for num in self.matrix.times) + '\n'
+        buffer += '\n'.join(delimiter.join(f"{num}" for num in row) for row in mat.T)
+
+        with open(fname, 'w', encoding=encoding) as f:
+            f.write(buffer)
+
     def init_matrices(self):
         if self.matrix is None:
             return
@@ -378,9 +386,9 @@ class FitWidget(QWidget, Ui_Form):
             _C_tensor = self.current_model.calc_C()
             _ST = np.zeros((self._ST.shape[0] + self.current_model.coh_spec_order + 1, self._ST.shape[1])) if self.current_model.coh_spec else np.zeros_like(self._ST)
 
-            coh_idx = fitmodels.find_nearest_idx(self.matrix.wavelengths, 450)
+            coh_idx = fitmodels.find_nearest_idx(self.matrix.wavelengths, 460)
             coh_scale = np.ones_like(self.matrix.wavelengths)
-            # coh_scale[coh_idx:] = 0
+            coh_scale[coh_idx:] = 0
 
             if self.current_model.coh_spec:
                 _C_COH = self.current_model.simulate_coh_gaussian(coh_scale=coh_scale)
