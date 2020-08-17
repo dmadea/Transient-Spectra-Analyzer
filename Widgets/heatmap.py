@@ -108,7 +108,7 @@ class HeatMapPlot(pg.GraphicsLayout):
                           t_range[0] if t_range else times[0], t_range[1] if t_range else times[-1])
 
         t_diff = np.abs(times[1:] - times[:-1])
-        if not all(np.isclose(t_diff, t_diff[0], atol=0)):  # if loaded data are not spaced linearly,
+        if not np.allclose(t_diff, t_diff[0], atol=0):  # if loaded data are not spaced linearly,
             self.times = times  # set times
             self.stringaxis_left.transform = self.transform_t_pos
             self.stringaxis_right.transform = self.transform_t_pos
@@ -121,6 +121,10 @@ class HeatMapPlot(pg.GraphicsLayout):
         t_min, t_max = self.times.min(), self.times.max()
         idx = (time - t_min) / (t_max - t_min) * (self.times.shape[0] - 1)  # map the linear scale to data time scale
         idx = np.round(idx, 0).astype(int)
+        if isinstance(idx, np.ndarray):
+            idx[idx >= self.times.shape[0]] = self.times.shape[0] - 1
+        else:
+            idx = self.times.shape[0] - 1 if idx >= self.times.shape[0] else idx
         return self.times[idx]
 
     def inv_transform_t_pos(self, time):

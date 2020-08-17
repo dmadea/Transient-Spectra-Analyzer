@@ -11,12 +11,14 @@ def float_try_parse(num):
     except ValueError:
         return 0
 
+
 def parse_file(path_to_file):
     file, ext = os.path.splitext(path_to_file)
     ext = ext.lower()
     head = os.path.split(path_to_file)[0]
     tail = os.path.split(path_to_file)[1]
     name_of_file = os.path.splitext(tail)[0]  #without extension
+
     # CSV file
     delimiter = ','
     transpose = False
@@ -30,6 +32,7 @@ def parse_file(path_to_file):
     else:
         delimiter = '\t'
         transpose = True
+
     try:
         data = np.genfromtxt(path_to_file, dtype=np.float32, skip_header=0, delimiter=delimiter, filling_values=0,
                          autostrip=True)
@@ -46,6 +49,7 @@ def parse_file(path_to_file):
     # data = np.asarray(buffer)
     lfp_matrix = LFP_matrix(data.T if transpose else data, path_to_file, 'name...')
     return lfp_matrix
+
 
 def get_spectra(filepath, lin_space, count):
     # l_space = np.linspace(0.05, 9, 50)
@@ -85,8 +89,6 @@ def get_spectra(filepath, lin_space, count):
     new_filename = os.path.join(os.path.split(filepath)[0], os.path.splitext(filepath)[0] + '-choosed_spectra.txt')
     with open(new_filename, 'w') as tsf:
         tsf.write(str)
-
-
 
 
 if __name__ == "__main__":

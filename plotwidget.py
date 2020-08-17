@@ -314,11 +314,13 @@ class PlotWidget(DockArea):
 
         if vb == self.spectrum.getViewBox():
             self.heat_map_plot.heat_map_plot.getViewBox().setXRange(range[0][0], range[0][1], padding=0)
+            self.set_txb_ranges(w0=range[0][0], w1=range[0][1])
         else:
-            y0 = self.heat_map_plot.inv_transform_t_pos(range[0][0])
-            y1 = self.heat_map_plot.inv_transform_t_pos(range[0][1])
+            t0 = self.heat_map_plot.inv_transform_t_pos(range[0][0])
+            t1 = self.heat_map_plot.inv_transform_t_pos(range[0][1])
 
-            self.heat_map_plot.heat_map_plot.getViewBox().setYRange(y0, y1, padding=0)
+            self.heat_map_plot.heat_map_plot.getViewBox().setYRange(t0, t1, padding=0)
+            self.set_txb_ranges(t0=range[0][0], t1=range[0][1])
 
         self.change_range_lock = False
 
@@ -337,6 +339,16 @@ class PlotWidget(DockArea):
 
         return w0, w1, t0, t1
 
+    def set_txb_ranges(self, w0=None, w1=None, t0=None, t1=None):
+        if w0 is not None:
+            self.data_panel.txb_w0.setText(f'{w0:.4g}')
+        if w1 is not None:
+            self.data_panel.txb_w1.setText(f'{w1:.4g}')
+        if t0 is not None:
+            self.data_panel.txb_t0.setText(f'{t0:.4g}')
+        if t1 is not None:
+            self.data_panel.txb_t1.setText(f'{t1:.4g}')
+
     def heat_map_range_changed(self, vb, range):
         if self.change_range_lock or self.matrix is None:
             return
@@ -344,14 +356,10 @@ class PlotWidget(DockArea):
 
         w0, w1, t0, t1 = range[0][0], range[0][1], range[1][0], range[1][1]
 
-        self.data_panel.txb_w0.setText(f'{w0:.4g}')
-        self.data_panel.txb_w1.setText(f'{w1:.4g}')
-
         t0 = self.heat_map_plot.transform_t_pos(t0)  # transform t positions
         t1 = self.heat_map_plot.transform_t_pos(t1)
 
-        self.data_panel.txb_t0.setText(f'{t0:.4g}')
-        self.data_panel.txb_t1.setText(f'{t1:.4g}')
+        self.set_txb_ranges(w0, w1, t0, t1)
 
         self.spectrum.getViewBox().setXRange(w0, w1, padding=0)
         self.trace.getViewBox().setXRange(t0, t1, padding=0)
