@@ -1,4 +1,4 @@
-import  numpy as np
+import numpy as np
 import os
 from LFP_matrix import LFP_matrix
 from misc import find_nearest_idx
