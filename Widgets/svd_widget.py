@@ -2,9 +2,8 @@ import numpy as np
 import pyqtgraph as pg
 from pyqtgraph.dockarea import Dock, DockArea
 from .datapanel_svd import DataPanelSVD
-from .fit_layout import FitLayout
 from scipy.linalg import svd
-from misc import crop_data, set_axes
+from misc import crop_data, set_axes, int_default_color
 from LFP_matrix import LFP_matrix
 
 # from PyQt5.QtCore import Qt
@@ -127,7 +126,7 @@ class SVDWidget(DockArea):
                                              yMax=1.2 ** np.sign(_max) * _max)
 
         for i in range(s_nums):
-            pen = pg.mkPen(color=FitLayout.int_default_color(i), width=1)
+            pen = pg.mkPen(color=int_default_color(i), width=1)
             idx_not_nan = np.count_nonzero(np.isnan(self.f_EFA_log_sing_vals[:, i]))
             self.EFA_plot.plot(self.times[idxs][idx_not_nan:], self.f_EFA_log_sing_vals[idx_not_nan:, i], pen=pen)
 
@@ -151,11 +150,11 @@ class SVDWidget(DockArea):
 
         if show_all:
             for i in range(n_vectors):
-                pen_vector = pg.mkPen(color=FitLayout.int_default_color(i), width=1)
+                pen_vector = pg.mkPen(color=int_default_color(i), width=1)
                 self.left_sv.plot(self.times, self.U[:, i], pen=pen_vector)
                 self.right_sv.plot(self.wavelengths, self.V_T[i, :], pen=pen_vector)
         else:
-            pen_vector = pg.mkPen(color=FitLayout.int_default_color(0), width=1)
+            pen_vector = pg.mkPen(color=int_default_color(0), width=1)
             self.left_sv.plot(self.times, self.U[:, n_vectors - 1], pen=pen_vector)
             self.right_sv.plot(self.wavelengths, self.V_T[n_vectors - 1, :], pen=pen_vector)
 

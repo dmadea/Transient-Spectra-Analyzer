@@ -1,14 +1,8 @@
-
-
-
 import  numpy as np
 import os
 from LFP_matrix import LFP_matrix
 from misc import find_nearest_idx
-
-
 import glob
-
 
 
 def float_try_parse(num):
@@ -16,7 +10,6 @@ def float_try_parse(num):
         return float(num)
     except ValueError:
         return 0
-
 
 def parse_file(path_to_file):
     file, ext = os.path.splitext(path_to_file)
@@ -112,31 +105,6 @@ if __name__ == "__main__":
             print("parsing {}...".format(tail))
             get_spectra(filepath, lin_space, count)
             print("Done")
-
-
-
-
-
-#
-# # dir = r"C:\Users\Dominik\Documents\MUNI\Organic Phtochemistry\Projects\2018-19_Japan-C-C bond homolysis\LFP\2019-01-25 CP-DiMeO-BP var conc + BP, T = 293K\\"
-# # dir = r"C:\Users\Dominik\Documents\MUNI\Organic Photochemistry\Projects\2018-19_Japan-C-C bond homolysis\LFP\2019-01-10 CP-DiMe+BP 2eq 293K\\"
-#
-# dir = r"C:\Users\Dominik\Documents\MUNI\Organic Photochemistry\Projects\2018-19_Japan-C-C bond homolysis\LFP\2019-02-04 CP1DiMe var conc + BP T243K\\"
-#
-#
-#
-#
-#
-
-
-# filepath = os.path.join(dir, filename)
-
-
-
-
-
-
-
 
 
 

@@ -1,20 +1,21 @@
 from .Fit_gui import Ui_Form
 from .fit_layout import FitLayout
-from .fit_layout import HeatMapPlot
+from .heatmap import HeatMapPlot
 
 from PyQt5 import QtCore, QtGui, QtWidgets
 
 from PyQt5.QtCore import Qt
-from dialogs.gui_fit import Ui_Dialog
+# from dialogs.gui_fit import Ui_Dialog
 from PyQt5.QtWidgets import *
 
-from PyQt5.QtGui import QColor
+# from PyQt5.QtGui import QColor
 from PyQt5.QtWidgets import QMessageBox, QLineEdit, QCheckBox, QLabel, QWidget
 import numpy as np
 
 from logger import Logger
+from misc import int_default_color
 
-from user_namespace import global_fit
+# from user_namespace import global_fit
 
 from plotwidget import PlotWidget
 from LFP_matrix import LFP_matrix
@@ -22,7 +23,7 @@ from LFP_matrix import LFP_matrix
 import fitmodels
 from fitting.fitter import Fitter
 from .combo_box_cb import ComboBoxCB
-from fitting.constraints import *
+# from fitting.constraints import *
 import pyqtgraph as pg
 
 import sys, inspect
@@ -554,7 +555,7 @@ class FitWidget(QWidget, Ui_Form):
         self.fit_plot_layout.add_legend(spacing=13)
 
         for i in range(n):
-            pen_fit = pg.mkPen(color=FitLayout.int_default_color(i), width=1)
+            pen_fit = pg.mkPen(color=int_default_color(i), width=1)
             name = self.current_model.species_names[i]
 
             self.fit_plot_layout.C_plot.plot(self.matrix.times, self._C[:, i], pen=pen_fit,
@@ -565,7 +566,7 @@ class FitWidget(QWidget, Ui_Form):
         if self.current_model.method is 'femto' and self.current_model.coh_spec is True:
             for i in range(self.current_model.coh_spec_order + 1):
 
-                pen_coh_spec = pg.mkPen(color=FitLayout.int_default_color(n + i), width=1, style=Qt.DashLine)
+                pen_coh_spec = pg.mkPen(color=int_default_color(n + i), width=1, style=Qt.DashLine)
                 name = f'CohSpec_{i}'
 
                 self.fit_plot_layout.C_plot.plot(self.matrix.times, self.current_model.C_COH[0, :, i],

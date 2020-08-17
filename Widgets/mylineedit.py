@@ -1,4 +1,4 @@
-# This is modified QLineEdit with added lost_focus signal
+# Modified QLineEdit with added lost_focus signal
 
 from PyQt5.QtWidgets import QLineEdit
 from PyQt5.QtCore import pyqtSignal

@@ -1,13 +1,25 @@
 import math
 import numpy as np
+from PyQt5.QtGui import QColor
 
 
-def find_nearest_idx(array, value):
+def _find_nearest_idx(array, value):
     idx = np.searchsorted(array, value, side="left")
     if idx > 0 and (idx == len(array) or math.fabs(value - array[idx - 1]) < math.fabs(value - array[idx])):
         return idx - 1
     else:
         return idx
+
+
+def find_nearest_idx(array, value):
+    if not is_iterable(value):
+        return _find_nearest_idx(array, value)
+
+    result = np.empty(len(value), dtype=int)
+
+    for i in range(result.shape[0]):
+        result[i] = _find_nearest_idx(array, value[i])
+    return result
 
 
 def find_nearest(array, value):
@@ -39,7 +51,34 @@ def set_axes(plot_item, x_label='', y_label='', title='', grid_x=True, grid_y=Tr
     plot_item.showGrid(x=grid_x, y=grid_y, alpha=grid_alpha)
 
 
+def int_default_color(counter):
+    colors = [
+        (255, 0, 0, 255),  # red
+        (0, 255, 0, 255),  # green
+        (0, 0, 255, 255),  # blue
+        (0, 0, 0, 255),  # black
+        (255, 255, 0, 255),  # yellow
+        (255, 0, 255, 255),  # magenta
+        (0, 255, 255, 255),  # cyan
+        (155, 155, 155, 255),  # gray
+        (155, 0, 0, 255),  # dark red
+        (0, 155, 0, 255),  # dark green
+        (0, 0, 155, 255),  # dark blue
+        (155, 155, 0, 255),  # dark yellow
+        (155, 0, 155, 255),  # dark magenta
+        (0, 155, 155, 255)  # dark cyan
+    ]
 
+    return QColor(*colors[counter % len(colors)])
+
+
+def is_iterable(obj):
+    try:
+        iter(obj)
+    except Exception:
+        return False
+    else:
+        return True
 
 
 

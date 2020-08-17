@@ -1,5 +1,6 @@
 from PyQt5 import uic
 import glob
+
 for fname in glob.glob("dialogs/*.ui", recursive=True):
     print("converting", fname)
     fin = open(fname, 'r')

@@ -1,30 +1,17 @@
 from PyQt5 import QtCore, QtGui, QtWidgets
-
+import numpy as np
 import pyqtgraph as pg
 from pyqtgraph.exporters import SVGExporter, ImageExporter
 from pyqtgraph.dockarea import Dock, DockArea
-from settings import Settings
-
-from plot.legend_item import LegendItem
-# from plot.img_exporter import ImgExporter
-
 from PyQt5 import QtCore, QtGui
 
 from PyQt5.QtGui import *
-from PyQt5.QtWidgets import *
+# from PyQt5.QtWidgets import *
 from misc import find_nearest_idx, find_nearest, crop_data
 
+# from PyQt5.QtCore import *
 
-from PyQt5.QtCore import *
-
-from Widgets.fit_layout import HeatMapPlot
-
-from PyQt5.QtCore import Qt
-
-# from pyqtgraph.graphicsItems.LegendItem import LegendItem
-
-import numpy as np
-
+from Widgets.heatmap import HeatMapPlot
 from Widgets.datapanel import DataPanel
 from Widgets.svd_widget import SVDWidget
 
@@ -33,11 +20,6 @@ class PlotWidget(DockArea):
     instance = None
 
     n_spectra = 20
-
-    # dark = 150
-    # sym_grad = {'ticks': [(0.0, (75, 0, 130, 255)), (1.0, (dark, 0, 0, 255)), (0.333, (0, 0, 255, 255)),
-    #                       (0.5, (255, 255, 255, 100)), (0.666, (255, 255, 0, 255)), (0.833, (255, 0, 0, 255))],
-    #             'mode': 'rgb'}
 
     def __init__(self, set_coordinate_func=None, parent=None):
         pg.setConfigOption('background', 'w')
@@ -197,13 +179,13 @@ class PlotWidget(DockArea):
 
             self.spectrum_vline.setPos(wl_pos[0])
             self.spectra_vline.setPos(wl_pos[0])
-            self.trace_vline.setPos(time_pos[1])
+            self.trace_vline.setPos(self.heat_map_plot.transform_t_pos(time_pos[1]))
 
         def update_heat_lines():
             time_pos = self.trace_vline.pos()
             wl_pos = self.spectrum_vline.pos()
 
-            self.heat_map_hline.setPos(time_pos[0])
+            self.heat_map_hline.setPos(self.heat_map_plot.inv_transform_t_pos(time_pos[0]))
             self.heat_map_vline.setPos(wl_pos[0])
 
         def update_heat_lines_spectra():
@@ -243,7 +225,7 @@ class PlotWidget(DockArea):
             qPoint = self.roi.mapSceneToParent(h.scenePos())
 
             positions[i, 0] = qPoint.x()
-            positions[i, 1] = qPoint.y()
+            positions[i, 1] = self.heat_map_plot.transform_t_pos(qPoint.y())
 
         return positions
 
@@ -258,15 +240,8 @@ class PlotWidget(DockArea):
 
     def add_chirp(self, wls,  mu):
         pen = pg.mkPen(color=QColor('black'), width=2)
-        self.chirp.setData(wls, mu, pen=pen)
-
-    @staticmethod
-    def is_int(num):
-        try:
-            int(num)
-            return True
-        except ValueError:
-            return False
+        mu_tr = self.heat_map_plot.inv_transform_t_pos(mu)
+        self.chirp.setData(wls, mu_tr, pen=pen)
 
     def cb_SVD_filter_toggled(self):
         self.matrix.SVD_filter = self.data_panel.cb_SVD_filter.isChecked()
@@ -336,10 +311,14 @@ class PlotWidget(DockArea):
         if self.change_range_lock:
             return
         self.change_range_lock = True
+
         if vb == self.spectrum.getViewBox():
             self.heat_map_plot.heat_map_plot.getViewBox().setXRange(range[0][0], range[0][1], padding=0)
         else:
-            self.heat_map_plot.heat_map_plot.getViewBox().setYRange(range[0][0], range[0][1], padding=0)
+            y0 = self.heat_map_plot.inv_transform_t_pos(range[0][0])
+            y1 = self.heat_map_plot.inv_transform_t_pos(range[0][1])
+
+            self.heat_map_plot.heat_map_plot.getViewBox().setYRange(y0, y1, padding=0)
 
         self.change_range_lock = False
 
@@ -359,16 +338,23 @@ class PlotWidget(DockArea):
         return w0, w1, t0, t1
 
     def heat_map_range_changed(self, vb, range):
-        if self.change_range_lock:
+        if self.change_range_lock or self.matrix is None:
             return
         self.change_range_lock = True
-        self.data_panel.txb_w0.setText(f'{range[0][0]:.4g}')
-        self.data_panel.txb_w1.setText(f'{range[0][1]:.4g}')
-        self.data_panel.txb_t0.setText(f'{range[1][0]:.4g}')
-        self.data_panel.txb_t1.setText(f'{range[1][1]:.4g}')
 
-        self.spectrum.getViewBox().setXRange(range[0][0], range[0][1], padding=0)
-        self.trace.getViewBox().setXRange(range[1][0], range[1][1], padding=0)
+        w0, w1, t0, t1 = range[0][0], range[0][1], range[1][0], range[1][1]
+
+        self.data_panel.txb_w0.setText(f'{w0:.4g}')
+        self.data_panel.txb_w1.setText(f'{w1:.4g}')
+
+        t0 = self.heat_map_plot.transform_t_pos(t0)  # transform t positions
+        t1 = self.heat_map_plot.transform_t_pos(t1)
+
+        self.data_panel.txb_t0.setText(f'{t0:.4g}')
+        self.data_panel.txb_t1.setText(f'{t1:.4g}')
+
+        self.spectrum.getViewBox().setXRange(w0, w1, padding=0)
+        self.trace.getViewBox().setXRange(t0, t1, padding=0)
 
         # keep all the v and h lines inside the visible area
 
@@ -381,8 +367,8 @@ class PlotWidget(DockArea):
         if not range[1][0] <= h_pos <= range[1][1]:
             self.heat_map_hline.setPos(range[1][0] if np.abs(h_pos - range[1][0]) < np.abs(h_pos - range[1][1]) else range[1][1])
 
-        it0, it1 = find_nearest_idx(self.matrix.times, range[1][0]), find_nearest_idx(self.matrix.times, range[1][1]) + 1
-        iw0, iw1 = find_nearest_idx(self.matrix.wavelengths, range[0][0]), find_nearest_idx(self.matrix.wavelengths, range[0][1]) + 1
+        it0, it1 = find_nearest_idx(self.matrix.times, t0), find_nearest_idx(self.matrix.times, t1) + 1
+        iw0, iw1 = find_nearest_idx(self.matrix.wavelengths, w0), find_nearest_idx(self.matrix.wavelengths, w1) + 1
 
         self.selected_range_idxs = (it0, it1, iw0, iw1)
 
@@ -396,18 +382,15 @@ class PlotWidget(DockArea):
         self.data_panel.txb_z1.setText(f'{z_levels[1]:.4g}')
 
     def update_range(self):
+        if self.change_range_lock or self.matrix is None:
+            return
+
         try:
             t0, t1 = float(self.data_panel.txb_t0.text()), float(self.data_panel.txb_t1.text())
             w0, w1 = float(self.data_panel.txb_w0.text()), float(self.data_panel.txb_w1.text())
 
             if t0 <= t1 and w0 <= w1:
-                # find true values that correspond to data
-                _t0, _t1 = find_nearest(self.matrix.times, t0), find_nearest(self.matrix.times, t1)
-                _w0, _w1 = find_nearest(self.matrix.wavelengths, w0), find_nearest(
-                    self.matrix.wavelengths, w1)
-
-                self.heat_map_plot.set_xy_range(_w0, _w1, _t0, _t1, 0)
-
+                self.heat_map_plot.set_xy_range(w0, w1, t0, t1, 0)
         except ValueError:
             pass
         except AttributeError:
@@ -457,10 +440,12 @@ class PlotWidget(DockArea):
         self.spectrum_plot_item_fit = self.spectrum.plot([])
 
     def update_trace_and_spectrum(self):
+        # pass
         if self.matrix is None:
             return
 
         time_pos = self.heat_map_hline.pos()[1]
+        time_pos = self.heat_map_plot.transform_t_pos(time_pos)
         wl_pos = self.heat_map_vline.pos()[0]
 
         wavelengths = self.matrix.wavelengths
@@ -602,11 +587,6 @@ class PlotWidget(DockArea):
     def save_plot_to_clipboard_as_svg(self, plot_item):
         self.svg_exporter = SVGExporter(plot_item)
         self.svg_exporter.export(copy=True)
-
-
-
-
-
 
 # class SurfacePlot(object):
 #

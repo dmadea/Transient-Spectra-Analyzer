@@ -5,14 +5,13 @@ from PyQt5.QtCore import Qt
 from PyQt5.QtGui import *
 
 from PyQt5.QtGui import QColor
-
 import pyqtgraph as pg
 
-
 from settings import Settings
+
 from logger import Logger, Transcript
 
-from dialogs.settingsdialog import SettingsDialog
+# from dialogs.settingsdialog import SettingsDialog
 from plotwidget import PlotWidget
 
 # import code
@@ -24,7 +23,7 @@ from Widgets.svd_widget import SVDWidget
 from menubar import MenuBar
 from gui_console import Console
 
-from dialogs.fitdialog import FitDialog
+# from dialogs.fitdialog import FitDialog
 from pyqtgraph.dockarea import *
 import Widgets.Fit_gui
 
@@ -73,7 +72,6 @@ class fMain(QMainWindow):
         self.user_namespace = UserNamespace(self)
 
         self.setMenuBar(MenuBar(self))
-
         Settings.load()
 
         self.update_recent_files()
@@ -104,21 +102,21 @@ class fMain(QMainWindow):
         statusBar.addPermanentWidget(self.coor_label)
         statusBar.addPermanentWidget(console_button)
 
-    def perform_SVD(self):
-
-        Console.show_message("Performing singular value decomposition")
-
-        self.matrix.SVD()
-
-        Console.push_variables({'U': self.matrix.U, 'S': self.matrix.S, 'V_T': self.matrix.V_T})
+    # def perform_SVD(self):
+    #
+    #     Console.show_message("Performing singular value decomposition")
+    #
+    #     self.matrix.SVD()
+    #
+    #     Console.push_variables({'U': self.matrix.U, 'S': self.matrix.S, 'V_T': self.matrix.V_T})
 
     def update_recent_files(self):
         num = min(len(Settings.recent_project_filepaths), len(self.menuBar().recent_file_actions))
 
         for i in range(num):
             filepath = Settings.recent_project_filepaths[i]
-            tail = os.path.split(filepath)[1]
-            text = os.path.splitext(tail)[0]
+            head, tail = os.path.split(filepath)
+            text = os.path.split(head)[1] + '\\' + tail
             self.menuBar().recent_file_actions[i].setText(text)
             self.menuBar().recent_file_actions[i].setData(filepath)
             self.menuBar().recent_file_actions[i].setVisible(True)
@@ -146,128 +144,35 @@ class fMain(QMainWindow):
 
         self.plot_widget.save_plot_to_clipboard_as_svg()
 
-
-
-    def open_settings(self):
-
-        if SettingsDialog.is_opened:
-            SettingsDialog.get_instance().activateWindow()
-            SettingsDialog.get_instance().setFocus()
-            return
-
-        sett_dialog = SettingsDialog()
-
-        if not sett_dialog.accepted:
-            return
-
-        self.plot_widget.update_settings()
-
-        self.redraw_all_spectra()
-
-    # def open_project(self, filepath=None, open_dialog=True):
-    #
-    #     if open_dialog:
-    #         # filter = "Data Files (*.txt, *.csv, *.dx)|*.txt;*.csv;*.dx|All Files (*.*)|*.*"
-    #         filter = "Project files (*.smpj);;All Files (*.*)"
-    #         initial_filter = "Project files (*.smpj)"
-    #
-    #         filepaths = QFileDialog.getOpenFileName(caption="Open project",
-    #                                                 directory=Settings.open_project_dialog_path,
-    #                                                 filter=filter,
-    #                                                 initialFilter=initial_filter)
-    #         if filepaths[0] == '':
-    #             return
-    #
-    #         Settings.open_project_dialog_path = os.path.split(filepaths[0])[0]
-    #         filepath = filepaths[0]
-    #
-    #     try:
-    #         project = Project.deserialize(filepath)
-    #     except:
-    #         return
-    #
-    #     if self.treeWidget.top_level_items_count() != 0:
-    #         reply = QMessageBox.question(self, 'Open project', "Do you want to merge the project with current project? "
-    #                                                            "By clicking No, current project will be deleted and replaced.",
-    #                                      QMessageBox.Yes | QMessageBox.No | QMessageBox.Cancel)
-    #         if reply == QMessageBox.Yes:
-    #             pass
-    #         elif reply == QMessageBox.No:
-    #             # delete all spectra and import new
-    #             self.treeWidget.clear()
-    #             project.settings.set_settings()
-    #         else:
-    #             return
-    #
-    #     self.treeWidget.import_spectra(project.spectra_list)
-    #     self.add_recent_file(filepath)
-    #
-    #     # # load file specific user settings
-    #     # project.settings.set_settings()
-    #     #
-    #     # # delete all spectra and import new
-    #     # self.treeWidget.clear()
-    #     # self.treeWidget.import_spectra(project.spectra_list)
-
-    # def save_project(self):
-    #
-    #
-    #     # filter = "Data Files (*.txt, *.csv, *.dx)|*.txt;*.csv;*.dx|All Files (*.*)|*.*"
-    #     filter = "Project files (*.smpj)"
-    #
-    #     filepath = QFileDialog.getSaveFileName(caption="Save project",
-    #                                            directory=Settings.save_project_dialog_path,
-    #                                            filter=filter, initialFilter=filter)
-    #
-    #     if filepath[0] == '':
-    #         return
-    #
-    #     Logger.message("Saving project to {}".format(filepath[0]))
-    #
-    #     Settings.save_project_dialog_path = os.path.split(filepath[0])[0]
-    #
-    #     sp_list = self.treeWidget.get_hierarchic_list(
-    #         self.treeWidget.myModel.iterate_items(ItemIterator.NoChildren))
-    #
-    #     project = Project(sp_list)
-    #     project.serialize(filepath[0])
-    #
-    #     self.add_recent_file(filepath[0])
-        Logger.message("Done")
-
-    def open_fit_dialog(self):
-
-        if self.matrix is not None:
-            d = FitDialog(self.matrix)
-
-    def file_menu_import_files(self):
+    def open_file(self, filepath=False):
+        ## strange bug, qt passes False as an argument when called from menubar
 
         # filter = "Data Files (*.txt, *.csv, *.dx)|*.txt;*.csv;*.dx|All Files (*.*)|*.*"
-        filter = "Data Files (*.txt, *.csv, *.dx);;All Files (*.*)"
+        filter = "Data Files (*.txt, *.csv, *.a*);;All Files (*.*)"
         initial_filter = "All Files (*.*)"
 
-        filename = QFileDialog.getOpenFileName(caption="Import files",
-                                                 directory=Settings.import_files_dialog_path,
-                                                 filter=filter, initialFilter=initial_filter)
+        if filepath is False:
+            filepath = QFileDialog.getOpenFileName(caption="Import files",
+                                                   directory=Settings.import_files_dialog_path,
+                                                   filter=filter, initialFilter=initial_filter)[0]
 
-        if len(filename[0]) == 0:
-            return
+            if len(filepath) == 0:
+                return
 
-        Settings.import_files_dialog_path = os.path.split(filename[0])[0]
-
+        Settings.import_files_dialog_path = os.path.split(filepath)[0]
         Settings.save()
 
-        path_to_file = filename[0]
-
-        self.matrix = lfp_parser.parse_file(path_to_file)
+        self.matrix = lfp_parser.parse_file(filepath)
 
         self.plot_widget.plot_matrix(self.matrix)
         self.SVD_widget.set_data(self.matrix)
 
-        tail = os.path.split(path_to_file)[1]
+        tail = os.path.split(filepath)[1]
         name_of_file = os.path.splitext(tail)[0]  # without extension
 
         self.setWindowTitle(name_of_file + ' - Transient Spectra Analyzer')
+
+        self.add_recent_file(filepath)
 
         Console.push_variables({'matrix': self.matrix})
         self.fit_widget.matrix = self.matrix
