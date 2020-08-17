@@ -167,16 +167,6 @@ class FitWidget(QWidget, Ui_Form):
             self.upper_bound_list.append(QLineEdit())
             self.fixed_list.append(QCheckBox())
             self.error_list.append(QLineEdit())
-            #
-            # self.lower_bound_list[i].setSizePolicy(QSizePolicy.Ignored, QSizePolicy.Preferred)
-            # self.value_list[i].setSizePolicy(QSizePolicy.Ignored, QSizePolicy.Preferred)
-            # self.upper_bound_list[i].setSizePolicy(QSizePolicy.Ignored, QSizePolicy.Preferred)
-            # self.error_list[i].setSizePolicy(QSizePolicy.Ignored, QSizePolicy.Preferred)
-            #
-            # self.lower_bound_list[i].setMinimumSize(1, 1)
-            # self.value_list[i].setMinimumSize(1, 1)
-            # self.upper_bound_list[i].setMinimumSize(1, 1)
-            # self.error_list[i].setMinimumSize(1, 1)
 
             self.glKinetics.addWidget(self.params_list[i], i + 1, 0, 1, 1)
             self.glKinetics.addWidget(self.lower_bound_list[i], i + 1, 1, 1, 1)
@@ -190,7 +180,6 @@ class FitWidget(QWidget, Ui_Form):
         self.model_class_changed()
         self.model_changed()
         self.sbN_value_changed()
-
 
     def set_ST_full(self, data):
         if self.matrix is None:
@@ -383,28 +372,7 @@ class FitWidget(QWidget, Ui_Form):
             self._C = self.current_model.calc_C(C_out=self._C)
 
         elif self.current_model.method is 'femto':
-
-            _C_tensor = self.current_model.calc_C()
-            _ST = np.zeros((self._ST.shape[0] + self.current_model.coh_spec_order + 1, self._ST.shape[1])) if self.current_model.coh_spec else np.zeros_like(self._ST)
-
-            coh_idx = fitmodels.find_nearest_idx(self.matrix.wavelengths, 460)
-            coh_scale = np.ones_like(self.matrix.wavelengths)
-            coh_scale[coh_idx:] = 0
-
-            if self.current_model.coh_spec:
-                _C_COH = self.current_model.simulate_coh_gaussian(coh_scale=coh_scale)
-                _C_tensor = np.concatenate((_C_tensor, _C_COH), axis=-1)
-
-            for i in range(self.matrix.wavelengths.shape[0]):
-                _ST[:, i] = lstsq(_C_tensor[i], self.matrix.D[:, i])[0]
-
-            if self.current_model.coh_spec:
-                self.current_model.ST_COH = _ST[-self.current_model.coh_spec_order - 1:]
-
-            self.D_fit = np.matmul(_C_tensor, _ST.T[..., None]).squeeze().T
-
-            self._C = _C_tensor[0, :, :-self.current_model.coh_spec_order - 1] if self.current_model.coh_spec else _C_tensor[0]
-            self._ST = _ST[:-self.current_model.coh_spec_order - 1] if self.current_model.coh_spec else _ST
+            self.D_fit, self._C, self._ST = self.current_model.simulate_mod(self.matrix.Y)
 
         else:
             self._C = self.current_model.calc_C(C_out=self._C)

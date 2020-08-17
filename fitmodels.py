@@ -7,27 +7,17 @@ from gui_console import Console
 
 from scipy.stats import multivariate_normal
 
-from multiprocessing import Pool
+# from multiprocessing import Pool
 
 import math
 from numba import njit, prange, vectorize
 from scipy.interpolate import interp2d, interp1d
-# from scipy.linalg import expm
 from scipy.linalg import svd
 from scipy.special import erfc
+from misc import find_nearest_idx
+from scipy.linalg import lstsq
 
-
-def find_nearest_idx(array, value):
-    idx = np.searchsorted(array, value, side="left")
-    if idx > 0 and (idx == len(array) or math.fabs(value - array[idx - 1]) < math.fabs(value - array[idx])):
-        return idx - 1
-    else:
-        return idx
-
-
-def find_nearest(array, value):
-    idx = find_nearest_idx(array, value)
-    return array[idx]
+import matplotlib.pyplot as plt
 
 
 # virtual class that every model must inherits
@@ -79,6 +69,9 @@ class _Model(object):
     def init_params(self):
         pass
 
+    def simulate_mod(self, D):
+        pass
+
     def update_n(self, new_n=None):
         self.n = new_n if new_n is not None else self.n
         self.init_params()
@@ -121,10 +114,12 @@ class _Model(object):
         else:
             return np.heaviside(t, 1) * (k1 * c0 / (k2 - k1 - k0)) * (np.exp(-(k1 + k0) * t) - np.exp(-k2 * t))
 
+
 class _Femto(_Model):
 
-    n_poly_chirp = 6  # order of polynomial for chirp_type: 'poly' or 'poly_stokkum'
+    n_poly_chirp = 5  # order of polynomial for chirp_type: 'poly'
     n_exp_chirp = 1  # number of exponentials to describe chirp for mu_type = 'exp'
+    n_partau = 2
 
     def __init__(self, times=None, connectivity=(0, 1, 2), wavelengths=None,  method='femto'):
         self.method = method
@@ -140,7 +135,12 @@ class _Femto(_Model):
         self.coh_spec = True
         self.coh_spec_order = 2
 
-        self.chirp_type = 'poly'  # poly, poly_stokkum, exp
+        self.partau = True
+
+        self.zero_coh_spec_range = [(460, 750)]  # zero coherent artifact in that wavelength range
+        self.weights = [(378, 393, 0.05)]  # (wl_start, wl_end, weight) default weight 1
+
+        self.chirp_type = 'poly'  # poly, exp
 
         self.update_n()
 
@@ -150,12 +150,17 @@ class _Femto(_Model):
     @staticmethod
     def conv_exp(t, k, fwhm):
 
-        w = fwhm / 1.6651092223153954  # w = fwhm / (2 * np.sqrt(np.log(2)))
+        w = fwhm / (2 * np.sqrt(np.log(2)))  # width
 
-        if w > 0:
-            return 0.5 * np.exp(k * (k * w * w / 4.0 - t)) * erfc(w * k / 2.0 - t / w)
-        else:
-            return np.exp(-t * k) * np.heaviside(t, 1)
+        # if isinstance(w, np.ndarray):
+        return np.where(w > 0,
+                0.5 * np.exp(k * (k * w * w / 4.0 - t)) * erfc(w * k / 2.0 - t / w),
+                np.exp(-t * k) * np.heaviside(t, 1))
+        # else:
+        #     if w > 0:
+        #         return 0.5 * np.exp(k * (k * w * w / 4.0 - t)) * erfc(w * k / 2.0 - t / w)
+        #     else:
+        #         return np.exp(-t * k) * np.heaviside(t, 1)
 
     @staticmethod
     def simulate_model(t, K, j, mu=None, fwhm=0):
@@ -165,51 +170,59 @@ class _Femto(_Model):
 
         A2_T = Q @ np.diag(Q_inv.dot(j))
 
-        if mu is not None:
-            C = _Femto.conv_exp(t[None, :, None] - mu[:, None, None], -L[None, None, :], fwhm)
+        _tau = fwhm[:, None, None] if isinstance(fwhm, np.ndarray) else fwhm
+
+        if mu is not None:  # TODO !!! pořešit, ať je to obecne
+            C = _Femto.conv_exp(t[None, :, None] - mu[:, None, None], -L[None, None, :], _tau)
         else:
             C = _Femto.conv_exp(t[:, None], -L[None, :], fwhm)
 
         return C.dot(A2_T.T)
 
-    def simulate_coh_gaussian(self, params=None, coh_scale=None):
+    def simulate_coh_gaussian(self, params=None, zero_coh_range=None):
 
         order = self.coh_spec_order
 
-        fwhm, ks = self.get_kin_pars(params)
+        fwhm = self.get_tau(params)
         mu = self.get_mu(params)
 
-        if fwhm == 0:
-            return np.zeros((mu.shape[0], self.times.shape[0], order + 1))
+        # if fwhm == 0:
+        #     return np.zeros((mu.shape[0], self.times.shape[0], order + 1))
 
-        s = fwhm / 2.3548200450309493  # sigma = fwhm / (2 * np.sqrt(2 * np.log(2)))
+        s = fwhm / (2 * np.sqrt(2 * np.log(2)))  # sigma
+        s = s[:, None, None] if isinstance(s, np.ndarray) else s
 
         tt = self.times[None, :, None] - mu[:, None, None]
 
-        y = np.exp(-0.5 * tt * tt / (s * s))
+        # y = np.exp(-0.5 * tt * tt / (s * s))
+        y = np.where(s > 0,
+                     np.exp(-0.5 * tt * tt / (s * s)),
+                     np.zeros((mu.shape[0], self.times.shape[0], 1)))
+
         y = np.tile(y, (1, 1, order + 1))
 
         if order == 0:
             self.C_COH = y
             return self.C_COH
 
-        tt = tt.squeeze()
         # y[..., 1] *= -tt / (s * s)
         # y[..., 2] *= tt * tt / s ** 4 - 1 / (s * s)
-        y[..., 1] *= -tt
-        y[..., 1] /= y[0, :, 1].max()
+        y[..., 1] *= -tt.squeeze()
+        y_max = y[..., 1].max()
+        y[..., 1] /= y_max if y_max != 0 else 1
 
         if order == 1:
             self.C_COH = y
             return self.C_COH
 
-        y[..., 2] *= tt * tt - s * s
-        y[..., 2] /= y[0, :, 2].max()
+        y[..., 2] *= (tt * tt - s * s).squeeze()
+        y_max = y[..., 2].max()
+        y[..., 2] /= y_max if y_max != 0 else 1
 
         self.C_COH = y
 
-        if coh_scale is not None:
-            self.C_COH *= coh_scale[:, None, None]
+        if zero_coh_range is not None:
+            self.C_COH *= zero_coh_range[:, None, None]
 
         return self.C_COH
 
@@ -222,18 +235,43 @@ class _Femto(_Model):
         params = params if params is not None else self.params
 
         pars = [par[1].value for par in params.items()]
-        if self.chirp_type is 'exp':
-            fwhm, *taus = pars[2 + 2 * self.n_exp_chirp:]
-        else:  # poly
-            fwhm, *taus  = pars[2 + self.n_poly_chirp:]
-        # else:
-        #     fwhm, *taus = pars[2 + self.n_poly_chirp+1:]
+
+        chirp_params = 2 * self.n_exp_chirp if self.chirp_type is 'exp' else self.n_poly_chirp
+        partau_params = self.n_partau if self.partau else 0
+
+        fwhm = self.params['FWHM_lambda_c'].value  # fwhm at lambda_c
+        taus = pars[3 + chirp_params + partau_params:]
 
         ks = 1 / np.asarray(taus)
         return fwhm, ks
 
     def get_lambda_c(self):
         return self.params['lambda_c'].value
+
+    def get_tau(self, params=None):
+        if self.wavelengths is None:
+            return
+
+        params = self.params if params is None else params
+
+        FWHM_lambda_c = params['FWHM_lambda_c'].value
+
+        if self.partau is False:
+            return FWHM_lambda_c
+
+        lambda_c = self.get_lambda_c()
+        partaus = [params[f'partau_{i+1}'] for i in range(self.n_partau)]
+
+        tau = np.ones(self.wavelengths.shape[0], dtype=np.float64) * FWHM_lambda_c
+
+        for i in range(self.n_partau):
+            tau += partaus[i] * ((self.wavelengths - lambda_c) / 100) ** (i + 1)
+
+        return tau
+
+    def plot_tau(self):
+        plt.plot(self.wavelengths, self.get_tau())
+        plt.show()
 
     def get_mu(self, params=None):
         """Return the curve that defines chirp."""
@@ -256,9 +294,6 @@ class _Femto(_Model):
         else:
             for i in range(0, self.n_poly_chirp):
                 mu += pars[i] * ((self.wavelengths - lambda_c) / 100) ** (i + 1)
-        # else:  # polynomial
-        #     pars = pars[:self.n_poly_chirp + 1]
-        #     mu = np.polyval(pars, self.wavelengths)
 
         return mu
 
@@ -266,10 +301,10 @@ class _Femto(_Model):
     def set_parmu(self, coefs, type='poly'):
         assert(len(coefs) == self.n_poly_chirp + 1)
 
-        self.params['mu_lambda_c'].value = coefs[0]
+        self.params['parmu_lambda_c'].value = coefs[0]
 
         for i in range(self.n_poly_chirp):
-            self.params[f'mu_p{i+1}'].value = coefs[i+1]
+            self.params[f'parmu_{i+1}'].value = coefs[i+1]
 
     def init_params(self):
         self.params = Parameters()
@@ -278,7 +313,7 @@ class _Femto(_Model):
             return
 
         self.params.add('lambda_c', value=433, min=0, max=1000, vary=False)
-        self.params.add('mu_lambda_c', value=1.539, min=0, max=np.inf, vary=True)
+        self.params.add('parmu_lambda_c', value=1.539, min=0, max=np.inf, vary=True)
 
         if self.chirp_type is 'exp':
             for i in range(self.n_exp_chirp):
@@ -286,14 +321,55 @@ class _Femto(_Model):
                 self.params.add(f'mu_B{i+1}', value=70, min=-np.inf, max=np.inf, vary=True)
         else:  # polynomial by Ivo von Stokkum
             for i in range(self.n_poly_chirp):
-                self.params.add(f'mu_p{i+1}', value=0.5, min=-np.inf, max=np.inf, vary=True)
-        # else:  # polynomial
-        #     self.params['mu_lambda_c'].vary = False
-        #     for i in range(self.n_poly_chirp + 1):
-        #         self.params.add(f'p{i}', value=0.5, min=-np.inf, max=np.inf, vary=True)
+                self.params.add(f'parmu_{i+1}', value=0.5, min=-np.inf, max=np.inf, vary=True)
 
-        self.params.add('FWHM', value=0.1135, min=0, max=np.inf, vary=True)
+        self.params.add('FWHM_lambda_c', value=0.1135, min=0, max=np.inf, vary=True)
+        if self.partau:
+            for i in range(self.n_partau):
+                self.params.add(f'partau_{i+1}', value=0.5, min=-np.inf, max=np.inf, vary=True)
 
+    def get_weights(self, D):
+        weights = np.ones_like(D)
+        for *rng, weight in self.weights:
+            idx0, idx1 = find_nearest_idx(self.wavelengths, rng)
+            weights[idx0:idx1+1] = weight
+
+        return weights
+
+    def simulate_mod(self, D, params=None):
+        if D is None:
+            raise ValueError('param D cannot be None')
+
+        if params is None:
+            params = self.params
+
+        _C_tensor = self.calc_C(params)
+        n = _C_tensor.shape[-1]
+        ST = np.zeros((n + (self.coh_spec_order + 1 if self.coh_spec else 0), self.wavelengths.shape[0]))
+
+        zero_coh_range = np.ones_like(self.wavelengths)
+        for rng in self.zero_coh_spec_range:
+            idx0, idx1 = find_nearest_idx(self.wavelengths, rng)
+            zero_coh_range[idx0:idx1+1] = 0
+
+        if self.coh_spec:
+            _C_COH = self.simulate_coh_gaussian(zero_coh_range=zero_coh_range)
+            _C_tensor = np.concatenate((_C_tensor, _C_COH), axis=-1)
+
+        _C_tensor = np.nan_to_num(_C_tensor)
+
+        for i in range(self.wavelengths.shape[0]):
+            ST[:, i] = lstsq(_C_tensor[i], D[:, i])[0]
+
+        if self.coh_spec:
+            self.ST_COH = ST[-self.coh_spec_order - 1:]
+
+        D_fit = np.matmul(_C_tensor, ST.T[..., None]).squeeze().T
+
+        C = _C_tensor[0, :, :-self.coh_spec_order - 1] if self.coh_spec else _C_tensor[0]
+        ST = ST[:-self.coh_spec_order - 1] if self.coh_spec else ST
+
+        return D_fit, C, ST
 
 class _Photokinetic_Model(_Model):
 
@@ -438,6 +514,7 @@ class _Photokinetic_Model(_Model):
 
         return C_out
 
+
 class Global_Analysis_Femto(_Femto):
 
     name = 'Global Analysis'
@@ -452,8 +529,8 @@ class Global_Analysis_Femto(_Femto):
         if self.spectra == 'EADS':
             self.species_names = [f'EADS{i + 1}' for i in range(self.n)]
             for i in range(self.n):
-                sec_label = self.species_names[i+1] if i < self.n - 1 else ""
-                self.params.add(f'tau_{self.species_names[i]}{sec_label}', value=1, min=0, max=np.inf)
+                # sec_label = self.species_names[i+1] if i < self.n - 1 else ""
+                self.params.add(f'tau_{self.species_names[i]}', value=1, min=0, max=np.inf)
 
         else:  # decay model
             self.species_names = [f'DADS{i + 1}' for i in range(self.n)]
@@ -466,6 +543,7 @@ class Global_Analysis_Femto(_Femto):
         fwhm, ks = self.get_kin_pars(params)
         mu = self.get_mu(params)
         n = self.n
+        fwhm = self.get_tau(params)  # fwhm
 
         if self.spectra == 'EADS':
             K = np.zeros((n, n))
@@ -479,7 +557,8 @@ class Global_Analysis_Femto(_Femto):
             self.C = self.simulate_model(self.times, K, j, mu, fwhm)
 
         else:  # for DADS
-            self.C = self.conv_exp(self.times[None, :, None] - mu[:, None, None], ks[None, None, :], fwhm)
+            _tau = fwhm[:, None, None] if isinstance(fwhm, np.ndarray) else fwhm
+            self.C = self.conv_exp(self.times[None, :, None] - mu[:, None, None], ks[None, None, :], _tau)
 
         return self.get_conc_matrix(C_out, self._connectivity)
 

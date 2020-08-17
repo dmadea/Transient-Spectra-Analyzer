@@ -203,4 +203,3 @@ if __name__ == "__main__":
 
     sys.exit(app.exec_())
 
-# print(QtWidgets.QStyleFactory.keys())

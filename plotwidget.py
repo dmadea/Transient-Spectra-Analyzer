@@ -50,8 +50,6 @@ class PlotWidget(DockArea):
         self.heat_map_levels = None
         self.selected_range_idxs = None
 
-        # self.surface_widget = SurfacePlot(self)
-
         #  heat map
 
         self.heat_map_dock = Dock("Heat Map", size=(50, 7))

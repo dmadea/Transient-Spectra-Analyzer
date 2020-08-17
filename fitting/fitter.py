@@ -386,46 +386,48 @@ class Fitter:
     def var_pro_femto(self, **kwargs):
         self.update_options(**kwargs)
 
-        # _C_opt = C_est.copy() if C_est is not None else None  # np.zeros_like(self.C_est)
-        D_fit = np.zeros_like(self.D)
-        _C_tensor = None
-        _ST = np.zeros((self.ST_opt.shape[0] + self.c_model.coh_spec_order + 1,
-                        self.ST_opt.shape[1])) if self.c_model.coh_spec else np.zeros_like(self.ST_opt)
-
-        w_idxs = find_nearest_idx(self.wls, [378, 393])
-        weights = np.ones_like(self.D)
-
-        weights[:, w_idxs[0]:w_idxs[1]] = 0.05  # weights in the region of 378 to 393 nm is set to 0.1
-
-        coh_idx = find_nearest_idx(self.wls, 460)
-        coh_scale = np.ones_like(self.wls)
-        coh_scale[coh_idx:] = 0
-
-        # coh_scale = None
+        # # _C_opt = C_est.copy() if C_est is not None else None  # np.zeros_like(self.C_est)
+        # D_fit = np.zeros_like(self.D)
+        # _C_tensor = None
+        # _ST = np.zeros((self.ST_opt.shape[0] + self.c_model.coh_spec_order + 1,
+        #                 self.ST_opt.shape[1])) if self.c_model.coh_spec else np.zeros_like(self.ST_opt)
+        #
+        # w_idxs = find_nearest_idx(self.wls, [378, 393])
+        # weights = np.ones_like(self.D)
+        #
+        # weights[:, w_idxs[0]:w_idxs[1]] = 0.05  # weights in the region of 378 to 393 nm is set to 0.1
+        #
+        # coh_idx = find_nearest_idx(self.wls, 460)
+        # coh_scale = np.ones_like(self.wls)
+        # coh_scale[coh_idx:] = 0
+        D_fit = None
 
         def residuals(params):
             # needed to use nonlocal because of nested functions, https://stackoverflow.com/questions/5218895/python-nested-functions-variable-scoping
-            nonlocal _C_tensor, D_fit
+            nonlocal D_fit
 
-            _C_tensor = self.c_model.calc_C(params)
+            D_fit, self.C_opt, self.ST_opt = self.c_model.simulate_mod(self.D, params)
 
-            if self.c_model.coh_spec:
-                _C_COH = self.c_model.simulate_coh_gaussian(params, coh_scale)
-                _C_tensor = np.concatenate((_C_tensor, _C_COH), axis=-1)
-
-            _C_tensor = np.nan_to_num(_C_tensor)
-
-            for i in range(self.wls.shape[0]):
-                _ST[:, i] = lstsq(_C_tensor[i], self.D[:, i])[0]
-
-            if self.c_model.coh_spec:
-                self.c_model.ST_COH = _ST[-self.c_model.coh_spec_order - 1:]
-
-            D_fit = np.matmul(_C_tensor, _ST.T[..., None]).squeeze().T
+            # _C_tensor = self.c_model.calc_C(params)
+            #
+            # if self.c_model.coh_spec:
+            #     _C_COH = self.c_model.simulate_coh_gaussian(params, coh_scale)
+            #     _C_tensor = np.concatenate((_C_tensor, _C_COH), axis=-1)
+            #
+            # _C_tensor = np.nan_to_num(_C_tensor)
+            #
+            # for i in range(self.wls.shape[0]):
+            #     _ST[:, i] = lstsq(_C_tensor[i], self.D[:, i])[0]
+            #
+            # if self.c_model.coh_spec:
+            #     self.c_model.ST_COH = _ST[-self.c_model.coh_spec_order - 1:]
+            #
+            # D_fit = np.matmul(_C_tensor, _ST.T[..., None]).squeeze().T
 
             R = self.D - D_fit
 
             R = np.nan_to_num(R)
+            weights = self.c_model.get_weights(self.D)
 
             return R * weights
 
@@ -436,8 +438,8 @@ class Fitter:
 
         self.c_model.params = self.last_result.params
 
-        self.C_opt = _C_tensor[0, :, :-self.c_model.coh_spec_order - 1] if self.c_model.coh_spec else _C_tensor[0]
-        self.ST_opt = _ST[:-self.c_model.coh_spec_order - 1] if self.c_model.coh_spec else _ST
+        # self.C_opt = _C_tensor[0, :, :-self.c_model.coh_spec_order - 1] if self.c_model.coh_spec else _C_tensor[0]
+        # self.ST_opt = _ST[:-self.c_model.coh_spec_order - 1] if self.c_model.coh_spec else _ST
 
         return D_fit
 
