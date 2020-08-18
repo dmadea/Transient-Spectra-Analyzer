@@ -186,38 +186,28 @@ class _Femto(_Model):
         fwhm = self.get_tau(params)
         mu = self.get_mu(params)
 
-        # if fwhm == 0:
-        #     return np.zeros((mu.shape[0], self.times.shape[0], order + 1))
-
         s = fwhm / (2 * np.sqrt(2 * np.log(2)))  # sigma
         s = s[:, None, None] if isinstance(s, np.ndarray) else s
 
         tt = self.times[None, :, None] - mu[:, None, None]
 
-        # y = np.exp(-0.5 * tt * tt / (s * s))
         y = np.where(s > 0,
                      np.exp(-0.5 * tt * tt / (s * s)),
                      np.zeros((mu.shape[0], self.times.shape[0], 1)))
 
         y = np.tile(y, (1, 1, order + 1))
 
-        if order == 0:
-            self.C_COH = y
-            return self.C_COH
+        if order > 0:
+            # y[..., 1] *= -tt / (s * s)
+            # y[..., 2] *= tt * tt / s ** 4 - 1 / (s * s)
+            y[..., 1] *= -tt.squeeze()
 
-        # y[..., 1] *= -tt / (s * s)
-        # y[..., 2] *= tt * tt / s ** 4 - 1 / (s * s)
-        y[..., 1] *= -tt.squeeze()
-        y_max = y[..., 1].max()
-        y[..., 1] /= y_max if y_max != 0 else 1
+        if order > 1:
+            y[..., 2] *= (tt * tt - s * s).squeeze()
 
-        if order == 1:
-            self.C_COH = y
-            return self.C_COH
-
-        y[..., 2] *= (tt * tt - s * s).squeeze()
-        y_max = y[..., 2].max()
-        y[..., 2] /= y_max if y_max != 0 else 1
+        y_max = np.max(y, axis=1, keepdims=True)  # find maxima over time axis
+        y_max[np.isclose(y_max, 0)] = 1  # values close to zero force to 1 to not divide by zero
+        y /= y_max
 
         self.C_COH = y
 
@@ -326,7 +316,7 @@ class _Femto(_Model):
         self.params.add('FWHM_lambda_c', value=0.1135, min=0, max=np.inf, vary=True)
         if self.partau:
             for i in range(self.n_partau):
-                self.params.add(f'partau_{i+1}', value=0.5, min=-np.inf, max=np.inf, vary=True)
+                self.params.add(f'partau_{i+1}', value=0.01, min=-np.inf, max=np.inf, vary=True)
 
     def get_weights(self, D):
         weights = np.ones_like(D)
