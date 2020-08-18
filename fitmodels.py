@@ -261,6 +261,8 @@ class _Femto(_Model):
 
     def plot_tau(self):
         plt.plot(self.wavelengths, self.get_tau())
+        plt.xlabel('Wavelength / nm')
+        plt.ylabel('IRF_FWHM / ps')
         plt.show()
 
     def get_mu(self, params=None):

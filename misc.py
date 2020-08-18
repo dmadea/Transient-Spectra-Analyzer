@@ -11,15 +11,16 @@ def _find_nearest_idx(array, value):
         return idx
 
 
-def find_nearest_idx(array, value):
-    if not is_iterable(value):
-        return _find_nearest_idx(array, value)
+def find_nearest_idx(array, values):
+    if not is_iterable(values):
+        return _find_nearest_idx(array, values)
 
-    result = np.empty(len(value), dtype=int)
+    result = []
 
-    for i in range(result.shape[0]):
-        result[i] = _find_nearest_idx(array, value[i])
-    return result
+    for val in values:
+        result.append(_find_nearest_idx(array, val))
+
+    return np.asarray(result)
 
 
 def find_nearest(array, value):

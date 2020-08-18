@@ -87,7 +87,7 @@ class FitWidget(QWidget, Ui_Form):
         # fill the combo box items with model names
         self.cbClass.addItems(self.classes)
 
-        self.methods = [
+        self.methods = [   # minimizing algorithms
             {'name': 'Levenberg–Marquardt', 'abbr': 'leastsq'},
             {'name': 'Trust-Region Reflective method', 'abbr': 'least_squares'},
             {'name': 'Nelder-Mead, Simplex method', 'abbr': 'nelder'},

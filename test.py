@@ -426,8 +426,8 @@
 #     # run_serial()
 
 
-import pyqtgraph.examples
-pyqtgraph.examples.run()
+# import pyqtgraph.examples
+# pyqtgraph.examples.run()
 
 #
 # # # import multiprocessing as mp
@@ -513,6 +513,97 @@ pyqtgraph.examples.run()
 # #
 # #
 # #
+#!/usr/bin/env python3
+# rand.py
+
+# import asyncio
+# import random
+#
+# # ANSI colors
+# c = (
+#     "\033[0m",   # End of color
+#     "\033[36m",  # Cyan
+#     "\033[91m",  # Red
+#     "\033[35m",  # Magenta
+# )
+#
+# async def makerandom(idx: int, threshold: int = 6) -> int:
+#     print(c[idx + 1] + f"Initiated makerandom({idx}).")
+#     i = random.randint(0, 10)
+#     while i <= threshold:
+#         print(c[idx + 1] + f"makerandom({idx}) == {i} too low; retrying.")
+#         await asyncio.sleep(idx + 1)
+#         i = random.randint(0, 10)
+#     print(c[idx + 1] + f"---> Finished: makerandom({idx}) == {i}" + c[0])
+#     return i
+#
+# async def main():
+#     res = await asyncio.gather(*(makerandom(i, 10 - i - 1) for i in range(3)))
+#     return res
+#
+# if __name__ == "__main__":
+#     random.seed(444)
+#     r1, r2, r3 = asyncio.run(main())
+#     print()
+#     print(f"r1: {r1}, r2: {r2}, r3: {r3}")
+# import asyncio
+#
+# from PyQt5 import QtGui, QtWidgets
+# from quamash import QEventLoop
+#
+# app = QtWidgets.QApplication([])
+# loop = QEventLoop(app)
+# asyncio.set_event_loop(loop)
+#
+# display = QtWidgets.QLCDNumber()
+# display.setWindowTitle('Stopwatch')
+#
+# display.show()
+#
+# async def update_time():
+#     value = 10000
+#     while True:
+#         display.display(value)
+#         await asyncio.sleep(0.01)
+#         value += 1
+#
+# asyncio.ensure_future(update_time())
+#
+# loop.run_forever()
+
+
+from concurrent.futures import ThreadPoolExecutor
+from time import sleep
+import threading
+
+def return_after_5_secs(message):
+    print('print from another task\n')
+    sleep(1)
+    print(threading.current_thread())
+    # print('after sleep')
+    return message
+
+
+def done(future):
+    if future.done():
+        print('completed')
+        print(threading.current_thread())
+        print(future.result())
+
+pool = ThreadPoolExecutor(3)
+future = pool.submit(return_after_5_secs, ("hello"))
+future.add_done_callback(done)
+
+print('another program running')
+print(threading.current_thread())
+
+# print('asdasd', flush=True)
+# print(future.done())
+# sleep(2)
+# print(future.done())
+# print(future.result())
+
+
 # #
 # #
 # #
