@@ -6,23 +6,8 @@ from scipy.optimize import nnls as _nnls
 from numba import njit
 # # from theano.ode import DifferentalEquation
 # from pymc3.ode import DifferentialEquation
-import math
 import sys
-
-def find_nearest_idx(array, value):
-    if isinstance(value, (int, float)):
-        value = np.asarray([value])
-    else:
-        value = np.asarray(value)
-
-    result = np.empty_like(value, dtype=int)
-    for i in range(value.shape[0]):
-        idx = np.searchsorted(array, value[i], side="left")
-        if idx > 0 and (idx == len(array) or math.fabs(value[i] - array[idx - 1]) < math.fabs(value[i] - array[idx])):
-            result[i] = idx - 1
-        else:
-            result[i] = idx
-    return result if result.shape[0] > 1 else result[0]
+from misc import find_nearest_idx
 
 from .constraints import ConstraintNonneg
 
@@ -128,10 +113,15 @@ class Fitter:
         self.last_result = None  # last fitting result
         self.minimizer = None
         self.lof = 0  # lack of fit
+        self.lmfit_verbose = 2
+        self.is_interruption_requested = None
 
         self.kwds = None  # keywords args to pass to underlying fitting function
 
         self.update_options(**kwargs)
+
+
+
 
     def update_options(self, **kwargs):
         for key, value in kwargs.items():
@@ -402,6 +392,10 @@ class Fitter:
         # coh_scale[coh_idx:] = 0
         D_fit = None
 
+        def iter_cb(params, iter, resid, *args, **kws):
+            if self.is_interruption_requested():
+                return True
+
         def residuals(params):
             # needed to use nonlocal because of nested functions, https://stackoverflow.com/questions/5218895/python-nested-functions-variable-scoping
             nonlocal D_fit
@@ -431,8 +425,8 @@ class Fitter:
 
             return R * weights
 
-        self.minimizer = lmfit.Minimizer(residuals, self.c_model.params)
-        kws = {'ftol': 1e-10, 'xtol': 1e-10, 'gtol': 1e-10, 'loss': 'linear', 'verbose': 2}
+        self.minimizer = lmfit.Minimizer(residuals, self.c_model.params, iter_cb=iter_cb)
+        kws = {'ftol': 1e-10, 'xtol': 1e-10, 'gtol': 1e-10, 'loss': 'linear', 'verbose': self.lmfit_verbose}
         kws.update(kwargs)
         self.last_result = self.minimizer.minimize(method=self.fit_alg, **kws)  # minimize the residuals
 

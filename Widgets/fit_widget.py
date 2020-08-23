@@ -25,6 +25,7 @@ from fitting.fitter import Fitter
 from .combo_box_cb import ComboBoxCB
 # from fitting.constraints import *
 import pyqtgraph as pg
+from .task_fit import TaskFit
 
 import sys, inspect
 
@@ -56,6 +57,7 @@ class FitWidget(QWidget, Ui_Form):
         self.fit_result = None
         self.plot_chirp = True
         self.fitter = Fitter()
+        self.t_fit = None  # task fit
 
         self._au = None  # augmented matrix
 
@@ -459,46 +461,28 @@ class FitWidget(QWidget, Ui_Form):
         #     Logger.status_message(e.__str__())
         #     QMessageBox.warning(self, 'fitting Error', e.__str__(), QMessageBox.Ok)
 
-    def _fit(self, max_iter=None, st_constraints=None, c_constraints=None):
+    def set_btns_enabled(self, value: bool):
+        self.btnFit.setText('Fit' if value else 'Cancel')
+        self.btnOneIt.setEnabled(value)
+        self.btnC_calc.setEnabled(value)
+        self.btnST_calc.setEnabled(value)
+        self.btnSimulateModel.setEnabled(value)
+
+    def _fit(self, max_iter=None, st_constraints=None, c_constraints=None, fit_async=True):
+        if self.t_fit is not None and self.t_fit.isRunning():
+            self.t_fit.requestInterruption()
+            print('Cancelling...')
+            return
 
         self.fitter_update_options(max_iter=max_iter, st_constraints=st_constraints, c_constraints=c_constraints)
 
-        n = int(self.sbN.value())  # number of species
-
-        # pure H-fit
-        # if self.current_model.connectivity.count(0) == 0:
-        #     if not self.fitter.st_fix:
-        #         self.fitter.var_pro(C_est=self._C, c_fix=self.fitter.c_fix)
-        #     else:
-        #         self.fitter.H_fit(self.current_model, self._ST, self._C, self.fitter.st_fix, self.fitter.c_fix)
-        #
-        #     self.current_model = self.fitter.c_model
-        # elif self.current_model.connectivity.count(0) == n:  # pure MCR fit
-        #     self.fitter.HS_MCR_fit(c_model=None)
-        # else:  # mix of two, HS-fit
-
-        if self.current_model.connectivity.count(0) == 0:
-            # self.fitter.HS_MCR_fit(c_model=self.current_model)
-            # self.fitter.var_pro()
-            if self.current_model.method is 'RFA':
-                self.fitter.obj_func_fit()
-            elif self.current_model.method is 'femto':
-                self.D_fit = self.fitter.var_pro_femto()
-            else:
-                self.fitter.var_pro()
-            self.current_model = self.fitter.c_model
-        elif self.current_model.connectivity.count(0) == n:  # pure MCR fit
-            self.fitter.HS_MCR_fit(c_model=None)
-        else:  # mix of two, HS-fit
-            self.fitter.HS_MCR_fit(c_model=self.current_model)
-            self.current_model = self.fitter.c_model
-
-        self.update_fields_H_fit()
-
-        self._C = self.fitter.C_opt
-        self._ST = self.fitter.ST_opt
-
-        self.plot_opt_matrices()
+        self.t_fit = TaskFit(self)
+        if fit_async:
+            self.t_fit.start()
+        else:  # runs with blocking of main thread
+            self.t_fit.preRun()
+            self.t_fit.run()
+            self.t_fit.postRun()
 
     def plot_opt_matrices(self):
         if self.matrix is None:
@@ -535,7 +519,7 @@ class FitWidget(QWidget, Ui_Form):
             for i in range(self.current_model.coh_spec_order + 1):
 
                 pen_coh_spec = pg.mkPen(color=int_default_color(n + i), width=1, style=Qt.DashLine)
-                name = f'CohSpec_{i}'
+                name = f'CohArt_{i}'
 
                 self.fit_plot_layout.C_plot.plot(self.matrix.times, self.current_model.C_COH[0, :, i],
                                                  pen=pen_coh_spec, name=name)
