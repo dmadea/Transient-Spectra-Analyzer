@@ -1,4 +1,5 @@
 from qt_task import Task
+from multiprocessing import Process
 
 
 class TaskFit(Task):
@@ -12,6 +13,9 @@ class TaskFit(Task):
 
     def run(self):
         print('Fitting...')
+        self.run_fit()
+
+    def run_fit(self):
         # hard model fit
         if self.fw.current_model.connectivity.count(0) == 0:
             if self.fw.current_model.method is 'RFA':

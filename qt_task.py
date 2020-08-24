@@ -8,7 +8,6 @@ class Task(QtCore.QThread):  # https://doc.qt.io/qt-5/qthread.html
         super(Task, self).__init__(parent)
         self.started.connect(self.preRun)
         self.finished.connect(self.postRun)
-        self.isInterruptionRequested()
 
     def preRun(self):
         """

@@ -120,9 +120,6 @@ class Fitter:
 
         self.update_options(**kwargs)
 
-
-
-
     def update_options(self, **kwargs):
         for key, value in kwargs.items():
             if not hasattr(self, key):
@@ -392,10 +389,6 @@ class Fitter:
         # coh_scale[coh_idx:] = 0
         D_fit = None
 
-        def iter_cb(params, iter, resid, *args, **kws):
-            if self.is_interruption_requested():
-                return True
-
         def residuals(params):
             # needed to use nonlocal because of nested functions, https://stackoverflow.com/questions/5218895/python-nested-functions-variable-scoping
             nonlocal D_fit
@@ -425,7 +418,9 @@ class Fitter:
 
             return R * weights
 
-        self.minimizer = lmfit.Minimizer(residuals, self.c_model.params, iter_cb=iter_cb)
+        # iter_cb - callback function
+        self.minimizer = lmfit.Minimizer(residuals, self.c_model.params,
+                                         iter_cb=lambda params, iter, resid, *args, **kws: self.is_interruption_requested())
         kws = {'ftol': 1e-10, 'xtol': 1e-10, 'gtol': 1e-10, 'loss': 'linear', 'verbose': self.lmfit_verbose}
         kws.update(kwargs)
         self.last_result = self.minimizer.minimize(method=self.fit_alg, **kws)  # minimize the residuals

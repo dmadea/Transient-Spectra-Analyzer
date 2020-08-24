@@ -468,7 +468,7 @@ class FitWidget(QWidget, Ui_Form):
         self.btnST_calc.setEnabled(value)
         self.btnSimulateModel.setEnabled(value)
 
-    def _fit(self, max_iter=None, st_constraints=None, c_constraints=None, fit_async=True):
+    def _fit(self, max_iter=None, st_constraints=None, c_constraints=None, fit_multiprocess=True):
         if self.t_fit is not None and self.t_fit.isRunning():
             self.t_fit.requestInterruption()
             print('Cancelling...')
@@ -477,11 +477,11 @@ class FitWidget(QWidget, Ui_Form):
         self.fitter_update_options(max_iter=max_iter, st_constraints=st_constraints, c_constraints=c_constraints)
 
         self.t_fit = TaskFit(self)
-        if fit_async:
+        if fit_multiprocess:
             self.t_fit.start()
         else:  # runs with blocking of main thread
             self.t_fit.preRun()
-            self.t_fit.run()
+            self.t_fit.run_fit()
             self.t_fit.postRun()
 
     def plot_opt_matrices(self):
