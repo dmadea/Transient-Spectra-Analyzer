@@ -44,7 +44,7 @@ class _Model(object):
         self.init_times(times)
 
         self.init_params()
-        self.species_names = np.array(list('ABCDEFGHIJ'), dtype=np.str)
+        self.species_names = np.array(list('ABCDEFGHIJKL'), dtype=np.str)
 
     @property
     def connectivity(self):
@@ -606,26 +606,49 @@ class First_Order_Sequential_Model(_Model):
 
         for i in range(self.n):
             sec_label = self.species_names[i+1] if i < self.n - 1 else ""
-            self.params.add(f'k_{self.species_names[i]}{sec_label}', value=1, min=0, max=np.inf)
+            self.params.add(f'tau_{self.species_names[i]}{sec_label}', value=1+i**2, min=0, max=np.inf)
+
+    @staticmethod
+    def get_EAS(t, ks):
+        # based on Ivo H.M. van Stokkum equation in doi:10.1016/j.bbabio.2004.04.011
+        # c_l = sum_{j=1}^l  b_jl * exp(-k_j * t)
+        # for j < l: b_jl = b_{j, l-1} * k_{l-1} / (k_l - k_j)
+        n = ks.shape[0]
+        C = np.exp(-t[:, None] * ks[None, :])
+
+        bjl = np.triu(np.ones((n, n)))  # make triangular upper matrix
+
+        k_prod = np.cumprod(ks[:-1])  # products of rate constants
+
+        k_mat = ks[None, :] - ks[:, None]  # differences between rate constants
+        k_mat[k_mat == 0] = 1  # set zero differences to 1, because of calculation of products
+        k_mat = np.cumprod(k_mat, axis=1)  # make product of them
+        k_mat[:, 1:] = k_prod / k_mat[:, 1:]  # combine with rate constants
+
+        bjl *= k_mat
+
+        return C.dot(bjl)
 
     def calc_C(self, params=None, C_out=None):
         super(First_Order_Sequential_Model, self).calc_C(params, C_out)
 
-        c0, *ks = [par[1].value for par in self.params.items()]
-        n = self.n
+        c0, *taus = [par[1].value for par in self.params.items()]
+        # n = self.n
 
-        # setup K matrix for sequential model, giving the EADS
-        K = np.zeros((n, n))
-
-        for i in range(n):
-            K[i, i] = -ks[i]
-            if i < n - 1:
-                K[i+1, i] = ks[i]
-
-        y0 = np.zeros(n)
-        y0[0] = 1
-
-        self.C = c0 * odeint(lambda c, t: K.dot(c), y0, self.times)
+        self.C = self.get_EAS(self.times, 1 / np.asarray(taus))
+        #
+        # # setup K matrix for sequential model, giving the EAS
+        # K = np.zeros((n, n))
+        #
+        # for i in range(n):
+        #     K[i, i] = -ks[i]
+        #     if i < n - 1:
+        #         K[i+1, i] = ks[i]
+        #
+        # y0 = np.zeros(n)
+        # y0[0] = 1
+        #
+        # self.C = c0 * odeint(lambda c, t: K.dot(c), y0, self.times)
 
         return self.get_conc_matrix(C_out, self._connectivity)
 
@@ -640,17 +663,18 @@ class First_Order_Parallel_Model(_Model):
         self.params.add('c0', value=1, min=0, max=np.inf, vary=False)
 
         for i in range(self.n):
-            self.params.add(f'k_{self.species_names[i]}', value=1, min=0, max=np.inf)
+            self.params.add(f'tau_{self.species_names[i]}', value=1+i**2, min=0, max=np.inf)
 
     def calc_C(self, params=None, C_out=None):
         super(First_Order_Parallel_Model, self).calc_C(params, C_out)
 
-        c0, *ks = [par[1].value for par in self.params.items()]
-        k = np.asarray(ks)
+        c0, *taus = [par[1].value for par in self.params.items()]
+        ks = 1 / np.asarray(taus)
 
-        self.C = c0 * np.exp(-self.times[:, None] * k[None, :])
+        self.C = c0 * np.exp(-self.times[:, None] * ks[None, :])
 
         return self.get_conc_matrix(C_out, self._connectivity)
+
 
 class AB_Model(_Model):
     """Simple A->B model, default is 1st order reaction, 2nd order and n-th order can be selected as well. Also,
@@ -711,7 +735,7 @@ class AB_mixed12_Model(_Model):
     def __init__(self, times=None):
         super(AB_mixed12_Model, self).__init__(times)
 
-        self.species_names = np.array(list('AB'), dtype=np.str)
+        # self.species_names = np.array(list('AB'), dtype=np.str)
 
         self.description = "A->B model of mixed first and second order. d[A]/dt = -k1[A] - k2[A]^2, [A]_0 = c_0"
 
@@ -743,7 +767,7 @@ class ABDE_Model(_Model):
     def __init__(self, times=None):
         super(ABDE_Model, self).__init__(times)
 
-        self.species_names = np.array(list('ABCD'), dtype=np.str)
+        # self.species_names = np.array(list('ABCD'), dtype=np.str)
 
         self.description = "TODOchange++++Simple A->B->C model of 1st order. d[A]/dt = -k1[A] - k2[A]^2, [A]_0 = c_0"
 
@@ -808,7 +832,7 @@ class ABC_zero_Model(_Model):
     def __init__(self, times=None):
         super(ABC_zero_Model, self).__init__(times)
 
-        self.species_names = np.array(list('ABC'), dtype=np.str)
+        # self.species_names = np.array(list('ABC'), dtype=np.str)
 
         self.description = "Simple A->B->C model of 1st order. d[A]/dt = -k1[A] - k2[A]^2, [A]_0 = c_0"
 
@@ -1222,7 +1246,7 @@ class Bridge_Splitting(_Model):
     def __init__(self, times=None, ST=None, wavelengths=None):
         super(Bridge_Splitting, self).__init__(times)
 
-        self.species_names = np.array(list('DM'), dtype=np.str)
+        self.species_names = np.array(list('DMXXXXXXXX'), dtype=np.str)
         self.wavelengths = wavelengths
         self.ST = ST
 
@@ -1276,7 +1300,7 @@ class Bridge_Splitting_Simple(_Model):
     def __init__(self, times=None, ST=None, wavelengths=None):
         super(Bridge_Splitting_Simple, self).__init__(times)
 
-        self.species_names = np.array(list('DM'), dtype=np.str)
+        self.species_names = np.array(list('DMXXXXXXXX'), dtype=np.str)
         self.wavelengths = wavelengths
         self.ST = ST
 
@@ -1315,7 +1339,7 @@ class Half_Bilirubin_1st_Model(_Model):
     def __init__(self, times=None, ST=None, wavelengths=None):
         super(Half_Bilirubin_1st_Model, self).__init__(times)
 
-        self.species_names = np.array(list('ZEHU'), dtype=np.str)
+        self.species_names = np.array(list('ZEHUXXXXX'), dtype=np.str)
         self.wavelengths = wavelengths
         self.ST = ST
         self.I_source = None

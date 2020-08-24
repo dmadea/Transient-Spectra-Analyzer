@@ -4,8 +4,6 @@ from scipy.linalg import lstsq
 from copy import deepcopy
 from scipy.optimize import nnls as _nnls
 from numba import njit
-# # from theano.ode import DifferentalEquation
-# from pymc3.ode import DifferentialEquation
 import sys
 from misc import find_nearest_idx
 
@@ -116,7 +114,8 @@ class Fitter:
         self.lmfit_verbose = 2
         self.is_interruption_requested = None
 
-        self.kwds = None  # keywords args to pass to underlying fitting function
+        # keywords args to pass to underlying fitting function
+        self.kwds = {'ftol': 1e-10, 'xtol': 1e-10, 'gtol': 1e-10, 'loss': 'linear', 'verbose': self.lmfit_verbose}
 
         self.update_options(**kwargs)
 
@@ -361,8 +360,8 @@ class Fitter:
             return _res_varpro(_C_opt, self.D)
 
         self.minimizer = lmfit.Minimizer(residuals, self.c_model.params)
-        kws = {} if self.kwds is None else self.kwds
-        self.last_result = self.minimizer.minimize(method=self.fit_alg, **kws)  # minimize the residuals
+        self.kwds = {'ftol': 1e-8, 'xtol': 1e-8, 'gtol': 1e-8, 'loss': 'linear', 'verbose': 0}
+        self.last_result = self.minimizer.minimize(method=self.fit_alg, **self.kwds)  # minimize the residuals
 
         self.c_model.params = self.last_result.params
 
@@ -421,9 +420,8 @@ class Fitter:
         # iter_cb - callback function
         self.minimizer = lmfit.Minimizer(residuals, self.c_model.params,
                                          iter_cb=lambda params, iter, resid, *args, **kws: self.is_interruption_requested())
-        kws = {'ftol': 1e-10, 'xtol': 1e-10, 'gtol': 1e-10, 'loss': 'linear', 'verbose': self.lmfit_verbose}
-        kws.update(kwargs)
-        self.last_result = self.minimizer.minimize(method=self.fit_alg, **kws)  # minimize the residuals
+        self.kwds.update(kwargs)
+        self.last_result = self.minimizer.minimize(method=self.fit_alg, **self.kwds)  # minimize the residuals
 
         self.c_model.params = self.last_result.params
 
@@ -443,12 +441,6 @@ class Fitter:
     def _C_fit_opt(self):
         # C optimized by kinetic model
 
-        # i = 2  # for specific kinetic model
-        # idx_0, idx_1 = self.au._C_indiv_range(i)
-
-        # _C_est = self.C_opt[idx_0:idx_1, :] if self.au else self.C_opt
-        # _C_fit = self.C_est[idx_0:idx_1, :].copy() if self.au else self.C_est.copy()
-
         _C_est = self.C_opt
         _C_fit = self.C_est.copy()
 
@@ -463,15 +455,10 @@ class Fitter:
             return R
 
         self.minimizer = lmfit.Minimizer(residuals, self.c_model.params)
-        kws = {} if self.kwds is None else self.kwds
-        self.last_result = self.minimizer.minimize(method=self.fit_alg, **kws)  # minimize the residuals
+        self.kwds = {'ftol': 1e-8, 'xtol': 1e-8, 'gtol': 1e-8, 'loss': 'linear', 'verbose': 0}
+        self.last_result = self.minimizer.minimize(method=self.fit_alg, **self.kwds)  # minimize the residuals
 
         self.c_model.params = self.last_result.params
-        #
-        # if self.au:
-        #     self.C_opt[idx_0:idx_1, :] = _C_fit
-        # else:
-        #     self.C_opt = _C_fit
 
         self.C_opt = _C_fit
 
@@ -508,19 +495,17 @@ class Fitter:
                 setattr(self.c_model, 'ST', self.ST_opt)
                 self._C_fit_opt()
 
-                # self.H_fit(self.c_model, self.ST_opt, self.C_est, [i for i in range(self.n)], self.c_fix)
-
             self.calc_ST()
 
             # normalize Z to constant value
 
-            self.ST_opt[0] *= 29043 / self.ST_opt[0].max()
-
-            # E must have the same epsilon at 444 nm as Z has
-
-            idx = find_nearest_idx(self.wls, 443 - 230)
-
-            self.ST_opt[1] *= self.ST_opt[0, idx] / self.ST_opt[1, idx]
+            # self.ST_opt[0] *= 29043 / self.ST_opt[0].max()
+            #
+            # # E must have the same epsilon at 444 nm as Z has
+            #
+            # idx = find_nearest_idx(self.wls, 443 - 230)
+            #
+            # self.ST_opt[1] *= self.ST_opt[0, idx] / self.ST_opt[1, idx]
 
 
         return True

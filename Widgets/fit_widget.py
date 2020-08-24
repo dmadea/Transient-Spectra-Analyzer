@@ -179,7 +179,9 @@ class FitWidget(QWidget, Ui_Form):
 
             self.fixed_list[i].stateChanged.connect(self.fixed_checked_changed)
 
+        self.cbClass.setCurrentIndex(2)
         self.model_class_changed()
+        self.cbModel.setCurrentIndex(7)
         self.model_changed()
         self.sbN_value_changed()
 
@@ -385,32 +387,6 @@ class FitWidget(QWidget, Ui_Form):
 
         self.plot_opt_matrices()
 
-
-        #
-        # t_diff = np.abs(self.matrix.times[1:] - self.matrix.times[:-1])
-        #
-        # min_diff = t_diff.min()
-        #
-        # t_points = (self.matrix.times[-1] - self.matrix.times[0]) / min_diff + 1
-        # new_t = np.linspace(self.matrix.times[0], self.matrix.times[-1], np.ceil(t_points))
-        #
-        # self.current_model.init_times(new_t)
-
-        # n = C.shape[1]
-        #
-        # self.fit_plot_layout.C_plot.clear()
-        # self.fit_plot_layout.ST_plot.clear()
-        #
-        # self.fit_plot_layout.add_legend(spacing=13)
-        #
-        # for i in range(n):
-        #     pen = pg.mkPen(color=FitLayout.int_default_color(i), width=1.5, style=Qt.DashLine)
-        #     self.fit_plot_layout.C_plot.plot(new_t, C[:, i], pen=pen,
-        #                                      name=self.current_model.species_names[i])
-
-        # self.matrix.times_fine = new_t
-        # self.matrix.C_fine = C
-
     def calc_T(self):
         if hasattr(self.current_model, 'T'):
             # D = U S V^T
@@ -468,7 +444,7 @@ class FitWidget(QWidget, Ui_Form):
         self.btnST_calc.setEnabled(value)
         self.btnSimulateModel.setEnabled(value)
 
-    def _fit(self, max_iter=None, st_constraints=None, c_constraints=None, fit_multiprocess=True):
+    def _fit(self, max_iter=None, st_constraints=None, c_constraints=None, fit_async=True):
         if self.t_fit is not None and self.t_fit.isRunning():
             self.t_fit.requestInterruption()
             print('Cancelling...')
@@ -477,7 +453,7 @@ class FitWidget(QWidget, Ui_Form):
         self.fitter_update_options(max_iter=max_iter, st_constraints=st_constraints, c_constraints=c_constraints)
 
         self.t_fit = TaskFit(self)
-        if fit_multiprocess:
+        if fit_async:
             self.t_fit.start()
         else:  # runs with blocking of main thread
             self.t_fit.preRun()
@@ -490,8 +466,8 @@ class FitWidget(QWidget, Ui_Form):
 
         n = int(self.sbN.value())
 
-        D_fit = np.dot(self._C, self._ST) if self.D_fit is None else self.D_fit
-        R = D_fit - self.matrix.D
+        D_fit = np.dot(self._C, self._ST) if self.current_model.method is not 'femto' else self.D_fit
+        R = D_fit - self.matrix.Y
 
         # self.matrix.E = R
         self.matrix.C_fit = self._C

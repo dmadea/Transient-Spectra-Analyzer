@@ -7,7 +7,7 @@ from PyQt5 import QtCore, QtGui
 
 from PyQt5.QtGui import *
 # from PyQt5.QtWidgets import *
-from misc import find_nearest_idx, find_nearest, crop_data
+from misc import find_nearest_idx, str_is_integer, crop_data
 
 # from PyQt5.QtCore import *
 
@@ -265,7 +265,7 @@ class PlotWidget(DockArea):
 
         for val in vals:
             try:
-                if self.is_int(val):
+                if str_is_integer(val):
                     int_val = int(val)
                     if int_val > 0:
                         int_vals.append(int_val - 1)
@@ -514,7 +514,7 @@ class PlotWidget(DockArea):
 
         w0, w1, t0, t1 = self.get_selected_range()
 
-        D_crop, times, wavelengths = crop_data(self.matrix.Y, self.matrix.times, self.matrix.wavelengths, t0,
+        D_crop, times, wavelengths = crop_data(self.matrix.D, self.matrix.times, self.matrix.wavelengths, t0,
                                                          t1, w0, w1)
 
         for i in range(self.n_spectra):

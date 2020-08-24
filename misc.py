@@ -82,7 +82,13 @@ def is_iterable(obj):
         return True
 
 
-
+def str_is_integer(string):
+    try:
+        int(string)
+    except ValueError:
+        return False
+    else:
+        return True
 
 
 
