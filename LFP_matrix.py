@@ -31,6 +31,7 @@ from matplotlib.ticker import Locator
 from misc import crop_data, find_nearest, find_nearest_idx
 from matplotlib.colors import LinearSegmentedColormap
 from matplotlib import cm
+from sklearn.decomposition import NMF
 
 
 def register_div_cmap(zmin, zmax):
@@ -1002,6 +1003,15 @@ class LFP_matrix(object):
         # plt.tight_layout()
 
         plt.show()
+
+    # non-negative matrix factorization solution
+    def get_NMF_solution(self, n_components=3, random_state=0):
+        model = NMF(n_components=n_components, init='random', random_state=random_state)
+        _D = self.Y.copy()
+        _D[_D < 0] = 0
+        C = model.fit_transform(_D)
+        ST = model.components_
+        return C, ST
 
     @staticmethod
     def _fEFA(matrix, sing_values_num=7, points=200):

@@ -12,7 +12,8 @@ class TaskFit(Task):
         self.fw.fitter.is_interruption_requested = self.isInterruptionRequested  # setup a function
 
     def run(self):
-        print('Fitting...')
+        if self.fw.cbVerbose.isChecked():
+            print('Fitting...')
         self.run_fit()
 
     def run_fit(self):
@@ -23,7 +24,7 @@ class TaskFit(Task):
             elif self.fw.current_model.method is 'femto':
                 self.fw.D_fit = self.fw.fitter.var_pro_femto()
             else:
-                self.fw.fitter.var_pro()
+                self.fw.fitter.fit_full_model()
 
         elif self.fw.current_model.connectivity.count(0) == int(self.fw.sbN.value()):  # pure MCR fit
             self.fw.fitter.HS_MCR_fit(c_model=None)
@@ -40,7 +41,8 @@ class TaskFit(Task):
         self.fw._ST = self.fw.fitter.ST_opt
 
         self.fw.plot_opt_matrices()
-        self.fw.print_stats()
+        if self.fw.cbVerbose.isChecked():
+            self.fw.print_stats()
 
         self.fw.set_btns_enabled(True)  # enable buttons
 

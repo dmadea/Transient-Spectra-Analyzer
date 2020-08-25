@@ -546,6 +546,16 @@ bound</string>
            </widget>
           </item>
           <item>
+           <widget class="QCheckBox" name="cbVerbose">
+            <property name="text">
+             <string>Verbose</string>
+            </property>
+            <property name="tristate">
+             <bool>false</bool>
+            </property>
+           </widget>
+          </item>
+          <item>
            <widget class="QPushButton" name="btnFit">
             <property name="text">
              <string>Fit</string>
@@ -595,6 +605,13 @@ bound</string>
              </size>
             </property>
            </spacer>
+          </item>
+          <item>
+           <widget class="QPushButton" name="btnSetNMFSol">
+            <property name="text">
+             <string>Set NMF solution</string>
+            </property>
+           </widget>
           </item>
           <item>
            <widget class="QPushButton" name="btnST_calc">

@@ -111,11 +111,11 @@ class Fitter:
         self.last_result = None  # last fitting result
         self.minimizer = None
         self.lof = 0  # lack of fit
-        self.lmfit_verbose = 2
-        self.is_interruption_requested = None
+        self.verbose = 2  # 0 for non verbose, 2 for verbose, like for lmfit
+        self.is_interruption_requested = lambda: False  # function that returns True or False, default no interruption
 
-        # keywords args to pass to underlying fitting function
-        self.kwds = {'ftol': 1e-10, 'xtol': 1e-10, 'gtol': 1e-10, 'loss': 'linear', 'verbose': self.lmfit_verbose}
+        # keywords args to pass to underlying fitting function - lmfit
+        self.kwds = None
 
         self.update_options(**kwargs)
 
@@ -130,6 +130,8 @@ class Fitter:
 
         self.ST_opt = self.ST_est
         self.C_opt = self.C_est
+
+        self.kwds = {'ftol': 1e-10, 'xtol': 1e-10, 'gtol': 1e-10, 'loss': 'linear', 'verbose': self.verbose}
 
     def _C_regressor(self, A, B):
         return NNLS(A, B) if self.C_regressor.lower() == 'nnls' else OLS(A, B)
@@ -338,54 +340,70 @@ class Fitter:
         self.C_opt = _C_opt
         self.ST_opt = self.c_model.ST
 
-    def var_pro(self, C_est=None, c_fix=None, **kwargs):
+    # fit full kinetic model with fix possibilities
+    def fit_full_model(self, **kwargs):
         self.update_options(**kwargs)
 
-        "only conc. profiles can be fixed, but not spectra"
-
-        _C_opt = C_est.copy() if C_est is not None else None #np.zeros_like(self.C_est)
+        _C_opt = None
+        _ST_opt = None
 
         def residuals(params):
-            # needed to use nonlocal because of nested functions, https://stackoverflow.com/questions/5218895/python-nested-functions-variable-scoping
-            nonlocal _C_opt
-            _C_opt = self.c_model.calc_C(params, _C_opt)
-            if c_fix:
-                _C_opt[:, c_fix] = C_est[:, c_fix]
+            nonlocal _C_opt, _ST_opt
+            _C_opt = self.c_model.calc_C(params, _C_opt)  # calculate conc. profiles based on kin. model
+            if self.c_fix:  # replace C profiles to fixed ones if fix is defined
+                _C_opt[:, self.c_fix] = self.C_est[:, self.c_fix]
 
-            # _ST_calc = NNLS(_C_opt, self.D)[0]
-            #
-            # return _C_opt @ _ST_calc - self.D
+            _ST_opt = self._S_regressor(_C_opt, self.D)[0]  # calculate spectra by S regressor (OLS or NNLS)
 
-            # calculate the residual matrix by varpro (I - CC+)D
-            return _res_varpro(_C_opt, self.D)
+            if self.st_fix:  # replace spectra to fixed ones if fix is defined
+                _ST_opt[self.st_fix, :] = self.ST_est[self.st_fix]
 
-        self.minimizer = lmfit.Minimizer(residuals, self.c_model.params)
-        self.kwds = {'ftol': 1e-8, 'xtol': 1e-8, 'gtol': 1e-8, 'loss': 'linear', 'verbose': 0}
+            return _C_opt @ _ST_opt - self.D  # calculate residuals and return them
+
+        self.minimizer = lmfit.Minimizer(residuals, self.c_model.params,
+                                         iter_cb=lambda params, iter, resid, *args, **kws: self.is_interruption_requested())
+        self.kwds.update(kwargs)
         self.last_result = self.minimizer.minimize(method=self.fit_alg, **self.kwds)  # minimize the residuals
 
         self.c_model.params = self.last_result.params
 
         self.C_opt = _C_opt
-        self.ST_opt = lstsq(_C_opt, self.D)[0]
-        # self.ST_opt = NNLS(_C_opt, self.D)[0]
+        self.ST_opt = _ST_opt
+
+    # def var_pro(self, C_est=None, c_fix=None, **kwargs):
+    #     self.update_options(**kwargs)
+    #
+    #     "only conc. profiles can be fixed, but not spectra"
+    #
+    #     _C_opt = C_est.copy() if C_est is not None else None #np.zeros_like(self.C_est)
+    #
+    #     def residuals(params):
+    #         # needed to use nonlocal because of nested functions, https://stackoverflow.com/questions/5218895/python-nested-functions-variable-scoping
+    #         nonlocal _C_opt
+    #         _C_opt = self.c_model.calc_C(params, _C_opt)
+    #         if c_fix:
+    #             _C_opt[:, c_fix] = C_est[:, c_fix]
+    #
+    #         # _ST_calc = NNLS(_C_opt, self.D)[0]
+    #         #
+    #         # return _C_opt @ _ST_calc - self.D
+    #
+    #         # calculate the residual matrix by varpro (I - CC+)D
+    #         return _res_varpro(_C_opt, self.D)
+    #
+    #     self.minimizer = lmfit.Minimizer(residuals, self.c_model.params)
+    #     # self.kwds = {'ftol': 1e-8, 'xtol': 1e-8, 'gtol': 1e-8, 'loss': 'linear', 'verbose': 0}
+    #     self.last_result = self.minimizer.minimize(method=self.fit_alg, **self.kwds)  # minimize the residuals
+    #
+    #     self.c_model.params = self.last_result.params
+    #
+    #     self.C_opt = _C_opt
+    #     self.ST_opt = lstsq(_C_opt, self.D)[0]
+    #     # self.ST_opt = NNLS(_C_opt, self.D)[0]
 
     def var_pro_femto(self, **kwargs):
         self.update_options(**kwargs)
 
-        # # _C_opt = C_est.copy() if C_est is not None else None  # np.zeros_like(self.C_est)
-        # D_fit = np.zeros_like(self.D)
-        # _C_tensor = None
-        # _ST = np.zeros((self.ST_opt.shape[0] + self.c_model.coh_spec_order + 1,
-        #                 self.ST_opt.shape[1])) if self.c_model.coh_spec else np.zeros_like(self.ST_opt)
-        #
-        # w_idxs = find_nearest_idx(self.wls, [378, 393])
-        # weights = np.ones_like(self.D)
-        #
-        # weights[:, w_idxs[0]:w_idxs[1]] = 0.05  # weights in the region of 378 to 393 nm is set to 0.1
-        #
-        # coh_idx = find_nearest_idx(self.wls, 460)
-        # coh_scale = np.ones_like(self.wls)
-        # coh_scale[coh_idx:] = 0
         D_fit = None
 
         def residuals(params):
@@ -393,22 +411,6 @@ class Fitter:
             nonlocal D_fit
 
             D_fit, self.C_opt, self.ST_opt = self.c_model.simulate_mod(self.D, params)
-
-            # _C_tensor = self.c_model.calc_C(params)
-            #
-            # if self.c_model.coh_spec:
-            #     _C_COH = self.c_model.simulate_coh_gaussian(params, coh_scale)
-            #     _C_tensor = np.concatenate((_C_tensor, _C_COH), axis=-1)
-            #
-            # _C_tensor = np.nan_to_num(_C_tensor)
-            #
-            # for i in range(self.wls.shape[0]):
-            #     _ST[:, i] = lstsq(_C_tensor[i], self.D[:, i])[0]
-            #
-            # if self.c_model.coh_spec:
-            #     self.c_model.ST_COH = _ST[-self.c_model.coh_spec_order - 1:]
-            #
-            # D_fit = np.matmul(_C_tensor, _ST.T[..., None]).squeeze().T
 
             R = self.D - D_fit
 
@@ -437,7 +439,7 @@ class Fitter:
         self.C_opt[idx_0:idx_1, :] = Ci
 
 
-    # optimization of C profiles according to kinetic model in HS-MCR-AR
+    # optimization of only C profiles according to kinetic model in HS-MCR-AR
     def _C_fit_opt(self):
         # C optimized by kinetic model
 
@@ -455,7 +457,7 @@ class Fitter:
             return R
 
         self.minimizer = lmfit.Minimizer(residuals, self.c_model.params)
-        self.kwds = {'ftol': 1e-8, 'xtol': 1e-8, 'gtol': 1e-8, 'loss': 'linear', 'verbose': 0}
+        # self.kwds = {'ftol': 1e-8, 'xtol': 1e-8, 'gtol': 1e-8, 'loss': 'linear', 'verbose': 0}
         self.last_result = self.minimizer.minimize(method=self.fit_alg, **self.kwds)  # minimize the residuals
 
         self.c_model.params = self.last_result.params
@@ -475,7 +477,7 @@ class Fitter:
         # if ST estimate is not provided, calculate ST from C estimate by lstsq
 
         if self.ST_est is None:
-            self.ST_opt = lstsq(self.C_est, self.D)[0]
+            self.ST_opt = self._S_regressor(self.C_est, self.D)[0]
 
         assert self.n == self.ST_opt.shape[0]
 
@@ -484,6 +486,9 @@ class Fitter:
             assert len(self.st_constraints) == self.n
         if self.c_constraints is not None:
             assert len(self.c_constraints) == self.n
+
+        if self.verbose == 2:
+            print('Iteration\tSum of squares\tLack of Fit')
 
         for i in range(self.max_iter):
 
@@ -497,6 +502,17 @@ class Fitter:
 
             self.calc_ST()
 
+            if self.verbose == 2:
+                D_fit = self.C_opt @ self.ST_opt
+                ssq = ((self.D - D_fit) ** 2).sum()
+                lof = np.sqrt(ssq / (self.D ** 2).sum()) * 100
+                print(f'{i+1}.\t{ssq:.4g}\t{lof:.4g}')
+
+            if self.is_interruption_requested():
+                break
+
+
+
             # normalize Z to constant value
 
             # self.ST_opt[0] *= 29043 / self.ST_opt[0].max()
@@ -506,6 +522,3 @@ class Fitter:
             # idx = find_nearest_idx(self.wls, 443 - 230)
             #
             # self.ST_opt[1] *= self.ST_opt[0, idx] / self.ST_opt[1, idx]
-
-
-        return True

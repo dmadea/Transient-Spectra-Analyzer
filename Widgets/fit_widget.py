@@ -117,6 +117,7 @@ class FitWidget(QWidget, Ui_Form):
         self.btnST_calc.clicked.connect(self.calc_ST)
         self.btnOneIt.clicked.connect(self.one_iter_clicked)
         self.btnSimulateModel.clicked.connect(self.simulate_model_clicked)
+        self.btnSetNMFSol.clicked.connect(self.set_NMF_solution)
 
         # soft modeling
 
@@ -201,7 +202,7 @@ class FitWidget(QWidget, Ui_Form):
         self.plot_opt_matrices()
 
     def ssq(self):
-        self.D_fit = self._C @ self._ST if self.D_fit is None else self.D_fit
+        self.D_fit = self._C @ self._ST if self.current_model.method is not 'femto' else self.D_fit
         return ((self.matrix.D - self.D_fit) ** 2).sum()
 
     def lof(self):
@@ -211,8 +212,8 @@ class FitWidget(QWidget, Ui_Form):
         return (1 - self.ssq() / (self.matrix.D ** 2).sum()) * 100
 
     def print_stats(self):
-        print(f"Lack of Fit:    {self.lof():.05g}")
-        print(f"R squared:      {self.R2():.05g}")
+        print(f"Lack of Fit:    {self.lof():.04g}")
+        print(f"R squared:      {self.R2():.04g}")
 
     def set_C(self, component, data):
         if self.matrix is None:
@@ -244,6 +245,21 @@ class FitWidget(QWidget, Ui_Form):
             for idx in components:
                 self._ST[idx] = np.random.random((self._ST.shape[1])) * noise_amp
 
+        self.plot_opt_matrices()
+
+    def set_NMF_solution(self, random_state=0):
+        if self.matrix is None:
+            return
+        self._C, self._ST = self.matrix.get_NMF_solution(n_components=int(self.sbN.value()), random_state=random_state)
+        self.plot_opt_matrices()
+
+    def set_SVD_solution(self):
+        if self.matrix is None:
+            return
+
+        n = int(self.sbN.value())
+        self._C = self.matrix.U[:, :n] * self.matrix.S[:n]
+        self._ST = self.matrix.V_T[:n, :]
         self.plot_opt_matrices()
 
     def save_fit_matrix(self, fname='output.txt', delimiter='\t', encoding='utf8'):
@@ -575,7 +591,8 @@ class FitWidget(QWidget, Ui_Form):
                                    C_matrix_constraints=C_matrix_constraints,
                                    C_regressor=self.regressors[self.cbRegressorC.currentIndex()]['abbr'],
                                    S_regressor=self.regressors[self.cbRegressorS.currentIndex()]['abbr'],
-                                   au=self._au)
+                                   au=self._au,
+                                   verbose=self.cbVerbose.checkState())  # 2-verbose, 0 - not verbose, same as checkstate
 
     def update_params(self):
 
