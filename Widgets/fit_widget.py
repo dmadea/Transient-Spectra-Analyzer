@@ -267,6 +267,8 @@ class FitWidget(QWidget, Ui_Form):
             return
 
         n = int(self.sbN.value())
+        if comp1 == comp2:
+            return
         if comp1 > n or comp2 > n:
             raise ValueError('Cannot switch more compartments than there are.')
 
