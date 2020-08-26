@@ -262,6 +262,24 @@ class FitWidget(QWidget, Ui_Form):
         self._ST = self.matrix.V_T[:n, :]
         self.plot_opt_matrices()
 
+    def switch_compartments(self, comp1, comp2):
+        if self.matrix is None or not isinstance(comp1, int) or not isinstance(comp2, int):
+            return
+
+        n = int(self.sbN.value())
+        if comp1 > n or comp2 > n:
+            raise ValueError('Cannot switch more compartments than there are.')
+
+        temp_C = self._C[:, comp1 - 1].copy()
+        self._C[:, comp1 - 1] = self._C[:, comp2 - 1]
+        self._C[:, comp2 - 1] = temp_C
+
+        temp_ST = self._ST[comp1 - 1].copy()
+        self._ST[comp1 - 1] = self._ST[comp2 - 1]
+        self._ST[comp2 - 1] = temp_ST
+
+        self.plot_opt_matrices()
+
     def save_fit_matrix(self, fname='output.txt', delimiter='\t', encoding='utf8'):
         mat = np.vstack((self.matrix.wavelengths, self.D_fit))
         buffer = delimiter + delimiter.join(f"{num}" for num in self.matrix.times) + '\n'
