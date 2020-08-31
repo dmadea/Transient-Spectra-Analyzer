@@ -594,7 +594,6 @@ class Target_Analysis_Femto(_Femto):
         return self.get_conc_matrix(C_out, self._connectivity)
 
 
-
 class First_Order_Sequential_Model(_Model):
 
     name = 'Sequential model (1st order)'
@@ -635,7 +634,7 @@ class First_Order_Sequential_Model(_Model):
         c0, *taus = [par[1].value for par in self.params.items()]
         # n = self.n
 
-        self.C = self.get_EAS(self.times, 1 / np.asarray(taus))
+        self.C = self.get_EAS(self.times, 1 / np.asarray(taus)) * np.heaviside(self.times[:, None], 1)
         #
         # # setup K matrix for sequential model, giving the EAS
         # K = np.zeros((n, n))
@@ -671,7 +670,7 @@ class First_Order_Parallel_Model(_Model):
         c0, *taus = [par[1].value for par in self.params.items()]
         ks = 1 / np.asarray(taus)
 
-        self.C = c0 * np.exp(-self.times[:, None] * ks[None, :])
+        self.C = c0 * np.exp(-self.times[:, None] * ks[None, :]) * np.heaviside(self.times[:, None], 1)
 
         return self.get_conc_matrix(C_out, self._connectivity)
 
