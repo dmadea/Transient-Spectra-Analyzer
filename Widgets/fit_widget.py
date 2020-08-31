@@ -262,7 +262,7 @@ class FitWidget(QWidget, Ui_Form):
         self._ST = self.matrix.V_T[:n, :]
         self.plot_opt_matrices()
 
-    def switch_compartments(self, comp1, comp2):
+    def swap_compartments(self, comp1, comp2):
         if self.matrix is None or not isinstance(comp1, int) or not isinstance(comp2, int):
             return
 
