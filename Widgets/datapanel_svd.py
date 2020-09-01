@@ -50,6 +50,24 @@ class DataPanelSVD(QWidget):
         self.sb_n_vectors.setMaximum(1000)
         self.sb_n_vectors.setValue(3)
 
+        self.main_layout.addWidget(QLabel('Independent Component Analysis (ICA) setting:'))
+
+        self.sb_n_ICA = QSpinBox()
+        self.sb_n_ICA.setMinimum(1)
+        self.sb_n_ICA.setMaximum(100)
+        self.sb_n_ICA.setValue(10)
+
+        hlayout3 = QHBoxLayout()
+        hlayout3.addWidget(QLabel("Number of ICA components:"))
+        hlayout3.addWidget(self.sb_n_ICA)
+        self.main_layout.addLayout(hlayout3)
+
+        # self.btn_ICA = QPushButton("Run ICA")
+        # self.main_layout.addWidget(self.btn_ICA)
+
+        self.cb_show_ICA_ins_SVD = QCheckBox("Show ICA instead of SVD vectors")
+        self.main_layout.addWidget(self.cb_show_ICA_ins_SVD)
+
         hlayout = QHBoxLayout()
         hlayout.addWidget(QLabel("Displayed vectors:"))
         hlayout.addWidget(self.sb_n_vectors)

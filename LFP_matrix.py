@@ -1,31 +1,26 @@
-from scipy.linalg import svd, svdvals, diagsvd, pinv
+
+
 import numpy as np
+from scipy.linalg import svd
 
-from scipy.optimize import fmin, minimize
-from scipy.linalg import lstsq
-
-from numba import njit, vectorize, jit
+# from scipy.optimize import fmin, minimize
+# from scipy.linalg import lstsq
+#
+# from numba import njit, vectorize, jit
 import os
 
-from copy import deepcopy
+# from copy import deepcopy
 
 import matplotlib.pyplot as plt
-import matplotlib.cm as cm
-
-from gui_console import Console
-
-from fitmodels import _Model
-
-from lmfit import Parameters, fit_report, fit_report, ci_report
-import lmfit
-
-from gui_console import Console
+# import matplotlib.cm as cm
 #
-# from pymcr.mcr import McrAR
-# from pymcr.regressors import OLS, NNLS
-# from pymcr.constraints import ConstraintNonneg, ConstraintNorm
-
-from logger import Logger
+# from gui_console import Console
+#
+# from fitmodels import _Model
+#
+# from lmfit import Parameters, fit_report, fit_report, ci_report
+# import lmfit
+# from logger import Logger
 from matplotlib.ticker import Locator
 
 from misc import crop_data, find_nearest, find_nearest_idx
@@ -62,45 +57,6 @@ def register_div_cmap(zmin, zmax):
 
     custom_cmap = LinearSegmentedColormap('diverging', _cdict)
     cm.register_cmap('diverging', custom_cmap)
-
-
-# cdict = {'red': ((0.0, 0.0, 0.0),
-#                  (2 / 5, 0.0, 0.0),
-#                  (1 / 2, 1.0, 1.0),
-#                  (3 / 5, 1.0, 1.0),
-#                  (4 / 5, 1.0, 1.0),
-#                  (1.0, 0.3, 0.3)),
-#
-#          'green': ((0.0, 0, 0),
-#                    (2 / 5, 0.0, 0.0),
-#                    (1 / 2, 1.0, 1.0),
-#                    (3 / 5, 1.0, 1.0),
-#                    (4 / 5, 0.0, 0.0),
-#                    (1.0, 0.0, 0.0)),
-#
-#          'blue': ((0.0, 0.3, 0.3),
-#                   (2 / 5, 1.0, 1.0),
-#                   (1 / 2, 1.0, 1.0),
-#                   (3 / 5, 0.0, 0.0),
-#                   (4 / 5, 0.0, 0.0),
-#                   (1.0, 0.0, 0.0))
-#          }
-#
-# _custom_cmap = LinearSegmentedColormap('diverging', cdict)
-# cm.register_cmap('diverging', _custom_cmap)
-
-
-# from fitmodels import *
-
-
-#
-# _ = LFP_matrix.construct_test_matrix()
-# load_LFP_matrix(_)
-# main_widget.LFP_matrix = _
-
-
-def gauss(x, mu, sigma):
-    return np.exp(- (x - mu) * (x - mu) / (2 * sigma * sigma))
 
 
 class MinorSymLogLocator(Locator):
@@ -166,45 +122,6 @@ class MinorSymLogLocator(Locator):
         raise NotImplementedError('Cannot get tick locations for a '
                                   '%s type.' % type(self))
 
-
-# class MinorSymLogLocator(Locator):
-#     """
-#     Dynamically find minor tick positions based on the positions of
-#     major ticks for a symlog scaling.
-#     """
-#     def __init__(self, linthresh):
-#         """
-#         Ticks will be placed between the major ticks.
-#         The placement is linear for x between -linthresh and linthresh,
-#         otherwise its logarithmically
-#         """
-#         self.linthresh = linthresh
-#
-#     def __call__(self):
-#         'Return the locations of the ticks'
-#         majorlocs = self.axis.get_majorticklocs()
-#
-#         # iterate through minor locs
-#         minorlocs = []
-#
-#         # handle the lowest part
-#         for i in range(1, len(majorlocs)):
-#             majorstep = majorlocs[i] - majorlocs[i-1]
-#             if abs(majorlocs[i-1] + majorstep/2) < self.linthresh:
-#                 ndivs = 10
-#             else:
-#                 ndivs = 9
-#             minorstep = majorstep / ndivs
-#             locs = np.arange(majorlocs[i-1], majorlocs[i], minorstep)[1:]
-#             minorlocs.extend(locs)
-#
-#         return self.raise_if_exceeds(np.array(minorlocs))
-#
-#     def tick_values(self, vmin, vmax):
-#         raise NotImplementedError('Cannot get tick locations for a '
-#                                   '%s type.' % type(self))
-
-
 class LFP_matrix(object):
 
     @classmethod
@@ -221,7 +138,7 @@ class LFP_matrix(object):
         return self._SVD_filter
 
     @SVD_filter.setter
-    def SVD_filter(self, value):
+    def SVD_filter(self, value):  # true or false
         self.D = self.Yr if value else self.Y
         self._SVD_filter = value
 
@@ -277,14 +194,14 @@ class LFP_matrix(object):
 
         self.Y_fit = None
 
-        self.model = None
+        # self.model = None
+        #
+        # self.last_result = None
+        # self.minimizer = None
 
-        self.last_result = None
-        self.minimizer = None
-
-        # concetration and spectra matrices estimated by MCR-ALS method
-        self.C_MCR = None
-        self.A_MCR = None
+        # # concetration and spectra matrices estimated by MCR-ALS method
+        # self.C_MCR = None
+        # self.A_MCR = None
 
         self.C_fit = None
         self.ST_fit = None
@@ -308,6 +225,9 @@ class LFP_matrix(object):
 
     @classmethod
     def construct_test_matrix(cls, noise_intensity=0.1):
+
+        def gauss(x, mu, sigma):
+            return np.exp(- (x - mu) * (x - mu) / (2 * sigma * sigma))
 
         n_times = 300
         num = 3  # number of species
@@ -352,6 +272,8 @@ class LFP_matrix(object):
         from user_namespace import load_LFP_matrix, UserNamespace
         from Widgets.fit_widget import FitWidget
 
+        from gui_console import Console
+
         load_LFP_matrix(matrix)
         UserNamespace.instance.main_widget.matrix = matrix
         Console.push_variables({'matrix': matrix, 'model': m, 'iA': ST, 'iC': C})
@@ -368,82 +290,82 @@ class LFP_matrix(object):
 
         self.U, self.S, self.V_T = svd(self.Y, full_matrices=False, lapack_driver='gesdd')
 
-    @staticmethod
-    @njit(parallel=True, fastmath=True)
-    def calc_chi2(Y, C, A):
-        # R = Y - np.dot(C, A)  # R = Y - C @ A = Y - C @ K @ V_Tr
-        # return np.sum(R * R)
-        return Y - np.dot(C, A)
-
-    def residuals(self, params):
-
-        C = self.model.calc_C(params)
-
-        self.K = lstsq(C, self.UrSr)[0]
-
-        self.A = np.dot(self.K, self.V_Tr)
-
-        # #spectra cannot be negative
-        # for i in range(self.A.shape[0]):
-        #     for j in range(self.A.shape[1]):
-        #         self.A[i, j] = self.A[i, j] if self.A[i, j] >= 0 else 0
-
-        # self.A[0] = self.Y[0]
-
-        # return self.Y - np.dot(C, self.A)
-
-        # R = self.Y - self.C @ self.K @ self.V_Tr
-        # chi2 = np.sum(R * R)
-        # print('sum of residuals = {}'.format(chi2))
-        return self.calc_chi2(self.Y, C, self.A)
-        # return chi2
-
-    def global_fit(self, model_cls, verbose=True, method='leastsq'):
-
-        # reduction must have been perfomed before calling global fit
-        if self.Ur is None or self.Sr is None or self.V_Tr is None:
-            return
-
-        # t = self.Y.shape[0]
-        w = self.Y.shape[1]
-        nr = self.Sr.shape[0]
-
-        # Y = self.Y
-        # times = self.times
-
-        if isinstance(model_cls, _Model):
-            self.model = model_cls
-            self.model.init_times(self.times)
-        else:
-            self.model = model_cls(self.times)
-
-        n = self.model.n
-
-        # initialize matrices
-        # self.C = np.zeros((t, n), dtype=np.float64)
-        self.A = np.zeros((n, w), dtype=np.float32)
-        self.K = np.zeros((n, nr), dtype=np.float32)
-
-        self.UrSr = self.Ur @ self.Sr
-
-        self.minimizer = lmfit.Minimizer(self.residuals, self.model.params)
-
-        self.last_result = lmfit.minimize(self.residuals, self.model.params, method=method)
-
-        # calculate final A matrix and C matrix
-        # self.A = self.K @ self.V_Tr
-        self.C = self.model.calc_C()
-
-        self.Y_fit = self.C @ self.A
-
-        if verbose:
-            report = fit_report(self.last_result)
-            Logger.console_message(report if report is not None else '')
-            self.plot_figures_one()
-
-        Console.push_variables({'K': self.K})
-
-        return LFP_matrix.from_value_matrix(self.Y_fit, self.times, self.wavelengths)
+    # @staticmethod
+    # @njit(parallel=True, fastmath=True)
+    # def calc_chi2(Y, C, A):
+    #     # R = Y - np.dot(C, A)  # R = Y - C @ A = Y - C @ K @ V_Tr
+    #     # return np.sum(R * R)
+    #     return Y - np.dot(C, A)
+    #
+    # def residuals(self, params):
+    #
+    #     C = self.model.calc_C(params)
+    #
+    #     self.K = lstsq(C, self.UrSr)[0]
+    #
+    #     self.A = np.dot(self.K, self.V_Tr)
+    #
+    #     # #spectra cannot be negative
+    #     # for i in range(self.A.shape[0]):
+    #     #     for j in range(self.A.shape[1]):
+    #     #         self.A[i, j] = self.A[i, j] if self.A[i, j] >= 0 else 0
+    #
+    #     # self.A[0] = self.Y[0]
+    #
+    #     # return self.Y - np.dot(C, self.A)
+    #
+    #     # R = self.Y - self.C @ self.K @ self.V_Tr
+    #     # chi2 = np.sum(R * R)
+    #     # print('sum of residuals = {}'.format(chi2))
+    #     return self.calc_chi2(self.Y, C, self.A)
+    #     # return chi2
+    #
+    # def global_fit(self, model_cls, verbose=True, method='leastsq'):
+    #
+    #     # reduction must have been perfomed before calling global fit
+    #     if self.Ur is None or self.Sr is None or self.V_Tr is None:
+    #         return
+    #
+    #     # t = self.Y.shape[0]
+    #     w = self.Y.shape[1]
+    #     nr = self.Sr.shape[0]
+    #
+    #     # Y = self.Y
+    #     # times = self.times
+    #
+    #     if isinstance(model_cls, _Model):
+    #         self.model = model_cls
+    #         self.model.init_times(self.times)
+    #     else:
+    #         self.model = model_cls(self.times)
+    #
+    #     n = self.model.n
+    #
+    #     # initialize matrices
+    #     # self.C = np.zeros((t, n), dtype=np.float64)
+    #     self.A = np.zeros((n, w), dtype=np.float32)
+    #     self.K = np.zeros((n, nr), dtype=np.float32)
+    #
+    #     self.UrSr = self.Ur @ self.Sr
+    #
+    #     self.minimizer = lmfit.Minimizer(self.residuals, self.model.params)
+    #
+    #     self.last_result = lmfit.minimize(self.residuals, self.model.params, method=method)
+    #
+    #     # calculate final A matrix and C matrix
+    #     # self.A = self.K @ self.V_Tr
+    #     self.C = self.model.calc_C()
+    #
+    #     self.Y_fit = self.C @ self.A
+    #
+    #     if verbose:
+    #         report = fit_report(self.last_result)
+    #         Logger.console_message(report if report is not None else '')
+    #         self.plot_figures_one()
+    #
+    #     Console.push_variables({'K': self.K})
+    #
+    #     return LFP_matrix.from_value_matrix(self.Y_fit, self.times, self.wavelengths)
 
     #
     # def MCR_ALS(self, n_components, from_original=False, max_iter=100, verbose=False):
@@ -472,15 +394,15 @@ class LFP_matrix(object):
     #
     #     return LFP_matrix.from_value_matrix(self.Y_fit, self.times, self.wavelengths)
 
-    def print_confidence_intervals(self, sigmas=(1, 2, 3)):
-
-        if self.last_result is None:
-            return
-
-        ci = lmfit.conf_interval(self.minimizer, self.last_result, sigmas=sigmas,
-                                 trace=False, verbose=False)
-
-        Logger.console_message(ci_report(ci))
+    # def print_confidence_intervals(self, sigmas=(1, 2, 3)):
+    #
+    #     if self.last_result is None:
+    #         return
+    #
+    #     ci = lmfit.conf_interval(self.minimizer, self.last_result, sigmas=sigmas,
+    #                              trace=False, verbose=False)
+    #
+    #     Logger.console_message(ci_report(ci))
 
     def save_fit(self, filepath, ST=None, C=None):
 
@@ -543,7 +465,6 @@ class LFP_matrix(object):
 
         with open(fname, 'w', encoding=encoding) as f:
             f.write(buffer)
-
 
     def plot_data(self, symlog=False, t_unit='s', z_unit='$\Delta A$', c_map='inferno_r', zmin=None, zmax=None,
                   w0=None, w1=None, t0=None, t1=None, fig_size=(6, 4), dpi=500, filepath=None, transparent=True,
@@ -1200,25 +1121,6 @@ class LFP_matrix(object):
 
         plt.show()
 
-    # def reconstruct_matrix_from_sing_value(self, sing_val_index):
-    #     """Reconstruct the matrix only for specified singular value. 0, for
-    #     1. sinular value, 1 for 2. singular value and so on..."""
-    #
-    #     if self.U is None or self.S is None or self.V_T is None:
-    #         return
-    #
-    #     S = np.diag(self.S)
-    #
-    #     # fill zeros after our singular value to singular value matrix
-    #     S[sing_val_index + 1:, sing_val_index + 1:] = 0
-    #
-    #     # fill zeros before our singular value to singular value matrix
-    #     if sing_val_index > 0:
-    #         S[:sing_val_index, :sing_val_index] = 0
-    #
-    #     Yr = self.U @ S @ self.V_T
-    #
-    #     return LFP_matrix.from_value_matrix(Yr, self.times, self.wavelengths)
 
     def set_SVD_filter(self, l_vectors=(0,)):
         """l_vector - list of singular vector to include into the filter, numbering from 0,
@@ -1240,34 +1142,6 @@ class LFP_matrix(object):
 
         # update D
         self.SVD_filter = self.SVD_filter
-
-    # def reconstruct_matrix(self, nr):
-    #     """Reduces the U, S and V_T matrices and constructs and loads the new matrix. nr is number of
-    #     taken singular values. """
-    #
-    #     if self.U is None or self.S is None or self.V_T is None:
-    #         return
-    #
-    #     # # create m x n Sigma matrix
-    #     # Sigma = np.zeros((A.shape[0], A.shape[1]))
-    #     # # populate Sigma with n x n diagonal matrix
-    #     # Sigma[:A.shape[1], :A.shape[1]] = np.diag(self.S)
-    #
-    #     # construct
-    #     S = np.diag(self.S)
-    #
-    #     # reduce the U matrix
-    #     self.Ur = self.U[:, :nr]
-    #
-    #     # reduce the Sigma matrix
-    #     self.Sr = S[:nr, :nr]
-    #     # reduce the V_T matrix
-    #     self.V_Tr = self.V_T[:nr, :]
-    #
-    #     # reconstruct the data matrix, @ is a dot product
-    #     self.Yr = self.Ur @ self.Sr @ self.V_Tr
-    #
-    #     return LFP_matrix.from_value_matrix(self.Yr, self.times, self.wavelengths)
 
     def crop_data(self, t0=None, t1=None, w0=None, w1=None):
 

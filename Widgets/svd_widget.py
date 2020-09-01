@@ -5,6 +5,7 @@ from .datapanel_svd import DataPanelSVD
 from scipy.linalg import svd
 from misc import crop_data, set_axes, int_default_color
 from LFP_matrix import LFP_matrix
+from sklearn.decomposition import FastICA
 
 # from PyQt5.QtCore import Qt
 
@@ -34,6 +35,9 @@ class SVDWidget(DockArea):
         self.f_EFA_log_sing_vals = None
         self.t_idxs_fEFA = None
         self.EFA_vectors = None
+
+        self.C_ICA = None
+        self.ST_ICA = None
 
         # SVD data panel
 
@@ -91,9 +95,21 @@ class SVDWidget(DockArea):
         self.data_panel.sb_n_vectors.valueChanged.connect(self.redraw_plots)
         self.data_panel.cb_show_all.toggled.connect(self.redraw_plots)
         self.data_panel.sb_n_svals.valueChanged.connect(self.redraw_fEFA_vals)
+        self.data_panel.sb_n_ICA.valueChanged.connect(self.redraw_plots)
 
         self.data_panel.cb_SVD.toggled.connect(self.SVD_from_selection_toggled)
         self.data_panel.btn_fEFA.clicked.connect(self.fEFA_clicked)
+        self.data_panel.cb_show_ICA_ins_SVD.toggled.connect(self.redraw_plots)
+
+    def run_ICA(self, random_state=0, max_iter=1e4):
+        if self.matrix is None:
+            return
+
+        ica = FastICA(n_components=int(self.data_panel.sb_n_ICA.value()),
+                      random_state=random_state, max_iter=int(max_iter))
+
+        self.C_ICA = ica.fit_transform(self.D)
+        self.ST_ICA = ica.mixing_.T
 
     def fEFA_clicked(self):
         if self.matrix is None:
@@ -145,18 +161,29 @@ class SVDWidget(DockArea):
         self.left_sv.clearPlots()
         self.right_sv.clearPlots()
 
-        n_vectors = min(int(self.data_panel.sb_n_vectors.value()), self.S.shape[0])
+        show_ica = self.data_panel.cb_show_ICA_ins_SVD.isChecked()
+
+        self.left_sv.setTitle("Left ICA vectors" if show_ica else "Left singular vectors")
+        self.right_sv.setTitle("Right ICA vectors" if show_ica else "Right singular vectors")
+
+        if show_ica and (self.C_ICA is None or self.C_ICA.shape[0] != self.U.shape[0]):
+            self.run_ICA()
+
+        lefts = self.C_ICA if show_ica else self.U
+        rights = self.ST_ICA if show_ica else self.V_T
+
+        n_vectors = min(int(self.data_panel.sb_n_vectors.value()), rights.shape[0])
         show_all = self.data_panel.cb_show_all.isChecked()
 
         if show_all:
             for i in range(n_vectors):
                 pen_vector = pg.mkPen(color=int_default_color(i), width=1)
-                self.left_sv.plot(self.times, self.U[:, i], pen=pen_vector)
-                self.right_sv.plot(self.wavelengths, self.V_T[i, :], pen=pen_vector)
+                self.left_sv.plot(self.times, lefts[:, i], pen=pen_vector)
+                self.right_sv.plot(self.wavelengths, rights[i, :], pen=pen_vector)
         else:
             pen_vector = pg.mkPen(color=int_default_color(0), width=1)
-            self.left_sv.plot(self.times, self.U[:, n_vectors - 1], pen=pen_vector)
-            self.right_sv.plot(self.wavelengths, self.V_T[n_vectors - 1, :], pen=pen_vector)
+            self.left_sv.plot(self.times, lefts[:, n_vectors - 1], pen=pen_vector)
+            self.right_sv.plot(self.wavelengths, rights[n_vectors - 1, :], pen=pen_vector)
 
     def set_data(self, matrix, wwtt=None):
         if matrix is None:
