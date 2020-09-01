@@ -15,6 +15,8 @@ from Widgets.heatmap import HeatMapPlot
 from Widgets.datapanel import DataPanel
 from Widgets.svd_widget import SVDWidget
 
+from scipy.linalg import lstsq
+
 
 class PlotWidget(DockArea):
     instance = None
@@ -162,6 +164,8 @@ class PlotWidget(DockArea):
 
         self.data_panel.btn_center_levels.clicked.connect(self.btn_center_levels_clicked)
         self.data_panel.txb_SVD_filter.setText("1-5")
+        self.data_panel.btn_fit_chirp_params.clicked.connect(self.fit_chirp_params)
+        self.data_panel.cb_show_chirp_points.toggled.connect(self.cb_show_roi_checkstate_changed)
 
         # addition of docs
 
@@ -227,19 +231,58 @@ class PlotWidget(DockArea):
 
         return positions
 
+    def cb_show_roi_checkstate_changed(self):
+        if self.roi is None:
+            return
+
+        val = 1000 if self.data_panel.cb_show_chirp_points.isChecked() else -1000
+        self.roi.setZValue(val)
+
     def plot_chirp_points(self):
         if self.roi is None:
-            self.roi = pg.PolyLineROI([[350, 1], [500, 1], [650, 1]], closed=False,
+            t_mid = (self.matrix.times[-1] - self.matrix.times[0]) / 2
+            n_w = self.matrix.wavelengths.shape[0] - 1
+            wls = self.matrix.wavelengths[int(n_w / 5)], self.matrix.wavelengths[int(2 * n_w / 5)], \
+                  self.matrix.wavelengths[int(3 * n_w / 5)], self.matrix.wavelengths[int(4 * n_w / 5)]
+            self.roi = pg.PolyLineROI([[wls[0], t_mid], [wls[1], t_mid], [wls[2], t_mid], [wls[3], t_mid]], closed=False,
                            handlePen=pg.mkPen(color=(0, 255, 0), width=5),
                            hoverPen=pg.mkPen(color=(0, 150, 0), width=2),
                            handleHoverPen=pg.mkPen(color=(0, 150, 0), width=3))
 
             self.heat_map_plot.heat_map_plot.addItem(self.roi)
 
-    def add_chirp(self, wls,  mu):
+    def add_chirp(self, wls,  mu):  # plots the chirp
         pen = pg.mkPen(color=QColor('black'), width=2)
         mu_tr = self.heat_map_plot.inv_transform_t_pos(mu)
         self.chirp.setData(wls, mu_tr, pen=pen)
+
+    def fit_chirp_params(self):
+        from Widgets.fit_widget import FitWidget as _fw
+
+        if _fw.instance is None:
+            return
+
+        fw = _fw.instance
+
+        if fw.current_model.method is not 'femto':
+            return
+
+        roi_pos = self.get_roi_pos()
+        x, y = roi_pos[:, 0], roi_pos[:, 1]
+
+        n = fw.current_model.n_poly_chirp + 1
+
+        lambda_c = fw.current_model.get_lambda_c()
+
+        X = np.ones((x.shape[0], n))  # polynomial regression matrix
+
+        for i in range(1, n):
+            X[:, i:] *= (x[:, None] - lambda_c) / 100
+
+        parmu = lstsq(X, y)[0]
+
+        fw.current_model.set_parmu(parmu)
+        fw.update_fields_H_fit()
 
     def cb_SVD_filter_toggled(self):
         self.matrix.SVD_filter = self.data_panel.cb_SVD_filter.isChecked()
@@ -585,6 +628,7 @@ class PlotWidget(DockArea):
         self.update_spectra()
 
         self.plot_chirp_points()
+        self.cb_show_roi_checkstate_changed()
 
     def save_plot_to_clipboard_as_png(self, plot_item):
         self.img_exporter = ImageExporter(plot_item)

@@ -89,6 +89,16 @@ class DataPanel(QWidget):
         self.btn_center_levels = QPushButton("Center levels")
         self.main_layout.addWidget(self.btn_center_levels)
 
+        self.cb_show_chirp_points = QCheckBox("Show chirp points")
+        self.btn_fit_chirp_params = QPushButton("Fit chirp params")
+
+        self.main_layout.addWidget(QLabel("For femto fitting:"))
+
+        hlayout2 = QHBoxLayout()
+        hlayout2.addWidget(self.cb_show_chirp_points)
+        hlayout2.addWidget(self.btn_fit_chirp_params)
+        self.main_layout.addLayout(hlayout2)
+
         self.main_layout.addStretch(1)
 
     def btn_crop_matrix_clicked(self):
