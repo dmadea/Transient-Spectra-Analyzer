@@ -563,12 +563,11 @@ class Target_Analysis_Femto(_Femto):
     def init_params(self):
         super(Target_Analysis_Femto, self).init_params()
 
-        self.params.add('phi', value=0.5, min=0, max=1, vary=False)
-        self.params.add('k_1', value=6, min=0, max=np.inf)
-        self.params.add('k_2', value=1.8, min=0, max=np.inf)
-        self.params.add('k_3', value=0.2, min=0, max=np.inf)
-        self.params.add('k_4', value=0.08358, min=0, max=np.inf)
-        self.params.add('k_5', value=0.02984, min=0, max=np.inf)
+        # self.params.add('phi', value=0.5, min=0, max=1, vary=False)
+        self.params.add('tau_AB', value=0.1, min=0, max=np.inf)
+        self.params.add('tau_BA', value=0.15, min=0, max=np.inf)
+        self.params.add('tau_AB_C', value=6, min=0, max=np.inf)
+        self.params.add('tau_CD', value=15, min=0, max=np.inf)
 
     def calc_C(self, params=None, C_out=None):
         super(Target_Analysis_Femto, self).calc_C(params, C_out)
@@ -577,15 +576,21 @@ class Target_Analysis_Femto(_Femto):
         mu = self.get_mu(params)
         n = self.n
 
-        phi, k1, k2, k3, k4, k5 = ks
+        # phi, k1, k2, k3, k4, k5 = ks
+        #
+        # K = np.asarray([[-k1,        0,  0, 0, 0, 0],
+        #                 [phi*k1,   -k2,  0, 0, 0, 0],
+        #                 [(1-phi)*k1, 0,-k3, 0, 0, 0],
+        #                 [0,        k2, 0, -k4, 0, 0],
+        #                 [0,        0, k3, 0, -k5, 0],
+        #                 [0,        0,  0, k4, k5, 0]])
 
-        K = np.asarray([[-k1,        0,  0, 0, 0, 0],
-                        [phi*k1,   -k2,  0, 0, 0, 0],
-                        [(1-phi)*k1, 0,-k3, 0, 0, 0],
-                        [0,        k2, 0, -k4, 0, 0],
-                        [0,        0, k3, 0, -k5, 0],
-                        [0,        0,  0, k4, k5, 0]])
+        k_AB, k_BA, k_ABC, k_CD = ks
 
+        K = np.asarray([[-k_AB - k_ABC, k_BA, 0, 0],
+                            [k_AB,   -k_BA -k_ABC,  0, 0],
+                            [k_ABC, k_ABC,-k_CD, 0],
+                             [0,        0,  k_CD, 0]])
         j = np.zeros(n)
         j[0] = 1
 
