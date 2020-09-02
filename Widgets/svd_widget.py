@@ -105,8 +105,9 @@ class SVDWidget(DockArea):
         if self.matrix is None:
             return
 
-        ica = FastICA(n_components=int(self.data_panel.sb_n_ICA.value()),
-                      random_state=random_state, max_iter=int(max_iter))
+        n_comp = min(int(self.data_panel.sb_n_ICA.value()), self.times.shape[0], self.wavelengths.shape[0])
+
+        ica = FastICA(n_components=n_comp, random_state=random_state, max_iter=int(max_iter))
 
         self.C_ICA = ica.fit_transform(self.D)
         self.ST_ICA = ica.mixing_.T
@@ -154,7 +155,7 @@ class SVDWidget(DockArea):
         wwtt = PlotWidget.instance.get_selected_range() if self.data_panel.cb_SVD.isChecked() else None
         self.set_data(self.matrix, wwtt=wwtt)
 
-    def redraw_plots(self):
+    def redraw_plots(self):  # left and right singular values
         if self.matrix is None:
             return
 
@@ -185,6 +186,12 @@ class SVDWidget(DockArea):
             self.left_sv.plot(self.times, lefts[:, n_vectors - 1], pen=pen_vector)
             self.right_sv.plot(self.wavelengths, rights[n_vectors - 1, :], pen=pen_vector)
 
+        self.left_sv.getViewBox().setLimits(xMin=self.times[0], xMax=self.times[-1],
+                                            yMin=lefts.min(), yMax=lefts.max())
+
+        self.right_sv.getViewBox().setLimits(xMin=self.wavelengths[0], xMax=self.wavelengths[-1],
+                                             yMin=rights.min(), yMax=rights.max())
+
     def set_data(self, matrix, wwtt=None):
         if matrix is None:
             return
@@ -214,12 +221,6 @@ class SVDWidget(DockArea):
         self.singvals_plot.getViewBox().setLimits(xMin=0, xMax=self.S.shape[0] + 1,
                                              yMin=1.2 ** np.sign(-_min) * _min,
                                               yMax=1.2 ** np.sign(_max) * _max)
-
-        self.left_sv.getViewBox().setLimits(xMin=self.times[0], xMax=self.times[-1],
-                                                 yMin=self.U.min(), yMax=self.U.max())
-
-        self.right_sv.getViewBox().setLimits(xMin=self.wavelengths[0], xMax=self.wavelengths[-1],
-                                          yMin=self.V_T.min(), yMax=self.V_T.max())
 
         self.singvals_plot.plot(np.arange(self.S.shape[0]) + 1, np.log10(self.S), symbol='o',
                                 pen=None)

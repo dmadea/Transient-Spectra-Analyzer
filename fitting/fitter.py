@@ -444,7 +444,7 @@ class Fitter:
         # C optimized by kinetic model
 
         _C_est = self.C_opt
-        _C_fit = self.C_est.copy()
+        _C_fit = self.C_opt.copy()
 
         def residuals(params):
             nonlocal _C_fit, _C_est
@@ -511,14 +511,3 @@ class Fitter:
             if self.is_interruption_requested():
                 break
 
-
-
-            # normalize Z to constant value
-
-            # self.ST_opt[0] *= 29043 / self.ST_opt[0].max()
-            #
-            # # E must have the same epsilon at 444 nm as Z has
-            #
-            # idx = find_nearest_idx(self.wls, 443 - 230)
-            #
-            # self.ST_opt[1] *= self.ST_opt[0, idx] / self.ST_opt[1, idx]
