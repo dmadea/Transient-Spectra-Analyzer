@@ -19,6 +19,8 @@ from scipy.linalg import lstsq
 
 import matplotlib.pyplot as plt
 
+from concurrent.futures import ProcessPoolExecutor
+
 
 # virtual class that every model must inherits
 class _Model(object):
@@ -575,6 +577,7 @@ class Target_Analysis_Femto(_Femto):
         fwhm, ks = self.get_kin_pars(params)
         mu = self.get_mu(params)
         n = self.n
+        fwhm = self.get_tau(params)  # fwhm
 
         # phi, k1, k2, k3, k4, k5 = ks
         #
@@ -595,6 +598,125 @@ class Target_Analysis_Femto(_Femto):
         j[0] = 1
 
         self.C = self.simulate_model(self.times, K, j, mu, fwhm)
+
+        return self.get_conc_matrix(C_out, self._connectivity)
+
+
+class Target_Analysis_Z_Femto(_Femto):
+
+    name = 'Target Analysis Z isomer'
+    _class = 'Femto'
+
+    def __init__(self, times=None, connectivity=(0, 1, 2), wavelengths=None, method='femto'):
+        super(Target_Analysis_Z_Femto, self).__init__(times=times,
+                                                      connectivity=connectivity,
+                                                      wavelengths=wavelengths,
+                                                      method=method)
+
+        self.solvation = True
+        self.n_upsample = 3
+
+    def init_params(self):
+        super(Target_Analysis_Z_Femto, self).init_params()
+
+        # self.params.add('phi', value=0.5, min=0, max=1, vary=False)
+        self.params.add('tau_AB', value=0.25, min=0, max=np.inf)
+        self.params.add('tau_BA', value=0.50, min=0, max=np.inf)
+        self.params.add('tau_AB_C', value=5.65, min=0, max=np.inf)
+        self.params.add('tau_CD', value=14.5, min=0, max=np.inf)
+        self.params.add('tau_sol', value=1.9, min=0, max=np.inf)
+        self.params.add('tau_diff', value=0.92, min=0, max=np.inf)
+
+    def solvation_rates(self, t, k_AB, k_BA, k_diff, k_sol):
+        _k_AB = k_AB + (k_diff * (1 - np.exp(-t * k_sol)) if self.solvation else 0)
+        _k_BA = k_BA - (k_diff * (1 - np.exp(-t * k_sol)) if self.solvation else 0)
+
+        return _k_AB, _k_BA
+
+    def plot_solvation_rates(self):
+        fwhm, ks = self.get_kin_pars(self.params)
+        k_AB, k_BA, k_ABC, k_CD, k_sol, k_diff = ks
+        _k_AB, _k_BA = self.solvation_rates(self.times, k_AB, k_BA, k_diff, k_sol)
+
+        plt.plot(self.times, _k_AB, label='$k_{AB}$')
+        plt.plot(self.times, _k_BA, label='$k_{BA}$')
+        plt.show()
+
+    @staticmethod
+    def gauss(t, fwhm=1):
+        assert fwhm != 0
+        sigma = fwhm / (2 * np.sqrt(2 * np.log(2)))  # https://en.wikipedia.org/wiki/Gaussian_function
+        return np.exp(-t * t / (2 * sigma * sigma)) / (sigma * np.sqrt(2 * np.pi))
+
+    @staticmethod
+    def upsample_points(x, n=3):
+        t_u = []
+        for t1, t2 in zip(x[:-1], x[1:]):
+            t_diff = t2 - t1
+            for i in range(n):
+                t_u.append(t1 + t_diff * i / n)
+        t_u.append(x[-1])
+        return np.asarray(t_u)
+
+    @staticmethod
+    @njit(fastmath=True)
+    def func_nb(c, t, j, t0, fwhm, rates, K_temp):
+        k_AB, k_BA, k_ABC, k_CD, k_sol, k_diff = rates
+        _t = t - t0
+
+        _k_AB = k_AB + k_diff * (1 - np.exp(-_t * k_sol))
+        _k_BA = k_BA - k_diff * (1 - np.exp(-_t * k_sol))
+
+        K_temp[0, 0] = -_k_AB - k_ABC
+        K_temp[0, 1] = _k_BA
+        K_temp[1, 0] = _k_AB
+        K_temp[1, 1] = -_k_BA - k_ABC
+
+        sigma = fwhm / (2 * np.sqrt(2 * np.log(2)))
+        gauss = np.exp(-_t * _t / (2 * sigma * sigma)) / (sigma * np.sqrt(2 * np.pi))
+
+        return K_temp.dot(c) + j * gauss
+
+
+    def calc_C(self, params=None, C_out=None):
+        super(Target_Analysis_Z_Femto, self).calc_C(params, C_out)
+
+        fwhm, ks = self.get_kin_pars(params)
+        mu = self.get_mu(params)
+        n = self.n  # n must be 4
+        fwhm = self.get_tau(params)  # fwhm
+
+        k_AB, k_BA, k_ABC, k_CD, k_sol, k_diff = ks
+
+        K = np.asarray([[-k_AB - k_ABC, k_BA, 0, 0],
+                        [k_AB, -k_BA - k_ABC, 0, 0],
+                        [k_ABC, k_ABC, -k_CD, 0],
+                        [0, 0, k_CD, 0]])
+
+        # def func(c, t, j, t0, fwhm):
+        #     _k_AB, _k_BA = self.solvation_rates(t - t0, k_AB, k_BA, k_diff, k_sol)
+        #
+        #     K = np.asarray([[-_k_AB - k_ABC, _k_BA, 0, 0],
+        #                     [_k_AB,   -_k_BA - k_ABC,  0, 0],
+        #                     [k_ABC, k_ABC, -k_CD, 0],
+        #                     [0,        0,  k_CD, 0]])
+        #     return K.dot(c) + j * self.gauss(t - t0, fwhm)
+
+        j = np.zeros(n)
+        j[0] = 1
+
+        t_upsampled = self.upsample_points(self.times, self.n_upsample) if self.n_upsample > 1 else self.times
+
+        self.C = np.zeros((mu.shape[0], self.times.shape[0], n), dtype=np.float64)
+
+        with ProcessPoolExecutor() as exe:
+            exe.submit()
+
+        for i in range(mu.shape[0]):
+            _fwhm = fwhm[i] if isinstance(fwhm, np.ndarray) else fwhm
+            # self.C[i, ...] = odeint(func, np.zeros(n), t_upsampled, args=(j, mu[i], _fwhm))[::self.n_upsample]
+            self.C[i, ...] = odeint(self.func_nb, np.zeros(n), t_upsampled, args=(j, mu[i], _fwhm, ks, K))[::self.n_upsample]
+
 
         return self.get_conc_matrix(C_out, self._connectivity)
 
