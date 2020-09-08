@@ -1,5 +1,5 @@
 from qt_task import Task
-from multiprocessing import Process
+# from multiprocessing import Process
 
 
 class TaskFit(Task):
@@ -19,10 +19,13 @@ class TaskFit(Task):
     def run_fit(self):
         # hard model fit
         if self.fw.current_model.connectivity.count(0) == 0:
-            if self.fw.current_model.method is 'RFA':
-                self.fw.fitter.obj_func_fit()
-            elif self.fw.current_model.method is 'femto':
+            if self.fw.current_model._class is 'Femto':
                 self.fw.D_fit = self.fw.fitter.var_pro_femto()
+            elif self.fw.current_model._class is 'Steady state photokinetics':
+                if self.fw.current_model.method is 'RFA':
+                    self.fw.fitter.obj_func_fit()
+                else:
+                    self.fw.fitter.HS_MCR_fit(c_model=self.fw.current_model)
             else:
                 self.fw.fitter.fit_full_model()
 

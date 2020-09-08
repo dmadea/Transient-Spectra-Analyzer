@@ -24,6 +24,31 @@ from PyQt5.QtWidgets import QPushButton, QCheckBox, QLabel, QComboBox
 # from concurrent.futures import ProcessPoolExecutor
 
 
+@vectorize()
+def photokin_factor(A):
+    ln10 = np.log(10)
+    ll2 = ln10 ** 2 / 2
+
+    if A < 1e-3:
+        return ln10 - A * ll2
+    else:
+        return (1 - np.exp(-A * ln10)) / A
+
+
+@njit(fastmath=True)
+def _dc_dt_nb(c, t, I0, K, eps, V, t0):  # eps = spectra * l
+    p_A = c.reshape(-1, 1) * eps  # hadamard product - partial absorbances
+    A = p_A.sum(axis=0)  # total absorbance
+
+    F = photokin_factor(A)  # (1-10^-A) / A
+
+    product = K * (F * I0 * eps).sum(axis=-1)  # K @ diag(sum(F * I0 * eps * l))
+
+    irr_on = 1 if t >= t0 else 0
+
+    return irr_on * product.dot(c) / V  # final dot product / V
+
+
 # virtual class that every model must inherits
 class _Model(object):
     # n = 0  # number of visible species in model
@@ -488,7 +513,8 @@ class _Photokinetic_Model(_Model):
 
         return self.T
 
-    def get_photokin_params(self):
+    def get_photokin_params(self, params=None):
+        params = self.params if params is None else params
         pars = [par[1].value for par in params.items()]
 
         if self.method is 'RFA':
@@ -520,17 +546,6 @@ class _Photokinetic_Model(_Model):
                 self.params[f't_{i + 1}{j + 1}'].value = self.T[i, j]
 
     @staticmethod
-    @vectorize()
-    def photokin_factor(A):
-        ln10 = np.log(10)
-        ll2 = ln10 ** 2 / 2
-
-        if A < 1e-3:
-            return ln10 - A * ll2
-        else:
-            return (1 - np.exp(-A * ln10)) / A
-
-    @staticmethod
     def simul_photokin_model_wl_dep(I0, c0, K, eps, times, V=0.003, l=1, t0=0):
         """
         with wl dependence of K
@@ -548,7 +563,7 @@ class _Photokinetic_Model(_Model):
             p_A = c[:, None] * eps * l  # hadamard product
             A = p_A.sum(axis=0)  # dot product
 
-            FI0 = p_A * _Photokinetic_Model.photokin_factor(A) * I0
+            FI0 = p_A * photokin_factor(A) * I0
 
             # # w x n x n   x   w x n x 1
             product = np.matmul(K, FI0.T[..., None])  # w x n x 1
@@ -562,7 +577,7 @@ class _Photokinetic_Model(_Model):
         return result
 
     @staticmethod
-    def simul_photokin_model(I0, c0, K, eps, times, V=0.003, l=1, t0=0):
+    def simul_photokin_model(I0, c0, K, eps, times, V=0.003, l=1, t0=0, use_numba=True):
         """
         no wl dependence of K
         I0 - irradiation spectrum scalled by q0 = PDF * q0 so that integral(I0) = q0
@@ -579,7 +594,7 @@ class _Photokinetic_Model(_Model):
             p_A = c[:, None] * eps * l  # hadamard product - partial absorbance
             A = p_A.sum(axis=0)  # total absorbance
 
-            F = _Photokinetic_Model.photokin_factor(A)  # (1-10^-A) / A
+            F = photokin_factor(A)  # (1-10^-A) / A
 
             product = K * (F * I0 * eps * l).sum(axis=-1)  # K @ sum(diag(F * I0 * eps * l))
 
@@ -587,7 +602,7 @@ class _Photokinetic_Model(_Model):
 
             return irr_on * product.dot(c) / V  # final dot product / V
 
-        result = odeint(dc_dt, c0, times)
+        result = odeint(_dc_dt_nb, c0, times, args=(I0, K, eps * l, V, t0)) if use_numba else odeint(dc_dt, c0, times)
 
         return result
 
@@ -954,6 +969,7 @@ class Sequential_Model_FK(_Photokinetic_Model):
         super(Sequential_Model_FK, self).__init__()
 
         self.Irr_norm = None  # normalized irradiation spectrum
+        self.use_numba = True
 
     def init_params(self):
         super(Sequential_Model_FK, self).init_params()
@@ -983,7 +999,10 @@ class Sequential_Model_FK(_Photokinetic_Model):
         c0_vec = np.zeros(n, dtype=np.float64)
         c0_vec[0] = c0  # initial concentration vector
 
-        self.C = self.simul_photokin_model(self.Irr_norm * q0, c0_vec, K, self.ST, self.times, V=V, l=l, t0=t0)
+        irr = self.Irr_norm if self.Irr_norm is not None else self.get_LED_source()
+
+        self.C = self.simul_photokin_model(irr * q0, c0_vec, K, self.ST, self.times, V=V, l=l, t0=t0,
+                                           use_numba=self.use_numba)
 
         return self.get_conc_matrix(C_out, self._connectivity)
 
@@ -2741,231 +2760,231 @@ class Test_Bilirubin_Multiset(_Photokinetic_Model):
         return C_out
 
 
-
-class Z_purified(_Model):
-    n = 4
-    name = 'Z_purified Multiset model'
-    _class = 'Steady state photokinetics'
-    # n_pars_per_QY = 5
-    wl_range = (340, 480)
-
-    def __init__(self, times=None, ST=None, wavelengths=None, aug_matrix=None):
-        super(Z_purified, self).__init__(times)
-
-        self.wavelengths = wavelengths
-        self.aug_matrix = aug_matrix
-
-        self.ST = ST
-        # self.interp_kind = 'quadratic'
-        self.species_names = np.array(list('ZEHD'), dtype=np.str)
-
-        path = r"C:\Users\dominik\Documents\Projects\Bilirubin\UV-Vis Z purified"
-        # path = r"C:\Users\Dominik\Documents\MUNI\Organic Photochemistry\Projects\2019-Bilirubin project\UV-VIS\QY measurement\Photodiode\Z purified"
-
-        data_led = np.loadtxt(path + r'\LED sources.txt', delimiter='\t', skiprows=1)
-
-        self.LED_355 = data_led[:, 1] / np.trapz(data_led[:, 1], x=self.wavelengths)
-        self.LED_375 = data_led[:, 2] / np.trapz(data_led[:, 2], x=self.wavelengths)
-        self.LED_405 = data_led[:, 3] / np.trapz(data_led[:, 3], x=self.wavelengths)
-        self.LED_420 = data_led[:, 4] / np.trapz(data_led[:, 4], x=self.wavelengths)
-        self.LED_450 = data_led[:, 5] / np.trapz(data_led[:, 5], x=self.wavelengths)
-        self.LED_470 = data_led[:, 6] / np.trapz(data_led[:, 6], x=self.wavelengths)
-        self.LED_490 = data_led[:, 7] / np.trapz(data_led[:, 7], x=self.wavelengths)
-
-        fname = path + r'\em sources Z purif.txt'
-        data = np.loadtxt(fname, delimiter='\t', skiprows=1)
-
-        self.I_350 = data[:, 1] / np.trapz(data[:, 1], x=self.wavelengths)
-        self.I_400 = data[:, 2] / np.trapz(data[:, 2], x=self.wavelengths)
-        self.I_500 = data[:, 3] / np.trapz(data[:, 3], x=self.wavelengths)
-
-        fname = path + r'\q rel cut.txt'
-        data = np.loadtxt(fname, delimiter='\t', skiprows=1)
-        self.Diode_q_rel = data[:, 1]
-
-        self._overlap350 = np.trapz(self.Diode_q_rel * self.I_350, x=self.wavelengths)
-        self._overlap400 = np.trapz(self.Diode_q_rel * self.I_400, x=self.wavelengths)
-        self._overlap500 = np.trapz(self.Diode_q_rel * self.I_500, x=self.wavelengths)
-
-        self.description = ""
-
-
-    def init_params(self):
-        self.params = Parameters()
-
-        # amount of Z in the mixture, 1: only Z, 0:, only E
-
-        # self.params.add('q0_355_LED', value=1e-6, min=0, max=np.inf, vary=True)
-        # self.params.add('q0_405_LED', value=1e-6, min=0, max=np.inf, vary=True)
-        # self.params.add('q0_490_LED', value=1e-6, min=0, max=np.inf, vary=True)
-
-        # self.params.add('Phi_ZE_350', value=0.2, min=0, max=1, vary=True)
-        # self.params.add('Phi_EZ_350', value=0.2, min=0, max=1, vary=True)
-        # self.params.add('Phi_EHL_350', value=0.005, min=0, max=1, vary=True)
-        # self.params.add('Phi_HLE_350', value=0.005, min=0, max=1, vary=True)
-        # self.params.add('Phi_HLD_350', value=0.001, min=0, max=1, vary=True)
-        # self.params.add('Phi_ZD_350', value=0.00, min=0, max=1, vary=False)
-
-        # self.params.add('Phi_ZE_400', value=0.2, min=0, max=1, vary=True)
-        # self.params.add('Phi_EZ_400', value=0.2, min=0, max=1, vary=True)
-        # self.params.add('Phi_EHL_400', value=0.005, min=0, max=1, vary=True)
-        # self.params.add('Phi_HLE_400', value=0.005, min=0, max=1, vary=True)
-        # self.params.add('Phi_HLD_400', value=0.001, min=0, max=1, vary=True)
-        # self.params.add('Phi_ZD_400', value=0.00, min=0, max=1, vary=False)
-        #
-        self.params.add('Phi_ZE_500', value=0.2, min=0, max=1, vary=True)
-        self.params.add('Phi_EZ_500', value=0.2, min=0, max=1, vary=True)
-        self.params.add('Phi_EHL_500', value=0.005, min=0, max=1, vary=True)
-        self.params.add('Phi_HLE_500', value=0.005, min=0, max=1, vary=True)
-        self.params.add('Phi_HLD_500', value=0.001, min=0, max=1, vary=True)
-        self.params.add('Phi_ZD_500', value=0.00, min=0, max=1, vary=False)
-
-        self.params.add('pop_D_in_E', value=0.00, min=0, max=1, vary=False)
-        self.params.add('pop_D_in_HL', value=0.00, min=0, max=1, vary=False)
-
-        self.params.add('xZ_E', value=0.055, min=0, max=1, vary=False)
-
-        self.params.add('t0_0', value=6.6, min=0, max=20, vary=False)
-        self.params.add('t0_1', value=3.8, min=0, max=20, vary=False)
-
-
-
-
-    @staticmethod
-    def simulate(q0, c0, K, I_source, wavelengths=None, times=None, eps=None, V=0.003, l=1,  D=None, t0=0):
-        """
-        c0 is concentration vector at time, defined in times arary as first element (initial condition), eps is vector of molar abs. coefficients,
-        I_source is spectrum of irradiaiton source if this was used,
-        if not, w_irr as irradiaton wavelength must be specified, K is transfer matrix, l is length of a cuvette, default 1 cm
-        times are times for which to simulate the kinetics
-        """
-        # n = eps.shape[0]  # eps are epsilons - n x w matrix, where n is number of species and w is number of wavelengths
-        # assert n == K.shape[0] == K.shape[1]
-        c0 = np.asarray(c0)
-
-        # get absorbances from real data
-        abs_at = interp2d(wavelengths, times, D, kind='linear', copy=True)
-
-        const = l * np.log(10)
-        tol = 1e-3
-
-        def dc_dt(c, t):
-
-            c_eps = c[..., None] * eps  # hadamard product
-
-            c_dot_eps = abs_at(wavelengths, t)
-
-            x_abs = c_eps * np.where(c_dot_eps <= tol, const - c_dot_eps * const * const / 2,
-                                     (1 - np.exp(-c_dot_eps * const)) / c_dot_eps) * I_source
-
-            # w x n x n   x   w x n x 1
-            product = np.matmul(K, x_abs.T[..., None])  # w x n x 1
-
-            irr_on = 1 if t >= t0 else 0
-
-            return irr_on * q0 / V * np.trapz(product, x=wavelengths, axis=0).squeeze()
-
-        result = odeint(dc_dt, c0, times)
-
-        return result
-
-    # calculates the least squares solution of concentrations of species of a given spectrum with given populations of species
-    def get_conc_vector(self, spectrum, populations):
-        pop = np.asarray(populations, dtype=np.float64)
-        pop /= pop.sum()
-        assert pop.shape[0] == self.ST.shape[0]
-
-        ST_avrg = (pop[:, None] * self.ST).sum(axis=0)
-
-        STST_sum = (ST_avrg * ST_avrg).sum()
-
-        c0 = (spectrum * ST_avrg).sum() / STST_sum
-
-        return pop * c0
-
-    def calc_C(self, params=None, C_out=None):
-        super(Z_purified, self).calc_C(params)
-
-        if self.ST is None:
-            raise ValueError("Spectra matrix must not be none.")
-
-        # q0_355_LED, q0_405_LED, q0_490_LED, \
-        # Phi_ZE_350, Phi_EZ_350, Phi_EHL_350, Phi_HLE_350, Phi_HLD_350, Phi_ZD_350, \
-        # Phi_ZE_400, Phi_EZ_400, Phi_EHL_400, Phi_HLE_400, Phi_HLD_400, Phi_ZD_400, \
-        # Phi_ZE_500, Phi_EZ_500, Phi_EHL_500, Phi_HLE_500, Phi_HLD_500, Phi_ZD_500, \
-        # pop_D_in_E, pop_D_in_HL, xZ_E = [par[1].value for par in self.params.items()]
-
-        Phi_ZE_500, Phi_EZ_500, Phi_EHL_500, Phi_HLE_500, Phi_HLD_500, Phi_ZD_500, \
-        pop_D_in_E, pop_D_in_HL, xZ_E, t0_0, t0_1 = [par[1].value for par in self.params.items()]
-
-        # currents (in A) from power meter of incident photon flux
-        IZ350, IE350, IZ400, IE400, IZ500, IE500 = 38.6e-6, 39.8e-6, 53.0e-6, 52.0e-6, 50.1e-6, 51.2e-6
-        # volume of the sample in cuvette
-        V = 3e-3
-
-        q_tot_Z350, q_tot_E350 = IZ350 * self._overlap350, IE350 * self._overlap350
-        q_tot_Z400, q_tot_E400 = IZ400 * self._overlap400, IE400 * self._overlap400
-        q_tot_Z500, q_tot_E500 = IZ500 * self._overlap500, IE500 * self._overlap500
-
-        # xExZ = (1-xZ_E) / xZ_E
-
-        # K350 = np.asarray([[-Phi_ZE_350   -Phi_ZD_350,   Phi_EZ_350,         0,            0],
-        #                    [Phi_ZE_350,   -Phi_EZ_350 - Phi_EHL_350,    Phi_HLE_350,       0],
-        #                    [0,      Phi_EHL_350,   -Phi_HLE_350 - Phi_HLD_350,             0],
-        #                    [Phi_ZD_350,      0,             Phi_HLD_350,                   0]])
-
-        # K400 = np.asarray([[-Phi_ZE_400 - Phi_ZD_400, Phi_EZ_400, 0, 0],
-        #                    [Phi_ZE_400, -Phi_EZ_400 - Phi_EHL_400, Phi_HLE_400, 0],
-        #                    [0, Phi_EHL_400, -Phi_HLE_400 - Phi_HLD_400, 0],
-        #                    [Phi_ZD_400, 0, Phi_HLD_400, 0]])
-        #
-        K500 = np.asarray([[-Phi_ZE_500 - Phi_ZD_500, Phi_EZ_500, 0, 0],
-                           [Phi_ZE_500, -Phi_EZ_500 - Phi_EHL_500, Phi_HLE_500, 0],
-                           [0, Phi_EHL_500, -Phi_HLE_500 - Phi_HLD_500, 0],
-                           [Phi_ZD_500, 0, Phi_HLD_500, 0]])
-
-
-        # time of start of irradiation
-        # t0_s = [6.6, 6, 9.5, 9.5, 9.5, 9.5, 3.8, 3.8, 8.8, 8, 10]
-
-        t0_s = [9.5, 9.5, t0_0, t0_1, 8]
-
-        args = [
-            # ['Z', q_tot_Z350, '-initial concentraition vector', K350, self.I_350],
-            # ['E', q_tot_E350, '-initial concentraition vector', K350, self.I_350],
-            # ['Z', q_tot_Z400, '-initial concentraition vector', K400, self.I_400],
-            # ['E', q_tot_E400, '-initial concentraition vector', K400, self.I_400],
-            ['Z', q_tot_Z500, '-initial concentraition vector', K500, self.I_500],
-            ['E', q_tot_E500, '-initial concentraition vector', K500, self.I_500],
-            #
-            # ['Z', q0_355_LED, '-initial concentraition vector', K350, self.LED_355],
-            # ['Z', q0_405_LED, '-initial concentraition vector', K400, self.LED_405],
-            # ['Z', q0_490_LED, '-initial concentraition vector', K500, self.LED_490],
-            # #
-            # ['HL', q0_355_LED, '-initial concentraition vector', K350, self.LED_355],
-            # ['HL', q0_405_LED, '-initial concentraition vector', K400, self.LED_405],
-
-        ]
-
-        for i in range(len(args)):
-            s, e = self.aug_matrix._C_indiv_range(i)
-            t = self.aug_matrix.matrices[i, 0].times
-
-            A0 = self.aug_matrix.matrices[i, 0].Y[0]
-
-            if args[i][0] == 'Z':
-                args[i][2] = self.get_conc_vector(A0, [1, 0, 0, 0])
-
-            elif args[i][0] == 'E':
-                args[i][2] = self.get_conc_vector(A0, [xZ_E * (1 - pop_D_in_E), (1 - pop_D_in_E) * (1-xZ_E), 0, pop_D_in_E])
-
-            else:
-                args[i][2] = self.get_conc_vector(A0, [0, 0, 1 - pop_D_in_HL, pop_D_in_HL])
-
-            C_out[s:e, :] = self.simulate(*args[i][1:], wavelengths=self.wavelengths,
-                                          times=t, eps=self.ST, V=V, l=1, D=self.aug_matrix.matrices[i, 0].Y, t0=t0_s[i])
-
-        return C_out
+#
+# class Z_purified(_Model):
+#     n = 4
+#     name = 'Z_purified Multiset model'
+#     _class = 'Steady state photokinetics'
+#     # n_pars_per_QY = 5
+#     wl_range = (340, 480)
+#
+#     def __init__(self, times=None, ST=None, wavelengths=None, aug_matrix=None):
+#         super(Z_purified, self).__init__(times)
+#
+#         self.wavelengths = wavelengths
+#         self.aug_matrix = aug_matrix
+#
+#         self.ST = ST
+#         # self.interp_kind = 'quadratic'
+#         self.species_names = np.array(list('ZEHD'), dtype=np.str)
+#
+#         # path = r"C:\Users\dominik\Documents\Projects\Bilirubin\UV-Vis Z purified"
+#         path = r"C:\Users\Dominik\Documents\MUNI\Organic Photochemistry\Projects\2019-Bilirubin project\UV-VIS\QY measurement\Photodiode\Z purified"
+#
+#         data_led = np.loadtxt(path + r'\LED sources.txt', delimiter='\t', skiprows=1)
+#
+#         self.LED_355 = data_led[:, 1] / np.trapz(data_led[:, 1], x=self.wavelengths)
+#         self.LED_375 = data_led[:, 2] / np.trapz(data_led[:, 2], x=self.wavelengths)
+#         self.LED_405 = data_led[:, 3] / np.trapz(data_led[:, 3], x=self.wavelengths)
+#         self.LED_420 = data_led[:, 4] / np.trapz(data_led[:, 4], x=self.wavelengths)
+#         self.LED_450 = data_led[:, 5] / np.trapz(data_led[:, 5], x=self.wavelengths)
+#         self.LED_470 = data_led[:, 6] / np.trapz(data_led[:, 6], x=self.wavelengths)
+#         self.LED_490 = data_led[:, 7] / np.trapz(data_led[:, 7], x=self.wavelengths)
+#
+#         fname = path + r'\em sources Z purif.txt'
+#         data = np.loadtxt(fname, delimiter='\t', skiprows=1)
+#
+#         self.I_350 = data[:, 1] / np.trapz(data[:, 1], x=self.wavelengths)
+#         self.I_400 = data[:, 2] / np.trapz(data[:, 2], x=self.wavelengths)
+#         self.I_500 = data[:, 3] / np.trapz(data[:, 3], x=self.wavelengths)
+#
+#         fname = path + r'\q rel cut.txt'
+#         data = np.loadtxt(fname, delimiter='\t', skiprows=1)
+#         self.Diode_q_rel = data[:, 1]
+#
+#         self._overlap350 = np.trapz(self.Diode_q_rel * self.I_350, x=self.wavelengths)
+#         self._overlap400 = np.trapz(self.Diode_q_rel * self.I_400, x=self.wavelengths)
+#         self._overlap500 = np.trapz(self.Diode_q_rel * self.I_500, x=self.wavelengths)
+#
+#         self.description = ""
+#
+#
+#     def init_params(self):
+#         self.params = Parameters()
+#
+#         # amount of Z in the mixture, 1: only Z, 0:, only E
+#
+#         # self.params.add('q0_355_LED', value=1e-6, min=0, max=np.inf, vary=True)
+#         # self.params.add('q0_405_LED', value=1e-6, min=0, max=np.inf, vary=True)
+#         # self.params.add('q0_490_LED', value=1e-6, min=0, max=np.inf, vary=True)
+#
+#         # self.params.add('Phi_ZE_350', value=0.2, min=0, max=1, vary=True)
+#         # self.params.add('Phi_EZ_350', value=0.2, min=0, max=1, vary=True)
+#         # self.params.add('Phi_EHL_350', value=0.005, min=0, max=1, vary=True)
+#         # self.params.add('Phi_HLE_350', value=0.005, min=0, max=1, vary=True)
+#         # self.params.add('Phi_HLD_350', value=0.001, min=0, max=1, vary=True)
+#         # self.params.add('Phi_ZD_350', value=0.00, min=0, max=1, vary=False)
+#
+#         # self.params.add('Phi_ZE_400', value=0.2, min=0, max=1, vary=True)
+#         # self.params.add('Phi_EZ_400', value=0.2, min=0, max=1, vary=True)
+#         # self.params.add('Phi_EHL_400', value=0.005, min=0, max=1, vary=True)
+#         # self.params.add('Phi_HLE_400', value=0.005, min=0, max=1, vary=True)
+#         # self.params.add('Phi_HLD_400', value=0.001, min=0, max=1, vary=True)
+#         # self.params.add('Phi_ZD_400', value=0.00, min=0, max=1, vary=False)
+#         #
+#         self.params.add('Phi_ZE_500', value=0.2, min=0, max=1, vary=True)
+#         self.params.add('Phi_EZ_500', value=0.2, min=0, max=1, vary=True)
+#         self.params.add('Phi_EHL_500', value=0.005, min=0, max=1, vary=True)
+#         self.params.add('Phi_HLE_500', value=0.005, min=0, max=1, vary=True)
+#         self.params.add('Phi_HLD_500', value=0.001, min=0, max=1, vary=True)
+#         self.params.add('Phi_ZD_500', value=0.00, min=0, max=1, vary=False)
+#
+#         self.params.add('pop_D_in_E', value=0.00, min=0, max=1, vary=False)
+#         self.params.add('pop_D_in_HL', value=0.00, min=0, max=1, vary=False)
+#
+#         self.params.add('xZ_E', value=0.055, min=0, max=1, vary=False)
+#
+#         self.params.add('t0_0', value=6.6, min=0, max=20, vary=False)
+#         self.params.add('t0_1', value=3.8, min=0, max=20, vary=False)
+#
+#
+#
+#
+#     @staticmethod
+#     def simulate(q0, c0, K, I_source, wavelengths=None, times=None, eps=None, V=0.003, l=1,  D=None, t0=0):
+#         """
+#         c0 is concentration vector at time, defined in times arary as first element (initial condition), eps is vector of molar abs. coefficients,
+#         I_source is spectrum of irradiaiton source if this was used,
+#         if not, w_irr as irradiaton wavelength must be specified, K is transfer matrix, l is length of a cuvette, default 1 cm
+#         times are times for which to simulate the kinetics
+#         """
+#         # n = eps.shape[0]  # eps are epsilons - n x w matrix, where n is number of species and w is number of wavelengths
+#         # assert n == K.shape[0] == K.shape[1]
+#         c0 = np.asarray(c0)
+#
+#         # get absorbances from real data
+#         abs_at = interp2d(wavelengths, times, D, kind='linear', copy=True)
+#
+#         const = l * np.log(10)
+#         tol = 1e-3
+#
+#         def dc_dt(c, t):
+#
+#             c_eps = c[..., None] * eps  # hadamard product
+#
+#             c_dot_eps = abs_at(wavelengths, t)
+#
+#             x_abs = c_eps * np.where(c_dot_eps <= tol, const - c_dot_eps * const * const / 2,
+#                                      (1 - np.exp(-c_dot_eps * const)) / c_dot_eps) * I_source
+#
+#             # w x n x n   x   w x n x 1
+#             product = np.matmul(K, x_abs.T[..., None])  # w x n x 1
+#
+#             irr_on = 1 if t >= t0 else 0
+#
+#             return irr_on * q0 / V * np.trapz(product, x=wavelengths, axis=0).squeeze()
+#
+#         result = odeint(dc_dt, c0, times)
+#
+#         return result
+#
+#     # calculates the least squares solution of concentrations of species of a given spectrum with given populations of species
+#     def get_conc_vector(self, spectrum, populations):
+#         pop = np.asarray(populations, dtype=np.float64)
+#         pop /= pop.sum()
+#         assert pop.shape[0] == self.ST.shape[0]
+#
+#         ST_avrg = (pop[:, None] * self.ST).sum(axis=0)
+#
+#         STST_sum = (ST_avrg * ST_avrg).sum()
+#
+#         c0 = (spectrum * ST_avrg).sum() / STST_sum
+#
+#         return pop * c0
+#
+#     def calc_C(self, params=None, C_out=None):
+#         super(Z_purified, self).calc_C(params)
+#
+#         if self.ST is None:
+#             raise ValueError("Spectra matrix must not be none.")
+#
+#         # q0_355_LED, q0_405_LED, q0_490_LED, \
+#         # Phi_ZE_350, Phi_EZ_350, Phi_EHL_350, Phi_HLE_350, Phi_HLD_350, Phi_ZD_350, \
+#         # Phi_ZE_400, Phi_EZ_400, Phi_EHL_400, Phi_HLE_400, Phi_HLD_400, Phi_ZD_400, \
+#         # Phi_ZE_500, Phi_EZ_500, Phi_EHL_500, Phi_HLE_500, Phi_HLD_500, Phi_ZD_500, \
+#         # pop_D_in_E, pop_D_in_HL, xZ_E = [par[1].value for par in self.params.items()]
+#
+#         Phi_ZE_500, Phi_EZ_500, Phi_EHL_500, Phi_HLE_500, Phi_HLD_500, Phi_ZD_500, \
+#         pop_D_in_E, pop_D_in_HL, xZ_E, t0_0, t0_1 = [par[1].value for par in self.params.items()]
+#
+#         # currents (in A) from power meter of incident photon flux
+#         IZ350, IE350, IZ400, IE400, IZ500, IE500 = 38.6e-6, 39.8e-6, 53.0e-6, 52.0e-6, 50.1e-6, 51.2e-6
+#         # volume of the sample in cuvette
+#         V = 3e-3
+#
+#         q_tot_Z350, q_tot_E350 = IZ350 * self._overlap350, IE350 * self._overlap350
+#         q_tot_Z400, q_tot_E400 = IZ400 * self._overlap400, IE400 * self._overlap400
+#         q_tot_Z500, q_tot_E500 = IZ500 * self._overlap500, IE500 * self._overlap500
+#
+#         # xExZ = (1-xZ_E) / xZ_E
+#
+#         # K350 = np.asarray([[-Phi_ZE_350   -Phi_ZD_350,   Phi_EZ_350,         0,            0],
+#         #                    [Phi_ZE_350,   -Phi_EZ_350 - Phi_EHL_350,    Phi_HLE_350,       0],
+#         #                    [0,      Phi_EHL_350,   -Phi_HLE_350 - Phi_HLD_350,             0],
+#         #                    [Phi_ZD_350,      0,             Phi_HLD_350,                   0]])
+#
+#         # K400 = np.asarray([[-Phi_ZE_400 - Phi_ZD_400, Phi_EZ_400, 0, 0],
+#         #                    [Phi_ZE_400, -Phi_EZ_400 - Phi_EHL_400, Phi_HLE_400, 0],
+#         #                    [0, Phi_EHL_400, -Phi_HLE_400 - Phi_HLD_400, 0],
+#         #                    [Phi_ZD_400, 0, Phi_HLD_400, 0]])
+#         #
+#         K500 = np.asarray([[-Phi_ZE_500 - Phi_ZD_500, Phi_EZ_500, 0, 0],
+#                            [Phi_ZE_500, -Phi_EZ_500 - Phi_EHL_500, Phi_HLE_500, 0],
+#                            [0, Phi_EHL_500, -Phi_HLE_500 - Phi_HLD_500, 0],
+#                            [Phi_ZD_500, 0, Phi_HLD_500, 0]])
+#
+#
+#         # time of start of irradiation
+#         # t0_s = [6.6, 6, 9.5, 9.5, 9.5, 9.5, 3.8, 3.8, 8.8, 8, 10]
+#
+#         t0_s = [9.5, 9.5, t0_0, t0_1, 8]
+#
+#         args = [
+#             # ['Z', q_tot_Z350, '-initial concentraition vector', K350, self.I_350],
+#             # ['E', q_tot_E350, '-initial concentraition vector', K350, self.I_350],
+#             # ['Z', q_tot_Z400, '-initial concentraition vector', K400, self.I_400],
+#             # ['E', q_tot_E400, '-initial concentraition vector', K400, self.I_400],
+#             ['Z', q_tot_Z500, '-initial concentraition vector', K500, self.I_500],
+#             ['E', q_tot_E500, '-initial concentraition vector', K500, self.I_500],
+#             #
+#             # ['Z', q0_355_LED, '-initial concentraition vector', K350, self.LED_355],
+#             # ['Z', q0_405_LED, '-initial concentraition vector', K400, self.LED_405],
+#             # ['Z', q0_490_LED, '-initial concentraition vector', K500, self.LED_490],
+#             # #
+#             # ['HL', q0_355_LED, '-initial concentraition vector', K350, self.LED_355],
+#             # ['HL', q0_405_LED, '-initial concentraition vector', K400, self.LED_405],
+#
+#         ]
+#
+#         for i in range(len(args)):
+#             s, e = self.aug_matrix._C_indiv_range(i)
+#             t = self.aug_matrix.matrices[i, 0].times
+#
+#             A0 = self.aug_matrix.matrices[i, 0].Y[0]
+#
+#             if args[i][0] == 'Z':
+#                 args[i][2] = self.get_conc_vector(A0, [1, 0, 0, 0])
+#
+#             elif args[i][0] == 'E':
+#                 args[i][2] = self.get_conc_vector(A0, [xZ_E * (1 - pop_D_in_E), (1 - pop_D_in_E) * (1-xZ_E), 0, pop_D_in_E])
+#
+#             else:
+#                 args[i][2] = self.get_conc_vector(A0, [0, 0, 1 - pop_D_in_HL, pop_D_in_HL])
+#
+#             C_out[s:e, :] = self.simulate(*args[i][1:], wavelengths=self.wavelengths,
+#                                           times=t, eps=self.ST, V=V, l=1, D=self.aug_matrix.matrices[i, 0].Y, t0=t0_s[i])
+#
+#         return C_out
 
 
 class PKA_Titration(_Model):

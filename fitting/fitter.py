@@ -358,7 +358,9 @@ class Fitter:
             if self.st_fix:  # replace spectra to fixed ones if fix is defined
                 _ST_opt[self.st_fix, :] = self.ST_est[self.st_fix]
 
-            return _C_opt @ _ST_opt - self.D  # calculate residuals and return them
+            R =_C_opt @ _ST_opt - self.D  # calculate residuals
+
+            return np.nan_to_num(R)
 
         self.minimizer = lmfit.Minimizer(residuals, self.c_model.params,
                                          iter_cb=lambda params, iter, resid, *args, **kws: self.is_interruption_requested())
@@ -454,7 +456,7 @@ class Fitter:
 
             R = _C_est - _C_fit
 
-            return R
+            return np.nan_to_num(R)
 
         self.minimizer = lmfit.Minimizer(residuals, self.c_model.params)
         # self.kwds = {'ftol': 1e-8, 'xtol': 1e-8, 'gtol': 1e-8, 'loss': 'linear', 'verbose': 0}
