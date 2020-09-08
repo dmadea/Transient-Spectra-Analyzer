@@ -119,6 +119,12 @@ class FitWidget(QWidget, Ui_Form):
         self.btnSimulateModel.clicked.connect(self.simulate_model_clicked)
         self.btnSetNMFSol.clicked.connect(self.set_NMF_solution)
 
+        def _open_model_sett():
+            self.current_model.open_model_settings()
+            self.update_model_par_count()
+
+        self.btnModelSettings.clicked.connect(_open_model_sett)
+
         # soft modeling
 
         self.species_label_list = []
@@ -404,7 +410,7 @@ class FitWidget(QWidget, Ui_Form):
         self.update_params()
         self.fitter_update_options()
 
-        if self.current_model.method == 'RFA':
+        if self.current_model.method is 'RFA':
             T = self.current_model.get_T()
             self._ST = T.dot(self.current_model.VT)
 

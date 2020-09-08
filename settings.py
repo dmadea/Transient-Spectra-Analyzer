@@ -17,6 +17,9 @@ class Settings(object):
 
     # --------SETTINGS----------
 
+    # LED sources
+
+    LED_sources_filepath = "LEDs_norm.txt"
 
     # files dialog last paths
 

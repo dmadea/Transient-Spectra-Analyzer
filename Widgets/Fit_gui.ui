@@ -103,6 +103,13 @@
            </layout>
           </item>
           <item>
+           <widget class="QPushButton" name="btnModelSettings">
+            <property name="text">
+             <string>Model Settings</string>
+            </property>
+           </widget>
+          </item>
+          <item>
            <widget class="QPushButton" name="btnSimulateModel">
             <property name="text">
              <string>Simulate for current params</string>
@@ -150,7 +157,7 @@
                <x>0</x>
                <y>0</y>
                <width>348</width>
-               <height>282</height>
+               <height>275</height>
               </rect>
              </property>
              <layout class="QGridLayout" name="gridLayout_4">
