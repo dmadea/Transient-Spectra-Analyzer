@@ -1,0 +1,67 @@
+[
+    {
+        "from_comp": "A",
+        "to_comp": "B",
+        "rate": 50
+    },
+    {
+        "from_comp": "B",
+        "to_comp": "A",
+        "rate": 50
+    },
+    {
+        "from_comp": "B",
+        "to_comp": "C",
+        "rate": 50
+    },
+    {
+        "from_comp": "C",
+        "to_comp": "D",
+        "rate": 50
+    },
+    {
+        "from_comp": "D",
+        "to_comp": "E",
+        "rate": 50
+    },
+    {
+        "from_comp": "E",
+        "to_comp": "F",
+        "rate": 50
+    },
+    {
+        "from_comp": "F",
+        "to_comp": "A",
+        "rate": 50
+    },
+    {
+        "from_comp": "A",
+        "to_comp": "C",
+        "rate": 50
+    },
+    {
+        "from_comp": "B",
+        "to_comp": "D",
+        "rate": 50
+    },
+    {
+        "from_comp": "C",
+        "to_comp": "E",
+        "rate": 50
+    },
+    {
+        "from_comp": "D",
+        "to_comp": "F",
+        "rate": 50
+    },
+    {
+        "from_comp": "E",
+        "to_comp": "A",
+        "rate": 50
+    },
+    {
+        "from_comp": "F",
+        "to_comp": "B",
+        "rate": 50
+    }
+]

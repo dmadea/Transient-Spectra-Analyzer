@@ -52,16 +52,20 @@ class GenericInputDialog(QtWidgets.QDialog):
                            ("par2", QLineEdit("another  text")),
                            ("par3", QCheckBox("...."))]
 
-        self.label_list = []
+        # self.label_list = []
         self.widget_list = []
 
         i = 0
         for label, widget in widget_list:
-            self.label_list.append(QLabel(label))
-            self.widget_list.append(widget)
+            if isinstance(label, str):
+                # self.label_list.append(QLabel(label))
+                label = QLabel(label)
+            if widget is not None:
+                self.widget_list.append(widget)
+                self.grid_layout.addWidget(widget, i, 1)
 
-            self.grid_layout.addWidget(self.label_list[i], i, 0)
-            self.grid_layout.addWidget(widget, i, 1)
+            if label is not None:
+                self.grid_layout.addWidget(label, i, 0)
             i += 1
 
         self.VLayout.addItem(self.grid_layout)

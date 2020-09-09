@@ -19,13 +19,15 @@ class TaskFit(Task):
     def run_fit(self):
         # hard model fit
         if self.fw.current_model.connectivity.count(0) == 0:
-            if self.fw.current_model._class is 'Femto':
+            if self.fw.current_model._class == 'Femto':
                 self.fw.D_fit = self.fw.fitter.var_pro_femto()
-            elif self.fw.current_model._class is 'Steady state photokinetics':
-                if self.fw.current_model.method is 'RFA':
-                    self.fw.fitter.obj_func_fit()
-                else:
+            elif self.fw.current_model._class == 'Steady state photokinetics':
+                if self.fw.current_model.method == 'RFA':
+                    self.fw.fitter.obj_func_fit()  # TODO>>>
+                elif self.fw.current_model.method == 'HS-MCR-ALS':
                     self.fw.fitter.HS_MCR_fit(c_model=self.fw.current_model)
+                else:  # varible projection
+                    self.fw.fitter.fit_full_model()
             else:
                 self.fw.fitter.fit_full_model()
 

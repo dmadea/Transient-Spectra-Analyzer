@@ -19,7 +19,7 @@ import matplotlib.pyplot as plt
 from settings import Settings
 
 from genericinputdialog import GenericInputDialog
-from PyQt5.QtWidgets import QPushButton, QCheckBox, QLabel, QComboBox
+from PyQt5.QtWidgets import QPushButton, QCheckBox, QLabel, QComboBox, QSpinBox
 
 # from concurrent.futures import ProcessPoolExecutor
 
@@ -158,6 +158,8 @@ class _Femto(_Model):
     n_poly_chirp = 5  # order of polynomial for chirp_type: 'poly'
     n_exp_chirp = 1  # number of exponentials to describe chirp for mu_type = 'exp'
     n_partau = 2
+    spectra = 'EADS'  # or 'EADS'
+
 
     def __init__(self, times=None, connectivity=(0, 1, 2), wavelengths=None,  method='femto'):
         self.method = method
@@ -179,11 +181,70 @@ class _Femto(_Model):
         self.weights = [(378, 393, 0.05)]  # (wl_start, wl_end, weight) default weight 1
 
         self.chirp_type = 'poly'  # poly, exp
+        self.spectra_choises = ['EADS', 'DADS']
 
         self.update_n()
 
         self.C_COH = None
         self.ST_COH = None
+
+    def open_model_settings(self):
+        if GenericInputDialog.if_opened_activate():
+            return
+
+        sbChripOrder = QSpinBox()
+        sbChripOrder.setMinimum(0)
+        sbChripOrder.setMaximum(10)
+        sbChripOrder.setValue(self.n_poly_chirp)
+
+        cbParTau = QCheckBox('Include Variable IRF-FWHM (partau)')
+        cbParTau.setChecked(self.partau)
+        sbParTau = QSpinBox()
+        sbParTau.setMinimum(0)
+        sbParTau.setMaximum(10)
+        sbParTau.setValue(self.n_partau)
+
+        cbParTau.toggled.connect(lambda: sbParTau.setEnabled(cbParTau.isChecked()))
+
+        cbCohSpec = QCheckBox('Include Coherent Artifacts')
+        cbCohSpec.setChecked(self.coh_spec)
+        sbCohSpecOrder = QSpinBox()
+        sbCohSpecOrder.setMinimum(0)
+        sbCohSpecOrder.setMaximum(2)
+        sbCohSpecOrder.setValue(self.coh_spec_order)
+
+        cbCohSpec.toggled.connect(lambda: sbCohSpecOrder.setEnabled(cbCohSpec.isChecked()))
+
+        btnPlotTau = QPushButton('Plot FWHM')
+        btnPlotTau.clicked.connect(self.plot_tau)
+
+        cbSpectra = QComboBox()
+        cbSpectra.addItems(self.spectra_choises)
+        cbSpectra.setCurrentIndex(self.spectra_choises.index(self.spectra))
+
+        widgets = [['Chrip polynomial order:', sbChripOrder],
+                   [cbParTau, None],
+                   ['Variable IRF-FWHM polynomial order:', sbParTau],
+                   [btnPlotTau, None],
+                   [cbCohSpec, None],
+                   ["Number of Gaussian derivatives:", sbCohSpecOrder],
+                   ["Used kinetic model:", cbSpectra]
+                   ]
+
+        def set_result():
+            self.n_poly_chirp = int(sbChripOrder.value())
+            self.partau = cbParTau.isChecked()
+            self.n_partau = int(sbParTau.value())
+            self.coh_spec = cbCohSpec.isChecked()
+            self.coh_spec_order = int(sbCohSpecOrder.value())
+            self.spectra = self.spectra_choises[cbSpectra.currentIndex()]
+            self.init_params()
+
+        self.model_settigs_dialog = GenericInputDialog(widget_list=widgets, label_text="",
+                                                       title=f'{self.name} settings',
+                                                       set_result=set_result)
+        self.model_settigs_dialog.show()
+        self.model_settigs_dialog.exec()
 
     @staticmethod
     def conv_exp(t, k, fwhm):
@@ -403,15 +464,17 @@ class _Femto(_Model):
 
 class _Photokinetic_Model(_Model):
 
+
     def __init__(self, times=None, connectivity=(0, 1, 2), ST=None, wavelengths=None, aug_matrix=None, rot_mat=True,
                  method='RFA'):
 
         self.fit_methods = [
             {'name': 'Resolving Factor Analysis', 'abbr': 'RFA'},
-            {'name': 'MCR-ALS', 'abbr': 'MCR-ALS'},
+            {'name': 'HS-MCR-ALS (fit C profiles)', 'abbr': 'HS-MCR-ALS'},
+            {'name': 'Variable Projection (fit full matrix)', 'abbr': 'VarPro'}
         ]
 
-        self.method = self.fit_methods[0]['abbr']  # or 'MCR-ALS'
+        self.method = self.fit_methods[2]['abbr']
 
         self.times = times
         self.C = None
@@ -672,7 +735,6 @@ class Global_Analysis_Femto(_Femto):
     name = 'Global Analysis'
     _class = 'Femto'
 
-    spectra = 'EADS'  # or 'EADS'
 
     def init_params(self):
         super(Global_Analysis_Femto, self).init_params()

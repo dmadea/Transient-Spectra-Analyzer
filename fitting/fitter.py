@@ -489,8 +489,8 @@ class Fitter:
         if self.c_constraints is not None:
             assert len(self.c_constraints) == self.n
 
-        if self.verbose == 2:
-            print('Iteration\tSum of squares\tLack of Fit')
+        # if self.verbose == 2:
+        #     print('Iteration\tSum of squares\tLack of Fit')
 
         for i in range(self.max_iter):
 
@@ -499,6 +499,8 @@ class Fitter:
             # perform hard modeling for C if model is provided only to C_opt optimized in previous step
 
             if self.c_model:
+                if self.verbose == 2:
+                    print("Optimization of C profiles:")
                 setattr(self.c_model, 'ST', self.ST_opt)
                 self._C_fit_opt()
 
@@ -508,7 +510,10 @@ class Fitter:
                 D_fit = self.C_opt @ self.ST_opt
                 ssq = ((self.D - D_fit) ** 2).sum()
                 lof = np.sqrt(ssq / (self.D ** 2).sum()) * 100
-                print(f'{i+1}.\t{ssq:.4g}\t{lof:.4g}')
+                print(f'\nIteration {i+1}.\tSum of squares {ssq:.4g}\tLack of Fit {lof:.4g}')
+                print('------------------------------------------------------------------\n')
+
+                # print(f'{i+1}.\t{ssq:.4g}\t{lof:.4g}')
 
             if self.is_interruption_requested():
                 break
