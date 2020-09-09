@@ -20,6 +20,9 @@ from settings import Settings
 
 from genericinputdialog import GenericInputDialog
 from PyQt5.QtWidgets import QPushButton, QCheckBox, QLabel, QComboBox, QSpinBox
+from target_model import TargetModel
+import glob, os
+
 
 # from concurrent.futures import ProcessPoolExecutor
 
@@ -71,6 +74,8 @@ class _Model(object):
         self.method = 'MCR-ALS'
 
         self.init_times(times)
+        self.target_model = None
+        self.j = None  # j vector for target analysis
 
         self.init_params()
         self.species_names = np.array(list('ABCDEFGHIJKL'), dtype=np.str)
@@ -95,13 +100,37 @@ class _Model(object):
         if params is not None:
             self.params = params
 
-    def open_model_settings(self):
-        if GenericInputDialog.if_opened_activate():
-            return
+    def setup_target_models(self, widgets):
+        models = []
+        cbModels = QComboBox()
+        for fpath in glob.glob(os.path.join(Settings.target_models_dir, '*.json'), recursive=True):
+            fname = os.path.splitext(os.path.split(fpath)[1])[0]
+            models.append(fpath)
+            cbModels.addItem(fname)
 
-        self.model_settigs_dialog = GenericInputDialog()
-        self.model_settigs_dialog.show()
-        self.model_settigs_dialog.exec()
+        if self.target_model is not None:
+            cbModels.setCurrentIndex(models.index(self.target_model.fpath))
+
+        btnPlotModel = QPushButton('Plot Target Model')
+
+        def _plot_model():
+            t_model = TargetModel.load(models[cbModels.currentIndex()])
+            t_model.plot_model()
+        btnPlotModel.clicked.connect(_plot_model)
+
+        widgets.append(['Target model:', cbModels])
+        widgets.append([None, btnPlotModel])
+
+        return models, cbModels
+
+    def open_model_settings(self, show_target_model=False):
+        pass
+        # if GenericInputDialog.if_opened_activate():
+        #     return
+        #
+        # self.model_settigs_dialog = GenericInputDialog()
+        # self.model_settigs_dialog.show()
+        # self.model_settigs_dialog.exec()
 
     @abstractmethod
     def init_params(self):
@@ -162,6 +191,7 @@ class _Femto(_Model):
 
 
     def __init__(self, times=None, connectivity=(0, 1, 2), wavelengths=None,  method='femto'):
+        super(_Femto, self).__init__(times, connectivity)
         self.method = method
         self.description = ""
 
@@ -188,7 +218,7 @@ class _Femto(_Model):
         self.C_COH = None
         self.ST_COH = None
 
-    def open_model_settings(self):
+    def open_model_settings(self, show_target_model=False):
         if GenericInputDialog.if_opened_activate():
             return
 
@@ -222,7 +252,7 @@ class _Femto(_Model):
         cbSpectra.addItems(self.spectra_choises)
         cbSpectra.setCurrentIndex(self.spectra_choises.index(self.spectra))
 
-        widgets = [['Chrip polynomial order:', sbChripOrder],
+        widgets = [['Chirp polynomial order:', sbChripOrder],
                    [cbParTau, None],
                    ['Variable IRF-FWHM polynomial order:', sbParTau],
                    [btnPlotTau, None],
@@ -231,6 +261,9 @@ class _Femto(_Model):
                    ["Used kinetic model:", cbSpectra]
                    ]
 
+        if show_target_model:
+            models, cbModel = self.setup_target_models(widgets)
+
         def set_result():
             self.n_poly_chirp = int(sbChripOrder.value())
             self.partau = cbParTau.isChecked()
@@ -238,6 +271,9 @@ class _Femto(_Model):
             self.coh_spec = cbCohSpec.isChecked()
             self.coh_spec_order = int(sbCohSpecOrder.value())
             self.spectra = self.spectra_choises[cbSpectra.currentIndex()]
+            if show_target_model:
+                self.target_model = TargetModel.load(models[cbModel.currentIndex()])
+                self.species_names = self.target_model.get_compartments()
             self.init_params()
 
         self.model_settigs_dialog = GenericInputDialog(widget_list=widgets, label_text="",
@@ -751,6 +787,10 @@ class Global_Analysis_Femto(_Femto):
             for i in range(self.n):
                 self.params.add(f'tau_{self.species_names[i]}', value=1, min=0, max=np.inf)
 
+    def open_model_settings(self, show_target_model=False):
+        super(Global_Analysis_Femto, self).open_model_settings(False)
+
+
     def calc_C(self, params=None, C_out=None):
         super(Global_Analysis_Femto, self).calc_C(params, C_out)
 
@@ -785,11 +825,18 @@ class Target_Analysis_Femto(_Femto):
     def init_params(self):
         super(Target_Analysis_Femto, self).init_params()
 
-        # self.params.add('phi', value=0.5, min=0, max=1, vary=False)
-        self.params.add('tau_AB', value=0.1, min=0, max=np.inf)
-        self.params.add('tau_BA', value=0.15, min=0, max=np.inf)
-        self.params.add('tau_AB_C', value=6, min=0, max=np.inf)
-        self.params.add('tau_CD', value=15, min=0, max=np.inf)
+        if self.target_model:
+            for par_name, rate in self.target_model.get_names_rates():
+                self.params.add(par_name, value=rate, min=0, max=np.inf)
+
+        # # self.params.add('phi', value=0.5, min=0, max=1, vary=False)
+        # self.params.add('tau_AB', value=0.1, min=0, max=np.inf)
+        # self.params.add('tau_BA', value=0.15, min=0, max=np.inf)
+        # self.params.add('tau_AB_C', value=6, min=0, max=np.inf)
+        # self.params.add('tau_CD', value=15, min=0, max=np.inf)
+
+    def open_model_settings(self, show_target_model=False):
+        super(Target_Analysis_Femto, self).open_model_settings(True)
 
     def calc_C(self, params=None, C_out=None):
         super(Target_Analysis_Femto, self).calc_C(params, C_out)
@@ -799,25 +846,21 @@ class Target_Analysis_Femto(_Femto):
         n = self.n
         fwhm = self.get_tau(params)  # fwhm
 
-        # phi, k1, k2, k3, k4, k5 = ks
+        if self.j is None:
+            self.j = np.zeros(n)
+            self.j[0] = 1
+
+        K = self.target_model.build_K_matrix()
+
+
         #
-        # K = np.asarray([[-k1,        0,  0, 0, 0, 0],
-        #                 [phi*k1,   -k2,  0, 0, 0, 0],
-        #                 [(1-phi)*k1, 0,-k3, 0, 0, 0],
-        #                 [0,        k2, 0, -k4, 0, 0],
-        #                 [0,        0, k3, 0, -k5, 0],
-        #                 [0,        0,  0, k4, k5, 0]])
-
-        k_AB, k_BA, k_ABC, k_CD = ks
-
-        K = np.asarray([[-k_AB - k_ABC, k_BA, 0, 0],
-                            [k_AB,   -k_BA -k_ABC,  0, 0],
-                            [k_ABC, k_ABC,-k_CD, 0],
-                             [0,        0,  k_CD, 0]])
-        j = np.zeros(n)
-        j[0] = 1
-
-        self.C = self.simulate_model(self.times, K, j, mu, fwhm)
+        # k_AB, k_BA, k_ABC, k_CD = ks
+        #
+        # K = np.asarray([[-k_AB - k_ABC, k_BA, 0, 0],
+        #                     [k_AB,   -k_BA -k_ABC,  0, 0],
+        #                     [k_ABC, k_ABC,-k_CD, 0],
+        #                      [0,        0,  k_CD, 0]])
+        self.C = self.simulate_model(self.times, K, self.j, mu, fwhm)
 
         return self.get_conc_matrix(C_out, self._connectivity)
 

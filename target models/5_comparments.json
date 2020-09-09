@@ -1,0 +1,52 @@
+[
+    {
+        "from_comp": "A",
+        "to_comp": "B",
+        "rate": 1
+    },
+    {
+        "from_comp": "A",
+        "to_comp": "C",
+        "rate": 1
+    },
+    {
+        "from_comp": "B",
+        "to_comp": "C",
+        "rate": 3
+    },
+    {
+        "from_comp": "B",
+        "to_comp": "D",
+        "rate": 4
+    },
+    {
+        "from_comp": "C",
+        "to_comp": "D",
+        "rate": 7
+    },
+    {
+        "from_comp": "C",
+        "to_comp": "E",
+        "rate": 9
+    },
+    {
+        "from_comp": "D",
+        "to_comp": "E",
+        "rate": 13
+    },
+    {
+        "from_comp": "D",
+        "to_comp": "A",
+        "rate": 1
+    },
+    {
+        "from_comp": "E",
+        "to_comp": "A",
+        "rate": 1
+    },
+    {
+        "from_comp": "E",
+        "to_comp": "B",
+        "rate": 5
+    }
+]

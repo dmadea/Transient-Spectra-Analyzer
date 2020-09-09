@@ -8,6 +8,7 @@ class TargetModel:
     def __init__(self):
 
         self.transitions = []  # list of dictionaries
+        self.fpath = ""
 
     @classmethod
     def from_list(cls, list_of_transitions):
@@ -54,8 +55,8 @@ class TargetModel:
 
         return matrix
 
-    def get_rate_names(self):
-        return [f"k_{tr['from_comp']}{tr['to_comp']}" for tr in self.transitions]
+    def get_names_rates(self):
+        return [(f"k_{tr['from_comp']}{tr['to_comp']}", tr['rate']) for tr in self.transitions]
 
     def set_rates(self, rates):
         assert len(rates) == len(self.transitions)
@@ -91,10 +92,10 @@ class TargetModel:
 
         colors = ['blue', 'red', 'green', 'orange', 'purple', 'gray', 'yellow']
 
-        for cm, color, xy in zip(comps, colors, xy_pairs):
-            circle = plt.Circle(xy, radius=radius, color=color)
+        for i, (cm, xy) in enumerate(zip(comps, xy_pairs)):
+            circle = plt.Circle(xy, radius=radius, color=colors[i % len(colors)])
             ax.add_patch(circle)
-            ax.annotate(cm, xy=xy, fontsize=17, ha="center", va="center")
+            ax.annotate(cm, xy=xy, fontsize=13, ha="center", va="center")
 
         for i, tr in enumerate(self.transitions):
             i = inv_idx[tr['from_comp']]
@@ -102,14 +103,14 @@ class TargetModel:
             xi, xj = xy_pairs[i][0], xy_pairs[j][0]
             yi, yj = xy_pairs[i][1], xy_pairs[j][1]
 
-            ## sin (a+b) = sin a cos b  +  cos a sin b
-            ## cos (a+b) = cos a cos b  -  sin a sin b
-
             hypotenuse = np.sqrt((xj - xi)**2 + (yj - yi)**2)
             hypotenuse = 1 if np.isclose(hypotenuse, 0) else hypotenuse
 
             sina = (xj - xi) / hypotenuse  # sin of angle
             cosa = (yj - yi) / hypotenuse  # cos of angle
+
+            ## sin (a+b) = sin a cos b  +  cos a sin b
+            ## cos (a+b) = cos a cos b  -  sin a sin b
 
             sin_ab = sina * np.cos(-offset_alpha) + cosa * np.sin(-offset_alpha)
             cos_ab = cosa * np.cos(-offset_alpha) - sina * np.sin(-offset_alpha)
@@ -122,8 +123,10 @@ class TargetModel:
             x_end = xj - radius * sin_ab_end
             y_end = yj - radius * cos_ab_end
 
+            color = colors[i % len(colors)]
+
             ax.arrow(x, y, x_end - x, y_end - y, head_width=0.03,
-                     length_includes_head=True, width=0.005, color=colors[i],
+                     length_includes_head=True, width=0.005, color=color,
                      shape='right')
 
             x_text = (x + x_end) / 2 - cosa * offset_text
@@ -131,38 +134,30 @@ class TargetModel:
 
             ax.annotate(f"$k_{{\\mathrm{{{tr['from_comp']}{tr['to_comp']}}}}}$",
                         xy=(x_text, y_text), fontsize=10,
-                        ha="center", va="center", color=colors[i])
+                        ha="center", va="center", color=color)
 
         ax.autoscale_view()
         plt.box(False)
         plt.show()
 
     @classmethod
-    def load(cls, fname='target models/target1.json'):
+    def load(cls, fpath='target models/target1.json'):
         t_model = cls()
 
         try:
-            with open(fname, "r") as file:
-                data = json.load(file)
-
-            # for key, value in data.items():
-            #     setattr(t_model, key, value)
-            t_model.transitions = data
+            with open(fpath, "r") as file:
+                t_model.transitions = json.load(file)
+                t_model.fpath = fpath
 
         except Exception as ex:
             print('Error loading target model:\n' + ex.__str__())
 
         return t_model
 
-    def save(self, fname='target models/target1.json'):
-
-        # if len(self.j) == 0:
-        #     comps = self.get_compartments()
-        #     # self.j = {name: 0 for name in comps}
-        #     # self.j[comps[0]] = 1
+    def save(self, fpath='target models/target1.json'):
 
         try:
-            with open(fname, "w") as file:
+            with open(fpath, "w") as file:
                 json.dump(self.transitions, file, sort_keys=False, indent=4, separators=(',', ': '))
 
         except Exception as ex:
@@ -175,16 +170,25 @@ class TargetModel:
 
 if __name__ == '__main__':
 
-    model = TargetModel.load()
-    model.print_model()
-    print(model.get_rate_names())
-    model.plot_model()
+    # model = TargetModel.load()
+    # model.print_model()
+    # print(model.get_rate_names())
+    # model.plot_model()
 
-    # model = TargetModel()
+    model = TargetModel()
+
+    compartments = list('abc')
+    n = len(compartments)
+    for i in range(n):
+        j = (i + 1) % n
+        k = (i + 2) % n
+        model.add_transition(compartments[i], compartments[j], i*j + 1)
+        model.add_transition(compartments[i], compartments[k], i*k + 1)
+
+
+    #
     #
     # model.add_transition('a', 'b', 50)
-    # model.add_transition('b', 'a', 50)
-    #
     # model.add_transition('b', 'c', 50)
     # model.add_transition('c', 'd', 50)
     # model.add_transition('d', 'e', 50)
@@ -197,18 +201,19 @@ if __name__ == '__main__':
     # model.add_transition('d', 'f', 50)
     # model.add_transition('e', 'a', 50)
     # model.add_transition('f', 'b', 50)
-    # #
-    # # model.add_transition('a', 'd', 50)
-    # # model.add_transition('b', 'e', 50)
-    # # model.add_transition('c', 'f', 50)
-    # # model.add_transition('d', 'a', 50)
-    # # model.add_transition('e', 'b', 50)
-    # # model.add_transition('f', 'c', 50)
     #
-    # model.print_model()
+    # model.add_transition('a', 'd', 50)
+    # model.add_transition('b', 'e', 50)
+    # model.add_transition('c', 'f', 50)
+    # model.add_transition('d', 'a', 50)
+    # model.add_transition('e', 'b', 50)
+    # model.add_transition('f', 'c', 50)
+    #
+    model.print_model()
     # print(model.build_K_matrix())
     # print(model.get_rate_names())
     # model.plot_model()
+    model.save('target models/3_comparments.json')
     #
     # model.save()
     #
