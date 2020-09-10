@@ -52,6 +52,18 @@ def _dc_dt_nb(c, t, I0, K, eps, V, t0):  # eps = spectra * l
     return irr_on * product.dot(c) / V  # final dot product / V
 
 
+def get_target_C_profile(times, K, j):
+    """K matrix, times to compute and j is initial population/concentration vector"""
+    L, Q = np.linalg.eig(K)
+    Q_inv = np.linalg.inv(Q)
+
+    A2_T = Q @ np.diag(Q_inv.dot(j))
+
+    C = np.exp(times[:, None] * L[None, :]) * np.heaviside(times[:, None], 1)
+
+    return C.dot(A2_T.T)
+
+
 # virtual class that every model must inherits
 class _Model(object):
     # n = 0  # number of visible species in model
@@ -463,7 +475,7 @@ class _Femto(_Model):
 
         return weights
 
-    def simulate_mod(self, D, params=None):
+    def simulate_mod(self, D, params=None, return_only_res=False):
         if D is None:
             raise ValueError('param D cannot be None')
 
@@ -827,16 +839,11 @@ class Target_Analysis_Femto(_Femto):
 
         if self.target_model:
             for par_name, rate in self.target_model.get_names_rates():
-                self.params.add(par_name, value=rate, min=0, max=np.inf)
-
-        # # self.params.add('phi', value=0.5, min=0, max=1, vary=False)
-        # self.params.add('tau_AB', value=0.1, min=0, max=np.inf)
-        # self.params.add('tau_BA', value=0.15, min=0, max=np.inf)
-        # self.params.add('tau_AB_C', value=6, min=0, max=np.inf)
-        # self.params.add('tau_CD', value=15, min=0, max=np.inf)
+                par_name = 'tau' + par_name[1:]
+                self.params.add(par_name, value=1/rate, min=0, max=np.inf)
 
     def open_model_settings(self, show_target_model=False):
-        super(Target_Analysis_Femto, self).open_model_settings(True)
+        super(Target_Analysis_Femto, self).open_model_settings(show_target_model=True)
 
     def calc_C(self, params=None, C_out=None):
         super(Target_Analysis_Femto, self).calc_C(params, C_out)
@@ -850,16 +857,9 @@ class Target_Analysis_Femto(_Femto):
             self.j = np.zeros(n)
             self.j[0] = 1
 
+        self.target_model.set_rates(ks)
         K = self.target_model.build_K_matrix()
 
-
-        #
-        # k_AB, k_BA, k_ABC, k_CD = ks
-        #
-        # K = np.asarray([[-k_AB - k_ABC, k_BA, 0, 0],
-        #                     [k_AB,   -k_BA -k_ABC,  0, 0],
-        #                     [k_ABC, k_ABC,-k_CD, 0],
-        #                      [0,        0,  k_CD, 0]])
         self.C = self.simulate_model(self.times, K, self.j, mu, fwhm)
 
         return self.get_conc_matrix(C_out, self._connectivity)
@@ -1022,22 +1022,8 @@ class First_Order_Sequential_Model(_Model):
         super(First_Order_Sequential_Model, self).calc_C(params, C_out)
 
         c0, *taus = [par[1].value for par in self.params.items()]
-        # n = self.n
 
         self.C = self.get_EAS(self.times, 1 / np.asarray(taus)) * np.heaviside(self.times[:, None], 1)
-        #
-        # # setup K matrix for sequential model, giving the EAS
-        # K = np.zeros((n, n))
-        #
-        # for i in range(n):
-        #     K[i, i] = -ks[i]
-        #     if i < n - 1:
-        #         K[i+1, i] = ks[i]
-        #
-        # y0 = np.zeros(n)
-        # y0[0] = 1
-        #
-        # self.C = c0 * odeint(lambda c, t: K.dot(c), y0, self.times)
 
         return self.get_conc_matrix(C_out, self._connectivity)
 
@@ -1063,6 +1049,66 @@ class First_Order_Parallel_Model(_Model):
         self.C = c0 * np.exp(-self.times[:, None] * ks[None, :]) * np.heaviside(self.times[:, None], 1)
 
         return self.get_conc_matrix(C_out, self._connectivity)
+
+
+class First_Order_Target_Model(_Model):
+
+    name = 'Target model (1st order)'
+    _class = 'Nano'
+
+    def init_params(self):
+        self.params = Parameters()
+        self.params.add('c0', value=1, min=0, max=np.inf, vary=False)
+
+        if self.target_model:
+            for par_name, rate in self.target_model.get_names_rates():
+                self.params.add(par_name, value=rate, min=0, max=np.inf)
+
+    def open_model_settings(self, show_target_model=False):
+        if GenericInputDialog.if_opened_activate():
+            return
+
+        widgets = []
+        models, cbModel = self.setup_target_models(widgets)
+
+        def set_result():
+            self.target_model = TargetModel.load(models[cbModel.currentIndex()])
+            self.species_names = self.target_model.get_compartments()
+            self.init_params()
+
+        self.model_settigs_dialog = GenericInputDialog(widget_list=widgets, label_text="",
+                                                       title=f'{self.name} settings',
+                                                       set_result=set_result)
+        self.model_settigs_dialog.show()
+        self.model_settigs_dialog.exec()
+
+    def calc_C(self, params=None, C_out=None):
+        super(First_Order_Target_Model, self).calc_C(params, C_out)
+
+        c0, *ks = [par[1].value for par in self.params.items()]
+
+        self.target_model.set_rates(ks)
+        K = self.target_model.build_K_matrix()
+
+        if self.j is None or self.j.shape[0] != K.shape[0]:
+            self.j = np.zeros(K.shape[0])
+            self.j[0] = 1
+
+        self.C = get_target_C_profile(self.times, K, self.j * c0)
+
+        return self.get_conc_matrix(C_out, self._connectivity)
+
+
+    #
+    # def calc_C(self, params=None, C_out=None):
+    #     super(First_Order_Target_Model, self).calc_C(params, C_out)
+    #
+    #     c0, *taus = [par[1].value for par in self.params.items()]
+    #     ks = 1 / np.asarray(taus)
+    #
+    #     self.C = c0 * np.exp(-self.times[:, None] * ks[None, :]) * np.heaviside(self.times[:, None], 1)
+    #
+    #     return self.get_conc_matrix(C_out, self._connectivity)
 
 
 class Sequential_Model_FK(_Photokinetic_Model):

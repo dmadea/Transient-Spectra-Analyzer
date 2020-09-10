@@ -177,13 +177,13 @@ if __name__ == '__main__':
 
     model = TargetModel()
 
-    compartments = list('abc')
+    compartments = list('abcdefgh')
     n = len(compartments)
     for i in range(n):
         j = (i + 1) % n
         k = (i + 2) % n
         model.add_transition(compartments[i], compartments[j], i*j + 1)
-        model.add_transition(compartments[i], compartments[k], i*k + 1)
+        # model.add_transition(compartments[i], compartments[k], i*k + 1)
 
 
     #
@@ -212,8 +212,8 @@ if __name__ == '__main__':
     model.print_model()
     # print(model.build_K_matrix())
     # print(model.get_rate_names())
-    # model.plot_model()
-    model.save('target models/3_comparments.json')
+    model.plot_model()
+    model.save('target models/8_com_cyclic.json')
     #
     # model.save()
     #
