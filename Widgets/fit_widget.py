@@ -38,7 +38,7 @@ from scipy.linalg import lstsq
 
 class FitWidget(QWidget, Ui_Form):
     max_params = 50
-    max_species = 10
+    max_species = 20
 
     instance = None
 

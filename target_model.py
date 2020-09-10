@@ -90,7 +90,7 @@ class TargetModel:
         ax.set_yticks([])
         ax.set_aspect('equal')
 
-        colors = ['blue', 'red', 'green', 'orange', 'purple', 'gray', 'yellow']
+        colors = ['blue', 'red', 'green', 'orange', 'purple', 'gray', 'yellow', 'pink', 'brown', 'cyan', 'magenta']
 
         for i, (cm, xy) in enumerate(zip(comps, xy_pairs)):
             circle = plt.Circle(xy, radius=radius, color=colors[i % len(colors)])
@@ -177,7 +177,7 @@ if __name__ == '__main__':
 
     model = TargetModel()
 
-    compartments = list('abcdefgh')
+    compartments = list('abcdefghijk')
     n = len(compartments)
     for i in range(n):
         j = (i + 1) % n
@@ -213,7 +213,7 @@ if __name__ == '__main__':
     # print(model.build_K_matrix())
     # print(model.get_rate_names())
     model.plot_model()
-    model.save('target models/8_com_cyclic.json')
+    model.save('target models/11_com_cyclic.json')
     #
     # model.save()
     #
