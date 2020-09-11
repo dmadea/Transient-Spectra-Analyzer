@@ -19,12 +19,46 @@ import matplotlib.pyplot as plt
 from settings import Settings
 
 from genericinputdialog import GenericInputDialog
-from PyQt5.QtWidgets import QPushButton, QCheckBox, QLabel, QComboBox, QSpinBox
+from PyQt5.QtWidgets import QPushButton, QCheckBox, QLabel, QComboBox, QSpinBox, QDoubleSpinBox
 from target_model import TargetModel
 import glob, os
 
 
 # from concurrent.futures import ProcessPoolExecutor
+## inspiration from https://github.com/Tillsten/skultrafast/blob/9544c3cc3c3c3fa46b728156198807e2b21ba24b/skultrafast/base_funcs/pytorch_fitter.py
+def b_lstsq(A, B, alpha=0.001):
+    """
+    Batched linear least-squares by numpy with direct solve method with optional Tikhonov regularization
+    to prevent errors in case of singular matrices.
+    Minimizes sum ||A_i x - B_i||_2^2 for x, batchwise
+
+    Parameters
+    ----------
+        A : shape(L, M, N)
+        B : shape(M, L)
+        alpha: float
+
+    Returns
+    -------
+        tuple of (coefficients, fit, residuals)
+    """
+
+    # (A^T A + alpha*I) X = A^T B, solve for X
+
+    AT = np.transpose(A, (0, 2, 1))  # transpose of A
+    ATA = np.matmul(AT, A)  # A.T @ A
+    ATB = np.matmul(AT, B.T[..., None])  # A.T @ B
+
+    if alpha != 0:
+        I = alpha * np.eye(ATA.shape[-1])  # alpha * identity matrix
+        ATA += I[None, ...]  # add to ATA
+
+    X = np.linalg.solve(ATA, ATB)  # solve for X
+
+    fit = np.matmul(A, X).squeeze().T
+    res = fit - B
+
+    return X.squeeze().T, fit, res
 
 
 @vectorize()
@@ -226,6 +260,7 @@ class _Femto(_Model):
         self.spectra_choises = ['EADS', 'DADS']
 
         self.update_n()
+        self.ridge_alpha = 0.0001
 
         self.C_COH = None
         self.ST_COH = None
@@ -264,13 +299,21 @@ class _Femto(_Model):
         cbSpectra.addItems(self.spectra_choises)
         cbSpectra.setCurrentIndex(self.spectra_choises.index(self.spectra))
 
+        dsbAlpha = QDoubleSpinBox()
+        dsbAlpha.setDecimals(5)
+        dsbAlpha.setMinimum(0)
+        dsbAlpha.setMaximum(10000)
+        dsbAlpha.setSingleStep(0.1)
+        dsbAlpha.setValue(self.ridge_alpha)
+
         widgets = [['Chirp polynomial order:', sbChripOrder],
                    [cbParTau, None],
                    ['Variable IRF-FWHM polynomial order:', sbParTau],
                    [btnPlotTau, None],
                    [cbCohSpec, None],
                    ["Number of Gaussian derivatives:", sbCohSpecOrder],
-                   ["Used kinetic model:", cbSpectra]
+                   ["Used kinetic model:", cbSpectra],
+                   ["Optional Ridge Regularization alpha:", dsbAlpha]
                    ]
 
         if show_target_model:
@@ -283,6 +326,7 @@ class _Femto(_Model):
             self.coh_spec = cbCohSpec.isChecked()
             self.coh_spec_order = int(sbCohSpecOrder.value())
             self.spectra = self.spectra_choises[cbSpectra.currentIndex()]
+            self.ridge_alpha = float(dsbAlpha.value())
             if show_target_model:
                 self.target_model = TargetModel.load(models[cbModel.currentIndex()])
                 self.species_names = self.target_model.get_compartments()
@@ -484,7 +528,7 @@ class _Femto(_Model):
 
         _C_tensor = self.calc_C(params)
         n = _C_tensor.shape[-1]
-        ST = np.zeros((n + (self.coh_spec_order + 1 if self.coh_spec else 0), self.wavelengths.shape[0]))
+        # ST = np.zeros((n + (self.coh_spec_order + 1 if self.coh_spec else 0), self.wavelengths.shape[0]))
 
         zero_coh_range = np.ones_like(self.wavelengths)
         for rng in self.zero_coh_spec_range:
@@ -497,13 +541,15 @@ class _Femto(_Model):
 
         _C_tensor = np.nan_to_num(_C_tensor)
 
-        for i in range(self.wavelengths.shape[0]):
-            ST[:, i] = lstsq(_C_tensor[i], D[:, i])[0]
+        ST, D_fit, _ = b_lstsq(_C_tensor, D, self.ridge_alpha)
+        #
+        # for i in range(self.wavelengths.shape[0]):
+        #     ST[:, i] = lstsq(_C_tensor[i], D[:, i])[0]
 
         if self.coh_spec:
             self.ST_COH = ST[-self.coh_spec_order - 1:]
 
-        D_fit = np.matmul(_C_tensor, ST.T[..., None]).squeeze().T
+        # D_fit = np.matmul(_C_tensor, ST.T[..., None]).squeeze().T
 
         C = _C_tensor[0, :, :-self.coh_spec_order - 1] if self.coh_spec else _C_tensor[0]
         ST = ST[:-self.coh_spec_order - 1] if self.coh_spec else ST
