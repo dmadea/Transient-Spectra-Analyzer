@@ -40,7 +40,7 @@ class TaskFit(Task):
         if self.fw.fitter.c_model is not None:
             self.fw.current_model = self.fw.fitter.c_model
 
-        self.fw.update_fields_H_fit()
+        self.fw.update_model_par_count(update_after_fit=True)
 
         self.fw._C = self.fw.fitter.C_opt
         self.fw._ST = self.fw.fitter.ST_opt

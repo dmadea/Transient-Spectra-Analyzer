@@ -213,7 +213,7 @@ if __name__ == '__main__':
     # print(model.build_K_matrix())
     # print(model.get_rate_names())
     model.plot_model()
-    model.save('target models/11_com_cyclic.json')
+    # model.save('target models/11_com_cyclic.json')
     #
     # model.save()
     #

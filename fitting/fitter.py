@@ -1,11 +1,14 @@
 import numpy as np
 import lmfit
 from scipy.linalg import lstsq
+import scipy
 from copy import deepcopy
 from scipy.optimize import nnls as _nnls
 from numba import njit
 import sys
 from misc import find_nearest_idx
+
+posv = scipy.linalg.get_lapack_funcs(('posv'))
 
 from .constraints import ConstraintNonneg
 
@@ -63,6 +66,22 @@ def OLS(A, B):
     return X, residual
 
 
+def OLS_ridge(A, B, alpha=0.0001):
+    """fast: solve least squares solution for X: AX=B by ordinary least squares, with direct solve,
+    with optional Tikhonov regularization"""
+
+    ATA = A.T.dot(A)
+    ATB = A.T.dot(B)
+
+    if alpha != 0:
+        ATA.flat[::ATA.shape[-1] + 1] += alpha
+
+    c, x, info = posv(ATA, ATB, lower=False,
+                      overwrite_a=True,
+                      overwrite_b=False)
+
+    return x, None
+
 class Fitter:
     """
     Multivariate Curve Resolution - Alternating Regression
@@ -78,6 +97,8 @@ class Fitter:
         self.times = times
         self.wls = wls
         self.D = D
+
+        self.regressors = ['ols', 'ridge', 'nnls']
 
         self.t_dim = None
         self.w_dim = None
@@ -100,8 +121,9 @@ class Fitter:
 
         self.C_matrix_constraints = None
         # for MCR algorithm
-        self.C_regressor = 'ols'  # can be 'ols' for ordinary least squares or 'nnls' for non-negative LS
-        self.S_regressor = 'ols'
+        self.C_regressor = self.regressors[1]
+        self.S_regressor = self.regressors[1]
+        self.regressor_alpha = 0.0001
 
         self.c_fix = None
         self.st_fix = None
@@ -133,18 +155,20 @@ class Fitter:
 
         self.kwds = {'ftol': 1e-10, 'xtol': 1e-10, 'gtol': 1e-10, 'loss': 'linear', 'verbose': self.verbose}
 
-    def _C_regressor(self, A, B):
-        return NNLS(A, B) if self.C_regressor.lower() == 'nnls' else OLS(A, B)
-
-    def _S_regressor(self, A, B):
-        return NNLS(A, B) if self.S_regressor.lower() == 'nnls' else OLS(A, B)
+    def _regressor(self, A, B, method='ridge'):
+        if method.lower() == self.regressors[0]:
+            return OLS(A, B)
+        elif method.lower() == self.regressors[1]:
+            return OLS_ridge(A, B, self.regressor_alpha)
+        else:
+            return NNLS(A, B)
 
     # C MCR half fit
     def calc_C(self):
         if self.D is None or self.ST_opt is None:
             raise ValueError("Matrix D or spectra matrix S^T cannot be None.")
 
-        self.C_opt = self._C_regressor(self.ST_opt.T, self.D.T)[0].T
+        self.C_opt = self._regressor(self.ST_opt.T, self.D.T, method=self.C_regressor)[0].T
 
         # Apply fixed C's
         if self.c_fix:
@@ -169,7 +193,7 @@ class Fitter:
         if self.D is None or self.C_opt is None:
             raise ValueError("Matrix D or concentration matrix C cannot be None.")
 
-        self.ST_opt = self._S_regressor(self.C_opt, self.D)[0]
+        self.ST_opt = self._regressor(self.C_opt, self.D, method=self.S_regressor)[0]
 
         # Apply fixed ST's
         if self.st_fix:
@@ -511,7 +535,8 @@ class Fitter:
                 ssq = ((self.D - D_fit) ** 2).sum()
                 lof = np.sqrt(ssq / (self.D ** 2).sum()) * 100
                 print(f'\nIteration {i+1}.\tSum of squares {ssq:.4g}\tLack of Fit {lof:.4g}')
-                print('------------------------------------------------------------------\n')
+                if self.c_model:
+                    print('------------------------------------------------------------------\n')
 
                 # print(f'{i+1}.\t{ssq:.4g}\t{lof:.4g}')
 

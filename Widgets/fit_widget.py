@@ -99,6 +99,7 @@ class FitWidget(QWidget, Ui_Form):
 
         self.regressors = [
             {'name': 'OLS (Ordinary Least Squares)', 'abbr': 'ols'},
+            {'name': 'Ridge (fast OLS with Tikhonov regularization)', 'abbr': 'ridge'},
             {'name': 'NNLS (Non-Negative Least Squares)', 'abbr': 'nnls'},
         ]
 
@@ -120,6 +121,7 @@ class FitWidget(QWidget, Ui_Form):
         self.btnSetNMFSol.clicked.connect(self.set_NMF_solution)
 
         def _open_model_sett():
+            self.update_params()
             self.current_model.open_model_settings()
             self.update_model_par_count()
 
@@ -339,6 +341,7 @@ class FitWidget(QWidget, Ui_Form):
             self.C_fix_list[i].setVisible(visible)
 
         self.init_matrices()
+        self.update_params()
         self.current_model.update_n(species_count)
         self.update_model_par_count()
 
@@ -374,34 +377,67 @@ class FitWidget(QWidget, Ui_Form):
             setattr(self.current_model, 'aug_matrix', self._au)
             self.current_model.update_n()
 
-    def update_model_par_count(self):
+    def update_params(self):
+        """Updates params in current model from text boxes."""
+
+        if self.current_model is None:
+            return
+
+        # get params from field to current model
+        for i in range(self.current_model.params.__len__()):
+            param = self.params_list[i].text()
+
+            val = float(self.value_list[i].text())
+            min, max = float(self.lower_bound_list[i].text()), float(self.upper_bound_list[i].text())
+            val = val if min <= val <= max else (min if np.abs(min - val) < np.abs(max - val) else max)
+
+            self.current_model.params[param].min = min
+            self.current_model.params[param].max = max
+            self.current_model.params[param].value = val
+            self.current_model.params[param].vary = not self.fixed_list[i].isChecked()
+
+    def update_model_par_count(self, update_after_fit=False):
+        """Updates text boxes from current model params and 'adds' or removes fields if necessary."""
+
         params_count = self.current_model.params.__len__()
 
-        species_count = self.current_model.n
-        cb_fill_list = ['Unknown (MCR-ALS)'] + [self.current_model.species_names[i] for i in range(species_count)]
+        if not update_after_fit:
+            species_count = self.current_model.n
+            cb_fill_list = ['Unknown (MCR-ALS)'] + [self.current_model.species_names[i] for i in range(species_count)]
 
-        for i in range(self.max_species):
-            cur_idx = self.C_conc_profile_list[i].currentIndex()
-            self.C_conc_profile_list[i].clear()
-            self.C_conc_profile_list[i].addItems(cb_fill_list)
-            self.C_conc_profile_list[i].setCurrentIndex(cur_idx if cur_idx >= 0 else 0)
+            for i in range(self.max_species):
+                cur_idx = self.C_conc_profile_list[i].currentIndex()
+                self.C_conc_profile_list[i].clear()
+                self.C_conc_profile_list[i].addItems(cb_fill_list)
+                self.C_conc_profile_list[i].setCurrentIndex(cur_idx if cur_idx >= 0 else 0)
 
-        for i in range(self.max_params):
-            visible = params_count > i
+            for i in range(self.max_params):
+                visible = params_count > i
 
-            self.params_list[i].setVisible(visible)
-            self.lower_bound_list[i].setVisible(visible)
-            self.value_list[i].setVisible(visible)
-            self.upper_bound_list[i].setVisible(visible)
-            self.fixed_list[i].setVisible(visible)
-            self.error_list[i].setVisible(visible)
+                self.params_list[i].setVisible(visible)
+                self.lower_bound_list[i].setVisible(visible)
+                self.value_list[i].setVisible(visible)
+                self.upper_bound_list[i].setVisible(visible)
+                self.fixed_list[i].setVisible(visible)
+                self.error_list[i].setVisible(visible)
+
+        values_errors = np.zeros((params_count, 2), dtype=np.float32)
 
         for i, p in enumerate(self.current_model.params.values()):
             self.params_list[i].setText(p.name)
-            self.lower_bound_list[i].setText(str(p.min))
-            self.upper_bound_list[i].setText(str(p.max))
-            self.value_list[i].setText(str(p.value))
+            self.lower_bound_list[i].setText(f'{p.min:.3g}')
+            self.upper_bound_list[i].setText(f'{p.max:.3g}')
+            self.value_list[i].setText(f'{p.value:.6g}')
             self.fixed_list[i].setChecked(not p.vary)
+            self.error_list[i].setText(f'{p.stderr:.2g}' if p.stderr is not None else '')
+
+            values_errors[i, 0] = p.value
+            values_errors[i, 1] = p.stderr if p.stderr is not None else 0
+
+        if self.fitter.minimizer is not None and update_after_fit:
+            self.fit_result = FitResult(self.fitter.last_result, self.fitter.minimizer, values_errors,
+                                        self.current_model)
+            Console.push_variables({'fit': self.fit_result})
 
     def simulate_model_clicked(self):
         if self.current_model is None:
@@ -485,6 +521,7 @@ class FitWidget(QWidget, Ui_Form):
         self.btnC_calc.setEnabled(value)
         self.btnST_calc.setEnabled(value)
         self.btnSimulateModel.setEnabled(value)
+        self.btnModelSettings.setEnabled(value)
 
     def _fit(self, max_iter=None, st_constraints=None, c_constraints=None, fit_async=True):
         if self.t_fit is not None and self.t_fit.isRunning():
@@ -533,7 +570,7 @@ class FitWidget(QWidget, Ui_Form):
             self.fit_plot_layout.ST_plot.plot(self.matrix.wavelengths, self._ST[i], pen=pen_fit,
                                               name=name)
 
-        if self.current_model.method is 'femto' and self.current_model.coh_spec is True:
+        if self.current_model._class == 'Femto' and self.current_model.coh_spec is True:
             for i in range(self.current_model.coh_spec_order + 1):
 
                 pen_coh_spec = pg.mkPen(color=int_default_color(n + i), width=1, style=Qt.DashLine)
@@ -550,7 +587,7 @@ class FitWidget(QWidget, Ui_Form):
         mat = LFP_matrix.from_value_matrix(D_fit, self.matrix.times, self.matrix.wavelengths)
         PlotWidget.instance.set_fit_matrix(mat)
 
-        if self.plot_chirp and self.current_model.method is 'femto':
+        if self.plot_chirp and self.current_model._class == 'Femto':
             PlotWidget.instance.add_chirp(self.matrix.wavelengths, self.current_model.get_mu())
 
     # def set_Closure_constraint(self, set=True, value=1, hard_closure=True):
@@ -620,41 +657,25 @@ class FitWidget(QWidget, Ui_Form):
                                    au=self._au,
                                    verbose=self.cbVerbose.checkState())  # 2-verbose, 0 - not verbose, same as checkstate
 
-    def update_params(self):
 
-        if self.current_model is None:
-            return
 
-        # get params from field to current model
-        for i in range(self.current_model.params.__len__()):
-            param = self.params_list[i].text()
-
-            val = float(self.value_list[i].text())
-            min, max = float(self.lower_bound_list[i].text()), float(self.upper_bound_list[i].text())
-            val = val if min <= val <= max else (min if np.abs(min - val) < np.abs(max - val) else max)
-
-            self.current_model.params[param].min = min
-            self.current_model.params[param].max = max
-            self.current_model.params[param].value = val
-            self.current_model.params[param].vary = not self.fixed_list[i].isChecked()
-
-    def update_fields_H_fit(self):
-
-        values_errors = np.zeros((self.current_model.params.__len__(), 2), dtype=np.float32)
-
-        for i in range(self.current_model.params.__len__()):
-            param = self.params_list[i].text()
-            self.value_list[i].setText("{:.6g}".format(self.current_model.params[param].value))
-            error = self.current_model.params[param].stderr
-            self.error_list[i].setText("{:.6g}".format(error) if error is not None else '')
-
-            values_errors[i, 0] = self.current_model.params[param].value
-            values_errors[i, 1] = error if error is not None else 0
-
-        if self.fitter.minimizer is not None:
-            self.fit_result = FitResult(self.fitter.last_result, self.fitter.minimizer, values_errors,
-                                        self.current_model)
-            Console.push_variables({'fit': self.fit_result})
+    # def update_fields_H_fit(self):
+    #
+    #     values_errors = np.zeros((self.current_model.params.__len__(), 2), dtype=np.float32)
+    #
+    #     for i in range(self.current_model.params.__len__()):
+    #         param = self.params_list[i].text()
+    #         self.value_list[i].setText("{:.6g}".format(self.current_model.params[param].value))
+    #         error = self.current_model.params[param].stderr
+    #         self.error_list[i].setText("{:.6g}".format(error) if error is not None else '')
+    #
+    #         values_errors[i, 0] = self.current_model.params[param].value
+    #         values_errors[i, 1] = error if error is not None else 0
+    #
+    #     if self.fitter.minimizer is not None:
+    #         self.fit_result = FitResult(self.fitter.last_result, self.fitter.minimizer, values_errors,
+    #                                     self.current_model)
+    #         Console.push_variables({'fit': self.fit_result})
 
     def fixed_checked_changed(self, value):
         checkbox = self.sender()

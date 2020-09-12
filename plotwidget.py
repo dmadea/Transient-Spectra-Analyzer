@@ -264,7 +264,7 @@ class PlotWidget(DockArea):
 
         fw = _fw.instance
 
-        if fw.current_model.method is not 'femto':
+        if fw.current_model._class != 'Femto':
             return
 
         roi_pos = self.get_roi_pos()
@@ -282,7 +282,7 @@ class PlotWidget(DockArea):
         parmu = lstsq(X, y)[0]
 
         fw.current_model.set_parmu(parmu)
-        fw.update_fields_H_fit()
+        fw.update_model_par_count(update_after_fit=True)
 
     def cb_SVD_filter_toggled(self):
         self.matrix.SVD_filter = self.data_panel.cb_SVD_filter.isChecked()

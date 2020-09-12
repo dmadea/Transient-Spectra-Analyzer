@@ -12,6 +12,7 @@ from numba import njit, prange, vectorize
 from scipy.interpolate import interp2d, interp1d
 from scipy.linalg import svd
 from scipy.special import erfc
+from math import erfc as math_erfc
 from misc import find_nearest_idx
 from scipy.linalg import lstsq
 
@@ -25,57 +26,78 @@ import glob, os
 
 
 # from concurrent.futures import ProcessPoolExecutor
+
+
 ## inspiration from https://github.com/Tillsten/skultrafast/blob/9544c3cc3c3c3fa46b728156198807e2b21ba24b/skultrafast/base_funcs/pytorch_fitter.py
-def b_lstsq(A, B, alpha=0.001):
+def blstsq(A, B, alpha=0.001):
     """
     Batched linear least-squares by numpy with direct solve method with optional Tikhonov regularization
     to prevent errors in case of singular matrices.
-    Minimizes sum ||A_i x - B_i||_2^2 for x, batchwise
+    Minimizes sum ||A_i x_i - B_i||_2^2 + alpha||Ix||_2^2 for x, where A is a tensor (L, M, N), B is matrix (L, M)
 
     Parameters
     ----------
         A : shape(L, M, N)
-        B : shape(M, L)
+        B : shape(L, M)
         alpha: float
 
     Returns
     -------
-        tuple of (coefficients, fit, residuals)
+        tuple of (coefficients.T, fit.T)
     """
 
+    # https://en.wikipedia.org/wiki/Tikhonov_regularization
     # (A^T A + alpha*I) X = A^T B, solve for X
 
     AT = np.transpose(A, (0, 2, 1))  # transpose of A
     ATA = np.matmul(AT, A)  # A.T @ A
-    ATB = np.matmul(AT, B.T[..., None])  # A.T @ B
+    ATB = np.matmul(AT, B[..., None])  # A.T @ B
 
     if alpha != 0:
         I = alpha * np.eye(ATA.shape[-1])  # alpha * identity matrix
         ATA += I[None, ...]  # add to ATA
 
-    X = np.linalg.solve(ATA, ATB)  # solve for X
+    X = np.linalg.solve(ATA, ATB)  # solve batched linear system of equations
 
     fit = np.matmul(A, X).squeeze().T
-    res = fit - B
 
-    return X.squeeze().T, fit, res
+    return X.squeeze().T, fit
 
 
-@vectorize()
+@vectorize(nopython=True)
+def fold_exp(t, k, fwhm):
+
+    w = fwhm / (2 * np.sqrt(np.log(2)))  # width
+
+    if w > 0:
+        return 0.5 * np.exp(k * (k * w * w / 4.0 - t)) * math_erfc(w * k / 2.0 - t / w)
+    else:
+        return np.exp(-t * k) if t >= 0 else 0
+
+#
+# def fold_exp_numpy(t, k, fwhm):
+#     w = fwhm / (2 * np.sqrt(np.log(2)))  # width
+#
+#     return np.where(w > 0,
+#             0.5 * np.exp(k * (k * w * w / 4.0 - t)) * erfc(w * k / 2.0 - t / w),
+#             np.exp(-t * k) * np.heaviside(t, 1))
+
+
+@vectorize(nopython=True)
 def photokin_factor(A):
     ln10 = np.log(10)
     ll2 = ln10 ** 2 / 2
 
     if A < 1e-3:
-        return ln10 - A * ll2
+        return ln10 - A * ll2  # approximation with first two taylor series terms
     else:
-        return (1 - np.exp(-A * ln10)) / A
+        return (1 - np.exp(-A * ln10)) / A  # exact photokinetic factor
 
 
 @njit(fastmath=True)
 def _dc_dt_nb(c, t, I0, K, eps, V, t0):  # eps = spectra * l
-    p_A = c.reshape(-1, 1) * eps  # hadamard product - partial absorbances
-    A = p_A.sum(axis=0)  # total absorbance
+    pA = c.reshape(-1, 1) * eps  # hadamard product - partial absorbances
+    A = pA.sum(axis=0)  # total absorbance
 
     F = photokin_factor(A)  # (1-10^-A) / A
 
@@ -91,9 +113,10 @@ def get_target_C_profile(times, K, j):
     L, Q = np.linalg.eig(K)
     Q_inv = np.linalg.inv(Q)
 
-    A2_T = Q @ np.diag(Q_inv.dot(j))
+    A2_T = Q * Q_inv.dot(j)  # Q @ np.diag(Q_inv.dot(j))
 
-    C = np.exp(times[:, None] * L[None, :]) * np.heaviside(times[:, None], 1)
+    t = times[:, None]
+    C = np.exp(t * L[None, :]) * np.heaviside(t, 1)
 
     return C.dot(A2_T.T)
 
@@ -103,7 +126,6 @@ class _Model(object):
     # n = 0  # number of visible species in model
     n = 0  # number of all possible species
 
-    params = None
     species_names = None
     # connectivity = None
 
@@ -122,6 +144,7 @@ class _Model(object):
         self.init_times(times)
         self.target_model = None
         self.j = None  # j vector for target analysis
+        self.params = None
 
         self.init_params()
         self.species_names = np.array(list('ABCDEFGHIJKL'), dtype=np.str)
@@ -178,8 +201,24 @@ class _Model(object):
         # self.model_settigs_dialog.show()
         # self.model_settigs_dialog.exec()
 
-    @abstractmethod
     def init_params(self):
+        """Calls internally init_model_params and then transfers values from old params to new ones."""
+
+        _params = self.init_model_params()
+
+        if self.params is not None and _params is not None:
+            for key, par in self.params.items():
+                if key in _params:
+                    _params[key].value = par.value
+
+        self.params = _params
+
+    @abstractmethod
+    def init_model_params(self):
+        # params = Parameters()
+        # params.add(...)
+        # return params
+
         pass
 
     def simulate_mod(self, D):
@@ -235,7 +274,6 @@ class _Femto(_Model):
     n_partau = 2
     spectra = 'EADS'  # or 'EADS'
 
-
     def __init__(self, times=None, connectivity=(0, 1, 2), wavelengths=None,  method='femto'):
         super(_Femto, self).__init__(times, connectivity)
         self.method = method
@@ -281,7 +319,11 @@ class _Femto(_Model):
         sbParTau.setMaximum(10)
         sbParTau.setValue(self.n_partau)
 
-        cbParTau.toggled.connect(lambda: sbParTau.setEnabled(cbParTau.isChecked()))
+        def cbParTau_toggled():
+            sbParTau.setEnabled(cbParTau.isChecked())
+            btnPlotTau.setEnabled(cbParTau.isChecked())
+
+        cbParTau.toggled.connect(cbParTau_toggled)
 
         cbCohSpec = QCheckBox('Include Coherent Artifacts')
         cbCohSpec.setChecked(self.coh_spec)
@@ -338,20 +380,20 @@ class _Femto(_Model):
         self.model_settigs_dialog.show()
         self.model_settigs_dialog.exec()
 
-    @staticmethod
-    def conv_exp(t, k, fwhm):
-
-        w = fwhm / (2 * np.sqrt(np.log(2)))  # width
-
-        # if isinstance(w, np.ndarray):
-        return np.where(w > 0,
-                0.5 * np.exp(k * (k * w * w / 4.0 - t)) * erfc(w * k / 2.0 - t / w),
-                np.exp(-t * k) * np.heaviside(t, 1))
-        # else:
-        #     if w > 0:
-        #         return 0.5 * np.exp(k * (k * w * w / 4.0 - t)) * erfc(w * k / 2.0 - t / w)
-        #     else:
-        #         return np.exp(-t * k) * np.heaviside(t, 1)
+    # @staticmethod
+    # def conv_exp(t, k, fwhm):
+    #
+    #     w = fwhm / (2 * np.sqrt(np.log(2)))  # width
+    #
+    #     # if isinstance(w, np.ndarray):
+    #     return np.where(w > 0,
+    #             0.5 * np.exp(k * (k * w * w / 4.0 - t)) * erfc(w * k / 2.0 - t / w),
+    #             np.exp(-t * k) * np.heaviside(t, 1))
+    #     # else:
+    #     #     if w > 0:
+    #     #         return 0.5 * np.exp(k * (k * w * w / 4.0 - t)) * erfc(w * k / 2.0 - t / w)
+    #     #     else:
+    #     #         return np.exp(-t * k) * np.heaviside(t, 1)
 
     @staticmethod
     def simulate_model(t, K, j, mu=None, fwhm=0):
@@ -359,14 +401,17 @@ class _Femto(_Model):
         L, Q = np.linalg.eig(K)
         Q_inv = np.linalg.inv(Q)
 
-        A2_T = Q @ np.diag(Q_inv.dot(j))
+        A2_T = Q * Q_inv.dot(j)  # Q @ np.diag(Q_inv.dot(j))
 
         _tau = fwhm[:, None, None] if isinstance(fwhm, np.ndarray) else fwhm
 
         if mu is not None:  # TODO !!! pořešit, ať je to obecne
-            C = _Femto.conv_exp(t[None, :, None] - mu[:, None, None], -L[None, None, :], _tau)
+            # C = _Femto.conv_exp(t[None, :, None] - mu[:, None, None], -L[None, None, :], _tau)
+            C = fold_exp(t[None, :, None] - mu[:, None, None], -L[None, None, :], _tau)
+
         else:
-            C = _Femto.conv_exp(t[:, None], -L[None, :], fwhm)
+            # C = _Femto.conv_exp(t[:, None], -L[None, :], fwhm)
+            C = fold_exp(t[:, None], -L[None, :], fwhm)
 
         return C.dot(A2_T.T)
 
@@ -415,7 +460,7 @@ class _Femto(_Model):
     def get_kin_pars(self, params=None):
         params = params if params is not None else self.params
 
-        pars = [par[1].value for par in params.items()]
+        pars = [par.value for key, par in params.items()]
 
         chirp_params = 2 * self.n_exp_chirp if self.chirp_type is 'exp' else self.n_poly_chirp
         partau_params = self.n_partau if self.partau else 0
@@ -489,27 +534,29 @@ class _Femto(_Model):
         for i in range(self.n_poly_chirp):
             self.params[f'parmu_{i+1}'].value = coefs[i+1]
 
-    def init_params(self):
-        self.params = Parameters()
+    def init_model_params(self):
+        params = Parameters()
 
         if self.method is not 'femto':
             return
 
-        self.params.add('lambda_c', value=433, min=0, max=1000, vary=False)
-        self.params.add('parmu_lambda_c', value=1.539, min=0, max=np.inf, vary=True)
+        params.add('lambda_c', value=433, min=0, max=1000, vary=False)
+        params.add('parmu_lambda_c', value=1.539, min=0, max=np.inf, vary=True)
 
         if self.chirp_type is 'exp':
             for i in range(self.n_exp_chirp):
-                self.params.add(f'mu_A{i+1}', value=0.5, min=-np.inf, max=np.inf, vary=True)
-                self.params.add(f'mu_B{i+1}', value=70, min=-np.inf, max=np.inf, vary=True)
+                params.add(f'mu_A{i+1}', value=0.5, min=-np.inf, max=np.inf, vary=True)
+                params.add(f'mu_B{i+1}', value=70, min=-np.inf, max=np.inf, vary=True)
         else:  # polynomial by Ivo von Stokkum
             for i in range(self.n_poly_chirp):
-                self.params.add(f'parmu_{i+1}', value=0.5, min=-np.inf, max=np.inf, vary=True)
+                params.add(f'parmu_{i+1}', value=0.5, min=-np.inf, max=np.inf, vary=True)
 
-        self.params.add('FWHM_lambda_c', value=0.1135, min=0, max=np.inf, vary=True)
+        params.add('FWHM_lambda_c', value=0.1135, min=0, max=np.inf, vary=True)
         if self.partau:
             for i in range(self.n_partau):
-                self.params.add(f'partau_{i+1}', value=0.01, min=-np.inf, max=np.inf, vary=True)
+                params.add(f'partau_{i+1}', value=0.01, min=-np.inf, max=np.inf, vary=True)
+
+        return params
 
     def get_weights(self, D):
         weights = np.ones_like(D)
@@ -527,7 +574,7 @@ class _Femto(_Model):
             params = self.params
 
         _C_tensor = self.calc_C(params)
-        n = _C_tensor.shape[-1]
+        # n = _C_tensor.shape[-1]
         # ST = np.zeros((n + (self.coh_spec_order + 1 if self.coh_spec else 0), self.wavelengths.shape[0]))
 
         zero_coh_range = np.ones_like(self.wavelengths)
@@ -541,8 +588,8 @@ class _Femto(_Model):
 
         _C_tensor = np.nan_to_num(_C_tensor)
 
-        ST, D_fit, _ = b_lstsq(_C_tensor, D, self.ridge_alpha)
-        #
+        ST, D_fit = blstsq(_C_tensor, D.T, self.ridge_alpha)  # solve batched least squares problem
+
         # for i in range(self.wavelengths.shape[0]):
         #     ST[:, i] = lstsq(_C_tensor[i], D[:, i])[0]
 
@@ -679,8 +726,8 @@ class _Photokinetic_Model(_Model):
 
         return pars
 
-    def init_params(self):
-        self.params = Parameters()
+    def init_model_params(self):
+        params = Parameters()
 
         if self.method is not 'RFA':
             return
@@ -688,7 +735,9 @@ class _Photokinetic_Model(_Model):
         if self.T is not None:
             for i in range(self.n):
                 for j in range(self.n):
-                    self.params.add(f't_{i+1}{j+1}', value=1 if i == j else 0, min=-np.inf, max=np.inf, vary=True)
+                    params.add(f't_{i+1}{j+1}', value=1 if i == j else 0, min=-np.inf, max=np.inf, vary=True)
+
+        return params
 
     def update_T(self, new_T):
         if self.method is not 'RFA':
@@ -828,22 +877,24 @@ class Global_Analysis_Femto(_Femto):
 
     name = 'Global Analysis'
     _class = 'Femto'
+    use_numpy = True
 
-
-    def init_params(self):
-        super(Global_Analysis_Femto, self).init_params()
+    def init_model_params(self):
+        params = super(Global_Analysis_Femto, self).init_model_params()
 
         # evolution model
         if self.spectra == 'EADS':
             self.species_names = [f'EADS{i + 1}' for i in range(self.n)]
             for i in range(self.n):
                 # sec_label = self.species_names[i+1] if i < self.n - 1 else ""
-                self.params.add(f'tau_{self.species_names[i]}', value=1, min=0, max=np.inf)
+                params.add(f'tau_{self.species_names[i]}', value=10**(i-1), min=0, max=np.inf)
 
         else:  # decay model
             self.species_names = [f'DADS{i + 1}' for i in range(self.n)]
             for i in range(self.n):
-                self.params.add(f'tau_{self.species_names[i]}', value=1, min=0, max=np.inf)
+                params.add(f'tau_{self.species_names[i]}', value=10**(i-1), min=0, max=np.inf)
+
+        return params
 
     def open_model_settings(self, show_target_model=False):
         super(Global_Analysis_Femto, self).open_model_settings(False)
@@ -870,7 +921,7 @@ class Global_Analysis_Femto(_Femto):
 
         else:  # for DADS
             _tau = fwhm[:, None, None] if isinstance(fwhm, np.ndarray) else fwhm
-            self.C = self.conv_exp(self.times[None, :, None] - mu[:, None, None], ks[None, None, :], _tau)
+            self.C = fold_exp(self.times[None, :, None] - mu[:, None, None], ks[None, None, :], _tau)
 
         return self.get_conc_matrix(C_out, self._connectivity)
 
@@ -880,13 +931,15 @@ class Target_Analysis_Femto(_Femto):
     name = 'Target Analysis'
     _class = 'Femto'
 
-    def init_params(self):
-        super(Target_Analysis_Femto, self).init_params()
+    def init_model_params(self):
+        params = super(Target_Analysis_Femto, self).init_model_params()
 
         if self.target_model:
             for par_name, rate in self.target_model.get_names_rates():
                 par_name = 'tau' + par_name[1:]
-                self.params.add(par_name, value=1/rate, min=0, max=np.inf)
+                params.add(par_name, value=1/rate, min=0, max=np.inf)
+
+        return params
 
     def open_model_settings(self, show_target_model=False):
         super(Target_Analysis_Femto, self).open_model_settings(show_target_model=True)
@@ -925,16 +978,18 @@ class Target_Analysis_Z_Femto(_Femto):
         self.solvation = True
         self.n_upsample = 3
 
-    def init_params(self):
-        super(Target_Analysis_Z_Femto, self).init_params()
+    def init_model_params(self):
+        params = Parameters()
 
         # self.params.add('phi', value=0.5, min=0, max=1, vary=False)
-        self.params.add('tau_AB', value=0.25, min=0, max=np.inf)
-        self.params.add('tau_BA', value=0.50, min=0, max=np.inf)
-        self.params.add('tau_AB_C', value=5.65, min=0, max=np.inf)
-        self.params.add('tau_CD', value=14.5, min=0, max=np.inf)
-        self.params.add('tau_sol', value=1.9, min=0, max=np.inf)
-        self.params.add('tau_diff', value=0.92, min=0, max=np.inf)
+        params.add('tau_AB', value=0.25, min=0, max=np.inf)
+        params.add('tau_BA', value=0.50, min=0, max=np.inf)
+        params.add('tau_AB_C', value=5.65, min=0, max=np.inf)
+        params.add('tau_CD', value=14.5, min=0, max=np.inf)
+        params.add('tau_sol', value=1.9, min=0, max=np.inf)
+        params.add('tau_diff', value=0.92, min=0, max=np.inf)
+
+        return params
 
     def solvation_rates(self, t, k_AB, k_BA, k_diff, k_sol):
         _k_AB = k_AB + (k_diff * (1 - np.exp(-t * k_sol)) if self.solvation else 0)
@@ -1035,13 +1090,15 @@ class First_Order_Sequential_Model(_Model):
     name = 'Sequential model (1st order)'
     _class = 'Nano'
 
-    def init_params(self):
-        self.params = Parameters()
-        self.params.add('c0', value=1, min=0, max=np.inf, vary=False)
+    def init_model_params(self):
+        params = Parameters()
+        params.add('c0', value=1, min=0, max=np.inf, vary=False)
 
         for i in range(self.n):
             sec_label = self.species_names[i+1] if i < self.n - 1 else ""
-            self.params.add(f'tau_{self.species_names[i]}{sec_label}', value=1+i**2, min=0, max=np.inf)
+            params.add(f'tau_{self.species_names[i]}{sec_label}', value=1+i**2, min=0, max=np.inf)
+
+        return params
 
     @staticmethod
     def get_EAS(t, ks):
@@ -1079,12 +1136,14 @@ class First_Order_Parallel_Model(_Model):
     name = 'Parallel model (1st order)'
     _class = 'Nano'
 
-    def init_params(self):
-        self.params = Parameters()
-        self.params.add('c0', value=1, min=0, max=np.inf, vary=False)
+    def init_model_params(self):
+        params = Parameters()
+        params.add('c0', value=1, min=0, max=np.inf, vary=False)
 
         for i in range(self.n):
             self.params.add(f'tau_{self.species_names[i]}', value=1+i**2, min=0, max=np.inf)
+
+        return params
 
     def calc_C(self, params=None, C_out=None):
         super(First_Order_Parallel_Model, self).calc_C(params, C_out)
@@ -1102,13 +1161,15 @@ class First_Order_Target_Model(_Model):
     name = 'Target model (1st order)'
     _class = 'Nano'
 
-    def init_params(self):
-        self.params = Parameters()
-        self.params.add('c0', value=1, min=0, max=np.inf, vary=False)
+    def init_model_params(self):
+        params = Parameters()
+        params.add('c0', value=1, min=0, max=np.inf, vary=False)
 
         if self.target_model:
             for par_name, rate in self.target_model.get_names_rates():
-                self.params.add(par_name, value=rate, min=0, max=np.inf)
+                params.add(par_name, value=rate, min=0, max=np.inf)
+
+        return params
 
     def open_model_settings(self, show_target_model=False):
         if GenericInputDialog.if_opened_activate():
@@ -1168,17 +1229,19 @@ class Sequential_Model_FK(_Photokinetic_Model):
         self.Irr_norm = None  # normalized irradiation spectrum
         self.use_numba = True
 
-    def init_params(self):
-        super(Sequential_Model_FK, self).init_params()
-        self.params.add('c0', value=1e-3, min=0, max=np.inf, vary=False)  # initial concentration of species A
-        self.params.add('q0', value=1e-8, min=0, max=np.inf, vary=False)  # total photon flux
-        self.params.add('l', value=1, min=0, max=np.inf, vary=False)  # length of cuvette
-        self.params.add('V', value=1e-3, min=0, max=np.inf, vary=False)  # volume of solution in cuvette
-        self.params.add('t0', value=0, min=0, max=np.inf, vary=False)  # time of start of irradiation
+    def init_model_params(self):
+        params = super(Sequential_Model_FK, self).init_model_params()
+        params.add('c0', value=1e-3, min=0, max=np.inf, vary=False)  # initial concentration of species A
+        params.add('q0', value=1e-8, min=0, max=np.inf, vary=False)  # total photon flux
+        params.add('l', value=1, min=0, max=np.inf, vary=False)  # length of cuvette
+        params.add('V', value=1e-3, min=0, max=np.inf, vary=False)  # volume of solution in cuvette
+        params.add('t0', value=0, min=0, max=np.inf, vary=False)  # time of start of irradiation
 
         for i in range(self.n):
             sec_label = self.species_names[i + 1] if i < self.n - 1 else ""
-            self.params.add(f'Phi_{self.species_names[i]}{sec_label}', value=np.round(np.exp(-i*0.5), 2), min=0, max=1)
+            params.add(f'Phi_{self.species_names[i]}{sec_label}', value=np.round(np.exp(-i*0.5), 2), min=0, max=1)
+
+        return params
 
     def calc_C(self, params=None, C_out=None):
         super(Sequential_Model_FK, self).calc_C(params, C_out)
@@ -1780,10 +1843,12 @@ class Bridge_Splitting(_Model):
 
         self.description = "asddddd"
 
-    def init_params(self):
-        self.params = Parameters()
-        self.params.add('K', value=2, min=0, max=np.inf, vary=True)  # equilibrium constant
-        self.params.add('c0', value=1e-5, min=0, max=np.inf, vary=False)  # intial dimer concentration
+    def init_model_params(self):
+        params = Parameters()
+        params.add('K', value=2, min=0, max=np.inf, vary=True)  # equilibrium constant
+        params.add('c0', value=1e-5, min=0, max=np.inf, vary=False)  # intial dimer concentration
+
+        return params
 
     def calc_C(self, params=None, C_out=None):
         super(Bridge_Splitting, self).calc_C(params)
@@ -1834,10 +1899,12 @@ class Bridge_Splitting_Simple(_Model):
 
         self.description = "asddddd"
 
-    def init_params(self):
-        self.params = Parameters()
-        self.params.add('K', value=2, min=0, max=np.inf, vary=True)  # equilibrium constant
-        self.params.add('c0', value=1e-5, min=0, max=np.inf, vary=False)  # intial dimer concentration
+    def init_model_params(self):
+        params = Parameters()
+        params.add('K', value=2, min=0, max=np.inf, vary=True)  # equilibrium constant
+        params.add('c0', value=1e-5, min=0, max=np.inf, vary=False)  # intial dimer concentration
+
+        return params
 
     def calc_C(self, params=None, C_out=None):
         super(Bridge_Splitting_Simple, self).calc_C(params)
@@ -1874,19 +1941,21 @@ class Half_Bilirubin_1st_Model(_Model):
 
         self.description = "Simple A->B->C model of 1st order. d[A]/dt = -k1[A] - k2[A]^2, [A]_0 = c_0"
 
-    def init_params(self):
-        self.params = Parameters()
-        self.params.add('q0', value=9.103e-10, min=0, max=np.inf, vary=False)  # molar photon flux in mol s-1
-        self.params.add('V', value=2.5e-3, min=0, max=np.inf, vary=False)  # volume in mL
-        self.params.add('w_irr', value=370, min=0, max=np.inf, vary=False)  # irradiating wavelength
-        self.params.add('c0', value=2.90881898e-05, min=0, max=np.inf,
+    def init_model_params(self):
+        params = Parameters()
+        params.add('q0', value=9.103e-10, min=0, max=np.inf, vary=False)  # molar photon flux in mol s-1
+        params.add('V', value=2.5e-3, min=0, max=np.inf, vary=False)  # volume in mL
+        params.add('w_irr', value=370, min=0, max=np.inf, vary=False)  # irradiating wavelength
+        params.add('c0', value=2.90881898e-05, min=0, max=np.inf,
                         vary=False)  # total starting concentration of isomers, cZ+cE
-        self.params.add('xZ', value=1, min=0, max=1,
+        params.add('xZ', value=1, min=0, max=1,
                         vary=False)  # amount of Z in the mixture, 1: only Z, 0:, only E
-        self.params.add('Phi_ZE', value=0.25, min=0, max=1)
-        self.params.add('Phi_EZ', value=0.23, min=0, max=1)
-        self.params.add('Phi_EHL', value=0.001, min=0, max=1)
-        self.params.add('Phi_HLBl', value=0.0001, min=0, max=1, vary=False)
+        params.add('Phi_ZE', value=0.25, min=0, max=1)
+        params.add('Phi_EZ', value=0.23, min=0, max=1)
+        params.add('Phi_EHL', value=0.001, min=0, max=1)
+        params.add('Phi_HLBl', value=0.0001, min=0, max=1, vary=False)
+
+        return params
 
     @staticmethod
     def fk_factor(x, c=np.log(10), tol=1e-2):
@@ -3210,12 +3279,14 @@ class PKA_Titration(_Model):
 
         return profiles.T
 
-    def init_params(self):
-        self.params = Parameters()
-        self.params.add('c0', value=1, min=0, max=np.inf, vary=False)
+    def init_model_params(self):
+        params = Parameters()
+        params.add('c0', value=1, min=0, max=np.inf, vary=False)
 
         for i in range(self.n - 1):
-            self.params.add(f'pKa_{i+1}', value=1, min=-np.inf, max=np.inf)
+            params.add(f'pKa_{i+1}', value=1, min=-np.inf, max=np.inf)
+
+        return params
 
     def calc_C(self, params=None, C_out=None):
         super(PKA_Titration, self).calc_C(params, C_out)
@@ -3239,11 +3310,13 @@ class Gibs_Eq(_Model):
 
         self.description = "TODO "
 
-    def init_params(self):
-        self.params = Parameters()
-        self.params.add('c0', value=1, min=0, max=np.inf, vary=False)
-        self.params.add('dH', value=1e3, min=-np.inf, max=np.inf)
-        self.params.add('dS', value=0, min=-np.inf, max=np.inf, vary=False)
+    def init_model_params(self):
+        params = Parameters()
+        params.add('c0', value=1, min=0, max=np.inf, vary=False)
+        params.add('dH', value=1e3, min=-np.inf, max=np.inf)
+        params.add('dS', value=0, min=-np.inf, max=np.inf, vary=False)
+
+        return params
 
     def calc_C(self, params=None, C_out=None):
         super(Gibs_Eq, self).calc_C(params, C_out)
