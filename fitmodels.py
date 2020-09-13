@@ -1,5 +1,4 @@
 import numpy as np
-import matplotlib.pyplot as plt
 from scipy.integrate import odeint
 from lmfit import Parameters
 from abc import abstractmethod
@@ -7,20 +6,21 @@ from abc import abstractmethod
 # from scipy.stats import multivariate_normal
 # from multiprocessing import Pool
 # import math
+# from scipy.interpolate import interp2d, interp1d
+# from scipy.special import erfc
+# from scipy.linalg import lstsq
 
 from numba import njit, prange, vectorize
-from scipy.interpolate import interp2d, interp1d
+
 from scipy.linalg import svd
-from scipy.special import erfc
 from math import erfc as math_erfc
 from misc import find_nearest_idx
-from scipy.linalg import lstsq
 
 import matplotlib.pyplot as plt
 from settings import Settings
 
 from genericinputdialog import GenericInputDialog
-from PyQt5.QtWidgets import QPushButton, QCheckBox, QLabel, QComboBox, QSpinBox, QDoubleSpinBox
+from PyQt5.QtWidgets import QPushButton, QCheckBox, QComboBox, QSpinBox, QDoubleSpinBox
 from target_model import TargetModel
 import glob, os
 
@@ -215,11 +215,8 @@ class _Model(object):
 
     @abstractmethod
     def init_model_params(self):
-        # params = Parameters()
-        # params.add(...)
-        # return params
-
-        pass
+        params = Parameters()
+        return params
 
     def simulate_mod(self, D):
         pass
@@ -535,7 +532,7 @@ class _Femto(_Model):
             self.params[f'parmu_{i+1}'].value = coefs[i+1]
 
     def init_model_params(self):
-        params = Parameters()
+        params = super(_Femto, self).init_model_params()
 
         if self.method is not 'femto':
             return
@@ -727,10 +724,10 @@ class _Photokinetic_Model(_Model):
         return pars
 
     def init_model_params(self):
-        params = Parameters()
+        params = super(_Photokinetic_Model, self).init_model_params()
 
         if self.method is not 'RFA':
-            return
+            return params
 
         if self.T is not None:
             for i in range(self.n):
@@ -979,7 +976,7 @@ class Target_Analysis_Z_Femto(_Femto):
         self.n_upsample = 3
 
     def init_model_params(self):
-        params = Parameters()
+        params = super(Target_Analysis_Z_Femto, self).init_model_params()
 
         # self.params.add('phi', value=0.5, min=0, max=1, vary=False)
         params.add('tau_AB', value=0.25, min=0, max=np.inf)
