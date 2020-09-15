@@ -146,7 +146,7 @@ class _Model(object):
         self.j = None  # j vector for target analysis
         self.params = None
 
-        self.init_params()
+        # self.init_params()
         self.species_names = np.array(list('ABCDEFGHIJKL'), dtype=np.str)
         self.model_settigs_dialog = None
 
@@ -213,7 +213,6 @@ class _Model(object):
 
         self.params = _params
 
-    @abstractmethod
     def init_model_params(self):
         params = Parameters()
         return params
@@ -533,9 +532,6 @@ class _Femto(_Model):
 
     def init_model_params(self):
         params = super(_Femto, self).init_model_params()
-
-        if self.method is not 'femto':
-            return
 
         params.add('lambda_c', value=433, min=0, max=1000, vary=False)
         params.add('parmu_lambda_c', value=1.539, min=0, max=np.inf, vary=True)
