@@ -210,6 +210,10 @@ class _Model(object):
             for key, par in self.params.items():
                 if key in _params:
                     _params[key].value = par.value
+                    _params[key].vary = par.vary
+                    _params[key].min = par.min
+                    _params[key].max = par.max
+                    _params[key].stderr = par.stderr
 
         self.params = _params
 
@@ -288,7 +292,7 @@ class _Femto(_Model):
         self.partau = True
 
         self.zero_coh_spec_range = [(460, 750)]  # zero coherent artifact in that wavelength range
-        self.weights = [(378, 393, 0.05)]  # (wl_start, wl_end, weight) default weight 1
+        self.weights = [(456, 475, 0.05)]  # (wl_start, wl_end, weight) default weight 1
 
         self.chirp_type = 'poly'  # poly, exp
         self.spectra_choises = ['EADS', 'DADS']
