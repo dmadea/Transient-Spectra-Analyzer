@@ -377,7 +377,7 @@ class Fitter:
             if self.c_fix:  # replace C profiles to fixed ones if fix is defined
                 _C_opt[:, self.c_fix] = self.C_est[:, self.c_fix]
 
-            _ST_opt = self._S_regressor(_C_opt, self.D)[0]  # calculate spectra by S regressor (OLS or NNLS)
+            _ST_opt = self._regressor(_C_opt, self.D, method=self.S_regressor)[0]  # calculate spectra by S regressor (OLS or NNLS)
 
             if self.st_fix:  # replace spectra to fixed ones if fix is defined
                 _ST_opt[self.st_fix, :] = self.ST_est[self.st_fix]
