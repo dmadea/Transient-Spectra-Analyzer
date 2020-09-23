@@ -291,8 +291,11 @@ class _Femto(_Model):
 
         self.partau = True
 
-        self.zero_coh_spec_range = [(460, 750)]  # zero coherent artifact in that wavelength range
-        self.weights = [(456, 475, 0.05)]  # (wl_start, wl_end, weight) default weight 1
+        # self.zero_coh_spec_range = [(460, 750)]  # zero coherent artifact in that wavelength range
+        # self.weights = [(456, 475, 0.05)]  # (wl_start, wl_end, weight) default weight 1
+
+        self.zero_coh_spec_range = []  # zero coherent artifact in that wavelength range
+        self.weights = []  # (wl_start, wl_end, weight) default weight 1
 
         self.chirp_type = 'poly'  # poly, exp
         self.spectra_choises = ['EADS', 'DADS']
@@ -329,7 +332,7 @@ class _Femto(_Model):
         cbCohSpec.setChecked(self.coh_spec)
         sbCohSpecOrder = QSpinBox()
         sbCohSpecOrder.setMinimum(0)
-        sbCohSpecOrder.setMaximum(2)
+        sbCohSpecOrder.setMaximum(4)
         sbCohSpecOrder.setValue(self.coh_spec_order)
 
         cbCohSpec.toggled.connect(lambda: sbCohSpecOrder.setEnabled(cbCohSpec.isChecked()))
@@ -433,13 +436,17 @@ class _Femto(_Model):
 
         y = np.tile(y, (1, 1, order + 1))
 
-        if order > 0:
-            # y[..., 1] *= -tt / (s * s)
-            # y[..., 2] *= tt * tt / s ** 4 - 1 / (s * s)
+        if order > 0:  # first derivative
             y[..., 1] *= -tt.squeeze()
 
-        if order > 1:
+        if order > 1:  # second derivative
             y[..., 2] *= (tt * tt - s * s).squeeze()
+
+        if order > 2:  # third derivative
+            y[..., 3] *= (-tt * (tt * tt - 3 * s * s)).squeeze()
+
+        if order > 3:  # fourth derivative
+            y[..., 4] *= (tt ** 4 - 6 * tt * tt * s * s + 3 * s ** 4).squeeze()
 
         y_max = np.max(y, axis=1, keepdims=True)  # find maxima over time axis
         y_max[np.isclose(y_max, 0)] = 1  # values close to zero force to 1 to not divide by zero

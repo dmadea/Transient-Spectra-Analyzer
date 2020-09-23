@@ -443,6 +443,17 @@ class LFP_matrix(object):
         with open(filepath + '-C.csv', 'w') as f:
             f.write(buff_C)
 
+    def save_factored_matrix(self, output_dir='.\\', delimiter='\t', encoding='utf8', t0=None, t1=None, w0=None, w1=None):
+        if self.filename is None:
+            return
+
+        _, fname = os.path.split(self.filename)
+        name, ext = os.path.splitext(fname)
+
+        fpath = os.path.join(output_dir, f'{name}_factored{ext}')
+
+        self.save_matrix(self.D, fname=fpath, delimiter=delimiter, encoding=encoding, t0=t0, t1=t1, w0=w0, w1=w1)
+
     def save_matrix(self, D=None, fname='output.txt', delimiter='\t', encoding='utf8', t0=None, t1=None, w0=None, w1=None):
         # cut data if necessary
 
@@ -1150,6 +1161,21 @@ class LFP_matrix(object):
         self.SVD()
 
         # update matrix D
+        self.SVD_filter = self.SVD_filter
+
+        return self
+
+    def baseline_corr(self, t0=0, t1=200):
+        """Subtracts a average of specified time range from all data.
+        Deep copies the object and new averaged one is returned."""
+
+        t_idx_start = find_nearest_idx(self.times, t0) if t0 is not None else 0
+        t_idx_end = find_nearest_idx(self.times, t1) + 1 if t1 is not None else self.D.shape[0]
+
+        D_selection = self.Y[t_idx_start:t_idx_end, :]
+        self.Y -= D_selection.mean(axis=0)
+
+        self.SVD()
         self.SVD_filter = self.SVD_filter
 
         return self

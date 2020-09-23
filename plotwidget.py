@@ -467,11 +467,20 @@ class PlotWidget(DockArea):
         w0, w1, t0, t1 = self.get_selected_range()
 
         self.matrix.crop_data(t0, t1, w0, w1)
-        SVDWidget.instance.set_data(self.matrix)
 
+        SVDWidget.instance.set_data(self.matrix)
         self.cb_SVD_filter_toggled()
 
         # self.plot_matrix(self.matrix, False)
+
+    def baseline_correct(self, t0=0, t1=0.2):
+        if self.matrix is None:
+            return
+
+        self.matrix.baseline_corr(t0, t1)
+
+        SVDWidget.instance.set_data(self.matrix)
+        self.cb_SVD_filter_toggled()
 
     def btn_restore_matrix_clicked(self):
         if self.matrix is None:
