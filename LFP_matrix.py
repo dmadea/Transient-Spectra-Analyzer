@@ -1,32 +1,17 @@
 
-
 import numpy as np
 from scipy.linalg import svd
 
-# from scipy.optimize import fmin, minimize
-# from scipy.linalg import lstsq
-#
-# from numba import njit, vectorize, jit
 import os
 
-# from copy import deepcopy
-
 import matplotlib.pyplot as plt
-# import matplotlib.cm as cm
-#
-# from gui_console import Console
-#
-# from fitmodels import _Model
-#
-# from lmfit import Parameters, fit_report, fit_report, ci_report
-# import lmfit
-# from logger import Logger
 from matplotlib.ticker import Locator
 
 from misc import crop_data, find_nearest, find_nearest_idx
 from matplotlib.colors import LinearSegmentedColormap
 from matplotlib import cm
 from sklearn.decomposition import NMF
+from sklearn.decomposition import FastICA
 
 
 def register_div_cmap(zmin, zmax):
@@ -122,6 +107,7 @@ class MinorSymLogLocator(Locator):
         raise NotImplementedError('Cannot get tick locations for a '
                                   '%s type.' % type(self))
 
+
 class LFP_matrix(object):
 
     @classmethod
@@ -131,6 +117,7 @@ class LFP_matrix(object):
         m.times = times
         m.wavelengths = wavelengths
         m.SVD()
+        m._set_D()
         return m
 
     @property
@@ -139,19 +126,46 @@ class LFP_matrix(object):
 
     @SVD_filter.setter
     def SVD_filter(self, value):  # true or false
-        self.D = self.Yr if value else self.Y
         self._SVD_filter = value
+        self._set_D()
+
+    @property
+    def ICA_filter(self):
+        return self._ICA_filter
+
+    @ICA_filter.setter
+    def ICA_filter(self, value):  # true or false
+        self._ICA_filter = value
+        self._set_D()
+
+    def _set_D(self):
+        if self.Yr is None:
+            self.Yr = self.Y
+        self.D = self.Yr.copy() if self._SVD_filter else self.Y.copy()
+        if self._ICA_filter:
+            self.D -= self.ICA_subtr_mat
+
+    def get_factored_matrix(self):
+        """Returns the current/factored matrix as a LFP_Matrix object."""
+
+        m = LFP_matrix.from_value_matrix(self.D.copy(), self.times.copy(), self.wavelengths.copy())
+        m.filename = self.filename
+        m.name = self.name
+
+        return m
 
     def __init__(self, data=None, filename=None, name=None):
 
         self.wavelengths = None  # dim = w
         self.times = None  # dim = t
-        self.Y = None  # dim = (t, w)
+        self.Y = None  # dim = t x w   # original data
         self.original_data_matrix = None
 
         self._SVD_filter = False
+        self._ICA_filter = False
+        self.ICA_components = 5
 
-        self.D = None  # matrix to be plotted, can be raw data or after any filtering (eg. SVD filter)
+        self.D = None  # matrix to be plotted - factored matrix if SVD filter or ICA filter is True, else self.Y
 
         if data is not None:
             self.wavelengths = data[0, 1:]  # first row without first column
@@ -169,6 +183,9 @@ class LFP_matrix(object):
         self.U = None  # dim = (t x k)
         self.S = None  # !! this is only 1D array of singular values, not diagonal matrix
         self.V_T = None  # dim = (k x w)
+
+        self.C_ICA = None
+        self.ST_ICA = None
 
         # reduced svd matrices, nr is number of taken singular values, cca 1 to 10 max
         self.Ur = None  # dim = (t x nr)
@@ -189,19 +206,10 @@ class LFP_matrix(object):
 
         self.UrSr = None  # Ur @ Sr
 
-        # reconstructed data matrix after data reduction
-        self.Yr = self.Y
+        self.Yr = self.Y  # reconstructed data matrix after data reduction from SVD
+        self.ICA_subtr_mat = 0  # matrix for subtraction after ICA comp. removal
 
         self.Y_fit = None
-
-        # self.model = None
-        #
-        # self.last_result = None
-        # self.minimizer = None
-
-        # # concetration and spectra matrices estimated by MCR-ALS method
-        # self.C_MCR = None
-        # self.A_MCR = None
 
         self.C_fit = None
         self.ST_fit = None
@@ -212,16 +220,6 @@ class LFP_matrix(object):
 
         self.SVD()
 
-        # self.A_list = []
-        # self.C_list = []
-
-    def reduce_time_dim(self, factor=2):
-        self.Y = self.Y[::int(factor), :]
-        self.times = self.times[::int(factor)]
-
-    def reduce_wavelength_dim(self, factor=2):
-        self.Y = self.Y[:, ::int(factor)]
-        self.times = self.wavelengths[::int(factor)]
 
     @classmethod
     def construct_test_matrix(cls, noise_intensity=0.1):
@@ -289,120 +287,7 @@ class LFP_matrix(object):
             return
 
         self.U, self.S, self.V_T = svd(self.Y, full_matrices=False, lapack_driver='gesdd')
-
-    # @staticmethod
-    # @njit(parallel=True, fastmath=True)
-    # def calc_chi2(Y, C, A):
-    #     # R = Y - np.dot(C, A)  # R = Y - C @ A = Y - C @ K @ V_Tr
-    #     # return np.sum(R * R)
-    #     return Y - np.dot(C, A)
-    #
-    # def residuals(self, params):
-    #
-    #     C = self.model.calc_C(params)
-    #
-    #     self.K = lstsq(C, self.UrSr)[0]
-    #
-    #     self.A = np.dot(self.K, self.V_Tr)
-    #
-    #     # #spectra cannot be negative
-    #     # for i in range(self.A.shape[0]):
-    #     #     for j in range(self.A.shape[1]):
-    #     #         self.A[i, j] = self.A[i, j] if self.A[i, j] >= 0 else 0
-    #
-    #     # self.A[0] = self.Y[0]
-    #
-    #     # return self.Y - np.dot(C, self.A)
-    #
-    #     # R = self.Y - self.C @ self.K @ self.V_Tr
-    #     # chi2 = np.sum(R * R)
-    #     # print('sum of residuals = {}'.format(chi2))
-    #     return self.calc_chi2(self.Y, C, self.A)
-    #     # return chi2
-    #
-    # def global_fit(self, model_cls, verbose=True, method='leastsq'):
-    #
-    #     # reduction must have been perfomed before calling global fit
-    #     if self.Ur is None or self.Sr is None or self.V_Tr is None:
-    #         return
-    #
-    #     # t = self.Y.shape[0]
-    #     w = self.Y.shape[1]
-    #     nr = self.Sr.shape[0]
-    #
-    #     # Y = self.Y
-    #     # times = self.times
-    #
-    #     if isinstance(model_cls, _Model):
-    #         self.model = model_cls
-    #         self.model.init_times(self.times)
-    #     else:
-    #         self.model = model_cls(self.times)
-    #
-    #     n = self.model.n
-    #
-    #     # initialize matrices
-    #     # self.C = np.zeros((t, n), dtype=np.float64)
-    #     self.A = np.zeros((n, w), dtype=np.float32)
-    #     self.K = np.zeros((n, nr), dtype=np.float32)
-    #
-    #     self.UrSr = self.Ur @ self.Sr
-    #
-    #     self.minimizer = lmfit.Minimizer(self.residuals, self.model.params)
-    #
-    #     self.last_result = lmfit.minimize(self.residuals, self.model.params, method=method)
-    #
-    #     # calculate final A matrix and C matrix
-    #     # self.A = self.K @ self.V_Tr
-    #     self.C = self.model.calc_C()
-    #
-    #     self.Y_fit = self.C @ self.A
-    #
-    #     if verbose:
-    #         report = fit_report(self.last_result)
-    #         Logger.console_message(report if report is not None else '')
-    #         self.plot_figures_one()
-    #
-    #     Console.push_variables({'K': self.K})
-    #
-    #     return LFP_matrix.from_value_matrix(self.Y_fit, self.times, self.wavelengths)
-
-    #
-    # def MCR_ALS(self, n_components, from_original=False, max_iter=100, verbose=False):
-    #
-    #     # if not from_original and n_components > self.A.shape[0]:
-    #     #     raise ValueError(f"Parameter n_components cannot be larger than number of taken vector for reconstruction.")
-    #
-    #     mcrals = McrAR(max_iter=max_iter, st_regr='NNLS', c_regr=OLS(),
-    #                    c_constraints=[ConstraintNonneg()])
-    #
-    #     # if there was global fit performed, take result form it as an initial solution, the rest just noise
-    #     iST = np.random.rand(n_components, self.wavelengths.shape[0])  # if self.A is None else self.A[:n_components]
-    #
-    #     if self.A is not None:
-    #         for i in range(self.A.shape[0]):
-    #             iST[i] = self.A[i]
-    #
-    #     mcrals.fit(self.Yr if not from_original else self.Y, ST=iST, verbose=verbose)
-    #
-    #     self.C_MCR = mcrals.C_opt_
-    #     self.A_MCR = mcrals.ST_opt_
-    #
-    #     self.plot_figures_MCR()
-    #
-    #     self.Y_fit = self.C_MCR @ self.A_MCR
-    #
-    #     return LFP_matrix.from_value_matrix(self.Y_fit, self.times, self.wavelengths)
-
-    # def print_confidence_intervals(self, sigmas=(1, 2, 3)):
-    #
-    #     if self.last_result is None:
-    #         return
-    #
-    #     ci = lmfit.conf_interval(self.minimizer, self.last_result, sigmas=sigmas,
-    #                              trace=False, verbose=False)
-    #
-    #     Logger.console_message(ci_report(ci))
+        self.run_ICA()
 
     def save_fit(self, filepath, ST=None, C=None):
 
@@ -476,6 +361,321 @@ class LFP_matrix(object):
 
         with open(fname, 'w', encoding=encoding) as f:
             f.write(buffer)
+
+    # non-negative matrix factorization solution
+    def get_NMF_solution(self, n_components=3, random_state=0):
+        model = NMF(n_components=n_components, init='random', random_state=random_state)
+        _D = self.Y.copy()
+        _D[_D < 0] = 0
+        C = model.fit_transform(_D)
+        ST = model.components_
+        return C, ST
+
+    @staticmethod
+    def _fEFA(matrix, sing_values_num=7, points=200):
+        """Performs forward Evolving factor analysis over time domain on the current matrix."""
+
+        t_idxs = np.linspace(int(matrix.shape[0] / points), matrix.shape[0] - 1, num=points).astype(int)
+        sing_values = np.ones((points, sing_values_num), dtype=np.float64) * np.nan
+        fEFA_VTs = np.ones((points, sing_values_num, matrix.shape[1])) * np.nan
+        # self.fEFA_Us = np.ones((points, sing_values_num, self.D.shape[0])) * np.nan
+
+        for i in range(points):
+            U, S, V_T = svd(matrix[:t_idxs[i], :], full_matrices=False, lapack_driver='gesdd')
+            n = int(min(sing_values_num, S.shape[0]))
+            sing_values[i, :n] = S[:n]
+
+            fEFA_VTs[i, :n] = V_T[:n, :]
+
+        return sing_values, fEFA_VTs, t_idxs
+
+    def fEFA(self, sing_values_num=7, points=200):
+        """Performs forward Evolving factor analysis over time domain on the current matrix."""
+
+        t_idxs = np.linspace(int(self.times.shape[0] / points), self.times.shape[0] - 1, num=points).astype(int)
+        self.sing_values = np.ones((points, sing_values_num), dtype=np.float64) * np.nan
+        self.fEFA_VTs = np.ones((points, sing_values_num, self.D.shape[1])) * np.nan
+        # self.fEFA_Us = np.ones((points, sing_values_num, self.D.shape[0])) * np.nan
+
+        for i in range(points):
+            U, S, V_T = svd(self.D[:t_idxs[i], :], full_matrices=False, lapack_driver='gesdd')
+            n = int(min(sing_values_num, S.shape[0]))
+            self.sing_values[i, :n] = S[:n]
+
+            self.fEFA_VTs[i, :n] = V_T[:n, :]
+            # self.fEFA_Us[i, :n] = U[:, :n].T
+
+        times = self.times[t_idxs]
+
+        for i in range(sing_values_num):
+            plt.plot(times, self.sing_values[:, i], label=f'{i+1}')
+        plt.xlabel('Time / s')
+        plt.ylabel('Singular value')
+        plt.title('Evolving factor analysis')
+        plt.yscale('log')
+        plt.legend()
+
+        plt.show()
+
+    def fEFA_plot_VTs(self, component=1, norm=False):
+        if not hasattr(self, 'fEFA_VTs'):
+            return
+
+        assert self.sing_values.shape[0] == self.fEFA_VTs.shape[0]
+
+        n = self.sing_values.shape[0]
+
+        cmap = cm.get_cmap('jet', n)
+
+        for i in range(n):
+            vector = self.fEFA_VTs[i, component - 1, :]
+            if norm:
+                vector /= vector.max()
+            plt.plot(self.wavelengths, vector, label=f'SV={self.sing_values[i]}',
+                     color=cmap(i), lw=0.5)
+        plt.xlabel('Wavelength / nm')
+        plt.ylabel('Amplitude')
+        plt.title(f'{component}-th V_T vector')
+        # plt.legend()
+
+        plt.show()
+
+    def run_ICA(self, random_state=0, max_iter=1e4):
+        ica = FastICA(n_components=self.ICA_components, random_state=random_state, max_iter=int(max_iter))
+
+        self.C_ICA = ica.fit_transform(self.Y)
+        self.ST_ICA = ica.mixing_.T
+
+    def set_ICA_filter(self, l_comp=(), n_components=5):
+        """Subtracts components in l_comp = [0, 1, 5, ...] list/tuple."""
+
+        if any(map(lambda item: item >= n_components, l_comp)):
+            raise ValueError(f"Invalid input, l_comp cannot contain values larger than {n_components - 1}.")
+
+        if n_components != self.ICA_components:
+            self.ICA_components = n_components
+            self.run_ICA()
+
+        comps = np.zeros(n_components)
+        comps[l_comp] = 1
+
+        self.ICA_subtr_mat = self.C_ICA @ np.diag(comps) @ self.ST_ICA  # outer product
+
+        # update D
+        self._set_D()
+
+    def set_SVD_filter(self, l_vectors=(0,)):
+        """l_vector - list of singular vector to include into the filter, numbering from 0,
+        eg. [0, 1, 2, 3, 5, 6], [0], [1], etc.
+        """
+
+        Sr_plain = self.S.copy()
+
+        # calculate the difference of sets, from https://stackoverflow.com/questions/3462143/get-difference-between-two-lists
+        l_diff = list(set([i for i in range(self.S.shape[0])]) - set(l_vectors))
+
+        # put all other singular vectors different from chosen vectors to zero
+        Sr_plain[l_diff] = 0
+
+        Sr = np.diag(Sr_plain)
+
+        # reconstruct the data matrix, @ is a dot product
+        self.Yr = self.U @ Sr @ self.V_T
+
+        # update D
+        self._set_D()
+
+    def crop_data(self, t0=None, t1=None, w0=None, w1=None):
+
+        self.Y, self.times, self.wavelengths = crop_data(self.Y, self.times, self.wavelengths, t0, t1, w0, w1)
+
+        self.SVD()
+        # update matrix D
+        self._set_D()
+
+        return self
+
+    def baseline_corr(self, t0=0, t1=200):
+        """Subtracts a average of specified time range from all data.
+        Deep copies the object and new averaged one is returned."""
+
+        t_idx_start = find_nearest_idx(self.times, t0) if t0 is not None else 0
+        t_idx_end = find_nearest_idx(self.times, t1) + 1 if t1 is not None else self.D.shape[0]
+
+        D_selection = self.Y[t_idx_start:t_idx_end, :]
+        self.Y -= D_selection.mean(axis=0)
+
+        self.SVD()
+        self._set_D()
+
+        return self
+
+    def reduce(self, t_dim=None, w_dim=None):
+        """Reduces the time and wavelength dimension by t_dim and w_dim, respectively.
+        eg. for t_dim=10, every 10-th row of original matrix will contain reduced matrix."""
+
+        t_factor = int(t_dim) if t_dim is not None else 1
+        w_factor = int(w_dim) if w_dim is not None else 1
+
+        self.Y = self.Y[::t_factor, :]
+        self.times = self.times[::t_factor]
+
+        self.Y = self.Y[:, ::w_factor]
+        self.wavelengths = self.wavelengths[::w_factor]
+
+        self.SVD()
+
+        # update matrix D
+        self._set_D()
+
+        return self
+
+    def restore_original_data(self):
+        if self.original_data_matrix is not None:
+            self.wavelengths = self.original_data_matrix[0, 1:]
+            self.times = self.original_data_matrix[1:, 0]
+            self.Y = self.original_data_matrix[1:, 1:]
+
+    # time_slice and wavelength_slice are np.s_ slice objects
+    def slice(self, time_slice, wavelength_slice):
+        self.Y = self.Y[time_slice, wavelength_slice]
+        self.wavelengths = self.wavelengths[wavelength_slice]
+        self.times = self.times[time_slice]
+
+    def transpose(self):
+
+        wavelengths = self.times
+        times = self.wavelengths
+        data = self.Y
+
+        self.__init__(name=self.name, filename=self.filename)
+
+        self.Y = data.T
+        self.times = times
+        self.wavelengths = wavelengths
+
+        self.SVD()
+
+        # update matrix D
+        self._set_D()
+
+    def plot_log_of_S(self, n=10):
+
+        # log_S = np.log(self.S[:n])
+        x_data = range(1, n + 1)
+
+        plt.rcParams['figure.figsize'] = [10, 6]
+
+        plt.scatter(x_data, self.S[:n])
+        plt.yscale('log')
+        # plt.xlabel('Significant value number')
+        plt.ylabel('Magnitude')
+        plt.xlabel('Singular value index')
+        min, max = np.min(self.S[:n]), np.max(self.S[:n])
+        # dif = max - min
+
+        plt.ylim(min / 2, 2 * max)
+        plt.title('First {} sing. values'.format(n))
+
+        fig = plt.gcf()
+        fig.canvas.set_window_title('SVD Analysis')
+
+        plt.show()
+
+    def plot_figures_MCR(self):
+
+        if self.C_MCR is None:
+            return
+
+        n = self.C_MCR.shape[1]
+        plt.rcParams['figure.figsize'] = [12, 6]
+        plt.subplots_adjust(left=0.05, right=0.95, top=0.95, wspace=0.33, hspace=0.33)
+
+        plt.subplot(2, 2, 1)
+        for i in range(n):
+            plt.plot(self.wavelengths, self.A_MCR[i], label='Species {}'.format(i + 1))
+        plt.xlabel('Wavelength / nm')
+        plt.title('Spectra')
+        plt.legend()
+
+        plt.subplot(2, 2, 2)
+        for i in range(n):
+            plt.plot(self.times, self.C_MCR[:, i], label='Species {}'.format(i + 1))
+        plt.xlabel('Time')
+        plt.title('Concentrations')
+        plt.legend()
+
+        # plot residual matrix
+        plt.subplot(2, 1, 2)
+        A_dif = self.C_MCR @ self.A_MCR - self.Y  # the difference matrix between MCR fit and original
+        x, y = np.meshgrid(self.times, self.wavelengths)  # needed for pcolormesh to correctly scale the image
+        plt.pcolormesh(x, y, A_dif.T, cmap='seismic', vmin=-np.abs(np.max(A_dif)), vmax=np.abs(np.max(A_dif)))
+        plt.colorbar().set_label("$\Delta$A")
+        plt.title("Residual matrix A_fit - A")
+        plt.ylabel('Wavelength / nm')
+        plt.xlabel('Time')
+
+        plt.tight_layout()
+
+        fig = plt.gcf()
+        # fig.canvas.set_window_title('Global fit - {}'.format(self.model.__class__.__name__))
+
+        plt.show()
+
+    def plot_figures_one(self):
+
+        n = self.model.n
+        plt.rcParams['figure.figsize'] = [12, 6]
+        plt.subplots_adjust(left=0.05, right=0.95, top=0.95, wspace=0.33, hspace=0.33)
+
+        plt.subplot(2, 2, 1)
+        for i in range(n):
+            plt.plot(self.wavelengths, self.A[i], label='Species {}'.format(self.model.get_species_name(i)))
+        plt.xlabel('Wavelength / nm')
+        plt.title('Spectra')
+        plt.legend()
+
+        plt.subplot(2, 2, 2)
+        for i in range(n):
+            plt.plot(self.times, self.C[:, i], label='Species {}'.format(self.model.get_species_name(i)))
+        plt.xlabel('Time')
+        plt.title('Concentrations')
+        plt.legend()
+
+        # plot residual matrix
+        plt.subplot(2, 1, 2)
+        A_dif = self.Y_fit - self.Y  # the difference matrix between fit and original
+        x, y = np.meshgrid(self.times, self.wavelengths)  # needed for pcolormesh to correctly scale the image
+        plt.pcolormesh(x, y, A_dif.T, cmap='seismic', vmin=-np.abs(np.max(A_dif)), vmax=np.abs(np.max(A_dif)))
+        plt.colorbar().set_label("$\Delta$A")
+        plt.title("Residual matrix A_fit - A")
+        plt.ylabel('Wavelength / nm')
+        plt.xlabel('Time')
+
+        fig = plt.gcf()
+        fig.canvas.set_window_title('Global fit - {}'.format(self.model.__class__.__name__))
+
+        plt.show()
+
+    def plot_figures_multiple(self):
+
+        # plt.figure(1)
+
+        n = self.model.n
+        plt.rcParams['figure.figsize'] = [12, 6]
+        plt.subplots_adjust(left=0.05, right=0.95, bottom=0.05, top=0.95, wspace=0.33, hspace=0.33)
+
+        for i in range(n):
+            plt.subplot(2, n, i + 1)
+            plt.plot(self.wavelengths, self.A[i])
+            plt.title('Spectrum {}'.format(self.model.get_species_name(i)))
+
+        for i in range(n):
+            plt.subplot(2, n, i + n + 1)
+            plt.plot(self.times, self.C[:, i])
+            plt.title('Conc. {}'.format(self.model.get_species_name(i)))
+
+        plt.show()
 
     def plot_data(self, symlog=False, t_unit='s', z_unit='$\Delta A$', c_map='inferno_r', zmin=None, zmax=None,
                   w0=None, w1=None, t0=None, t1=None, fig_size=(6, 4), dpi=500, filepath=None, transparent=True,
@@ -936,304 +1136,6 @@ class LFP_matrix(object):
 
         plt.show()
 
-    # non-negative matrix factorization solution
-    def get_NMF_solution(self, n_components=3, random_state=0):
-        model = NMF(n_components=n_components, init='random', random_state=random_state)
-        _D = self.Y.copy()
-        _D[_D < 0] = 0
-        C = model.fit_transform(_D)
-        ST = model.components_
-        return C, ST
-
-    @staticmethod
-    def _fEFA(matrix, sing_values_num=7, points=200):
-        """Performs forward Evolving factor analysis over time domain on the current matrix."""
-
-        t_idxs = np.linspace(int(matrix.shape[0] / points), matrix.shape[0] - 1, num=points).astype(int)
-        sing_values = np.ones((points, sing_values_num), dtype=np.float64) * np.nan
-        fEFA_VTs = np.ones((points, sing_values_num, matrix.shape[1])) * np.nan
-        # self.fEFA_Us = np.ones((points, sing_values_num, self.D.shape[0])) * np.nan
-
-        for i in range(points):
-            U, S, V_T = svd(matrix[:t_idxs[i], :], full_matrices=False, lapack_driver='gesdd')
-            n = int(min(sing_values_num, S.shape[0]))
-            sing_values[i, :n] = S[:n]
-
-            fEFA_VTs[i, :n] = V_T[:n, :]
-
-        return sing_values, fEFA_VTs, t_idxs
-
-    def fEFA(self, sing_values_num=7, points=200):
-        """Performs forward Evolving factor analysis over time domain on the current matrix."""
-
-        t_idxs = np.linspace(int(self.times.shape[0] / points), self.times.shape[0] - 1, num=points).astype(int)
-        self.sing_values = np.ones((points, sing_values_num), dtype=np.float64) * np.nan
-        self.fEFA_VTs = np.ones((points, sing_values_num, self.D.shape[1])) * np.nan
-        # self.fEFA_Us = np.ones((points, sing_values_num, self.D.shape[0])) * np.nan
-
-        for i in range(points):
-            U, S, V_T = svd(self.D[:t_idxs[i], :], full_matrices=False, lapack_driver='gesdd')
-            n = int(min(sing_values_num, S.shape[0]))
-            self.sing_values[i, :n] = S[:n]
-
-            self.fEFA_VTs[i, :n] = V_T[:n, :]
-            # self.fEFA_Us[i, :n] = U[:, :n].T
-
-        times = self.times[t_idxs]
-
-        for i in range(sing_values_num):
-            plt.plot(times, self.sing_values[:, i], label=f'{i+1}')
-        plt.xlabel('Time / s')
-        plt.ylabel('Singular value')
-        plt.title('Evolving factor analysis')
-        plt.yscale('log')
-        plt.legend()
-
-        plt.show()
-
-    def fEFA_plot_VTs(self, component=1, norm=False):
-        if not hasattr(self, 'fEFA_VTs'):
-            return
-
-        assert self.sing_values.shape[0] == self.fEFA_VTs.shape[0]
-
-        n = self.sing_values.shape[0]
-
-        cmap = cm.get_cmap('jet', n)
-
-        for i in range(n):
-            vector = self.fEFA_VTs[i, component - 1, :]
-            if norm:
-                vector /= vector.max()
-            plt.plot(self.wavelengths, vector, label=f'SV={self.sing_values[i]}',
-                     color=cmap(i), lw=0.5)
-        plt.xlabel('Wavelength / nm')
-        plt.ylabel('Amplitude')
-        plt.title(f'{component}-th V_T vector')
-        # plt.legend()
-
-        plt.show()
-
-    def plot_log_of_S(self, n=10):
-
-        # log_S = np.log(self.S[:n])
-        x_data = range(1, n + 1)
-
-        plt.rcParams['figure.figsize'] = [10, 6]
-
-        plt.scatter(x_data, self.S[:n])
-        plt.yscale('log')
-        # plt.xlabel('Significant value number')
-        plt.ylabel('Magnitude')
-        plt.xlabel('Singular value index')
-        min, max = np.min(self.S[:n]), np.max(self.S[:n])
-        # dif = max - min
-
-        plt.ylim(min / 2, 2 * max)
-        plt.title('First {} sing. values'.format(n))
-
-        fig = plt.gcf()
-        fig.canvas.set_window_title('SVD Analysis')
-
-        plt.show()
-
-    def plot_figures_MCR(self):
-
-        if self.C_MCR is None:
-            return
-
-        n = self.C_MCR.shape[1]
-        plt.rcParams['figure.figsize'] = [12, 6]
-        plt.subplots_adjust(left=0.05, right=0.95, top=0.95, wspace=0.33, hspace=0.33)
-
-        plt.subplot(2, 2, 1)
-        for i in range(n):
-            plt.plot(self.wavelengths, self.A_MCR[i], label='Species {}'.format(i + 1))
-        plt.xlabel('Wavelength / nm')
-        plt.title('Spectra')
-        plt.legend()
-
-        plt.subplot(2, 2, 2)
-        for i in range(n):
-            plt.plot(self.times, self.C_MCR[:, i], label='Species {}'.format(i + 1))
-        plt.xlabel('Time')
-        plt.title('Concentrations')
-        plt.legend()
-
-        # plot residual matrix
-        plt.subplot(2, 1, 2)
-        A_dif = self.C_MCR @ self.A_MCR - self.Y  # the difference matrix between MCR fit and original
-        x, y = np.meshgrid(self.times, self.wavelengths)  # needed for pcolormesh to correctly scale the image
-        plt.pcolormesh(x, y, A_dif.T, cmap='seismic', vmin=-np.abs(np.max(A_dif)), vmax=np.abs(np.max(A_dif)))
-        plt.colorbar().set_label("$\Delta$A")
-        plt.title("Residual matrix A_fit - A")
-        plt.ylabel('Wavelength / nm')
-        plt.xlabel('Time')
-
-        plt.tight_layout()
-
-        fig = plt.gcf()
-        # fig.canvas.set_window_title('Global fit - {}'.format(self.model.__class__.__name__))
-
-        plt.show()
-
-    def plot_figures_one(self):
-
-        n = self.model.n
-        plt.rcParams['figure.figsize'] = [12, 6]
-        plt.subplots_adjust(left=0.05, right=0.95, top=0.95, wspace=0.33, hspace=0.33)
-
-        plt.subplot(2, 2, 1)
-        for i in range(n):
-            plt.plot(self.wavelengths, self.A[i], label='Species {}'.format(self.model.get_species_name(i)))
-        plt.xlabel('Wavelength / nm')
-        plt.title('Spectra')
-        plt.legend()
-
-        plt.subplot(2, 2, 2)
-        for i in range(n):
-            plt.plot(self.times, self.C[:, i], label='Species {}'.format(self.model.get_species_name(i)))
-        plt.xlabel('Time')
-        plt.title('Concentrations')
-        plt.legend()
-
-        # plot residual matrix
-        plt.subplot(2, 1, 2)
-        A_dif = self.Y_fit - self.Y  # the difference matrix between fit and original
-        x, y = np.meshgrid(self.times, self.wavelengths)  # needed for pcolormesh to correctly scale the image
-        plt.pcolormesh(x, y, A_dif.T, cmap='seismic', vmin=-np.abs(np.max(A_dif)), vmax=np.abs(np.max(A_dif)))
-        plt.colorbar().set_label("$\Delta$A")
-        plt.title("Residual matrix A_fit - A")
-        plt.ylabel('Wavelength / nm')
-        plt.xlabel('Time')
-
-        fig = plt.gcf()
-        fig.canvas.set_window_title('Global fit - {}'.format(self.model.__class__.__name__))
-
-        plt.show()
-
-    def plot_figures_multiple(self):
-
-        # plt.figure(1)
-
-        n = self.model.n
-        plt.rcParams['figure.figsize'] = [12, 6]
-        plt.subplots_adjust(left=0.05, right=0.95, bottom=0.05, top=0.95, wspace=0.33, hspace=0.33)
-
-        for i in range(n):
-            plt.subplot(2, n, i + 1)
-            plt.plot(self.wavelengths, self.A[i])
-            plt.title('Spectrum {}'.format(self.model.get_species_name(i)))
-
-        for i in range(n):
-            plt.subplot(2, n, i + n + 1)
-            plt.plot(self.times, self.C[:, i])
-            plt.title('Conc. {}'.format(self.model.get_species_name(i)))
-
-        plt.show()
-
-
-    def set_SVD_filter(self, l_vectors=(0,)):
-        """l_vector - list of singular vector to include into the filter, numbering from 0,
-        eg. [0, 1, 2, 3, 5, 6], [0], [1], etc.
-        """
-
-        Sr_plain = self.S.copy()
-
-        # calculate the difference of sets, from https://stackoverflow.com/questions/3462143/get-difference-between-two-lists
-        l_diff = list(set([i for i in range(self.S.shape[0])]) - set(l_vectors))
-
-        # put all other singular vectors different from chosen vectors to zero
-        Sr_plain[l_diff] = 0
-
-        Sr = np.diag(Sr_plain)
-
-        # reconstruct the data matrix, @ is a dot product
-        self.Yr = self.U @ Sr @ self.V_T
-
-        # update D
-        self.SVD_filter = self.SVD_filter
-
-    def crop_data(self, t0=None, t1=None, w0=None, w1=None):
-
-        self.Y, self.times, self.wavelengths = crop_data(self.Y, self.times, self.wavelengths, t0, t1, w0, w1)
-
-        self.SVD()
-
-        # update matrix D
-        self.SVD_filter = self.SVD_filter
-
-        return self
-
-    def baseline_corr(self, t0=0, t1=200):
-        """Subtracts a average of specified time range from all data.
-        Deep copies the object and new averaged one is returned."""
-
-        t_idx_start = find_nearest_idx(self.times, t0) if t0 is not None else 0
-        t_idx_end = find_nearest_idx(self.times, t1) + 1 if t1 is not None else self.D.shape[0]
-
-        D_selection = self.Y[t_idx_start:t_idx_end, :]
-        self.Y -= D_selection.mean(axis=0)
-
-        self.SVD()
-        self.SVD_filter = self.SVD_filter
-
-        return self
-
-    def reduce(self, t_dim=None, w_dim=None):
-        """Reduces the time and wavelength dimension by t_dim and w_dim, respectively.
-        eg. for t_dim=10, every 10-th row of original matrix will contain reduced matrix."""
-
-        t_factor = int(t_dim) if t_dim is not None else 1
-        w_factor = int(w_dim) if w_dim is not None else 1
-
-        self.Y = self.Y[::t_factor, :]
-        self.times = self.times[::t_factor]
-
-        self.Y = self.Y[:, ::w_factor]
-        self.wavelengths = self.wavelengths[::w_factor]
-
-        self.SVD()
-
-        # update matrix D
-        self.SVD_filter = self.SVD_filter
-
-        return self
-
-    def restore_original_data(self):
-        if self.original_data_matrix is not None:
-            self.wavelengths = self.original_data_matrix[0, 1:]
-            self.times = self.original_data_matrix[1:, 0]
-            self.Y = self.original_data_matrix[1:, 1:]
-
-    # time_slice and wavelength_slice are np.s_ slice objects
-    def slice(self, time_slice, wavelength_slice):
-        self.Y = self.Y[time_slice, wavelength_slice]
-        self.wavelengths = self.wavelengths[wavelength_slice]
-        self.times = self.times[time_slice]
-
-    def get_time_dimension(self):
-        return self.times.shape[0]
-
-    def get_wavelength_dimension(self):
-        return self.wavelengths.shape[0]
-
-    def transpose(self):
-
-        wavelengths = self.times
-        times = self.wavelengths
-        data = self.Y
-
-        self.__init__(name=self.name, filename=self.filename)
-
-        self.Y = data.T
-        self.times = times
-        self.wavelengths = wavelengths
-
-        self.SVD()
-
-        # update matrix D
-        self.SVD_filter = self.SVD_filter
 
     @staticmethod
     def to_string(array, separator='\t', decimal_sep='.', new_line='\n'):

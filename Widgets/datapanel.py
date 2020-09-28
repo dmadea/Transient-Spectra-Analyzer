@@ -48,21 +48,22 @@ class DataPanel(QWidget):
         self.btn_crop_matrix = QPushButton("Crop to visible area")
         self.btn_restore_matrix = QPushButton("Restore original matrix")
 
+        hlayout_crop = QHBoxLayout()
+        hlayout_crop.addWidget(self.btn_crop_matrix)
+        hlayout_crop.addWidget(self.btn_restore_matrix)
+        self.main_layout.addLayout(hlayout_crop)
+
         self.btn_crop_matrix.clicked.connect(self.btn_crop_matrix_clicked)
         self.btn_restore_matrix.clicked.connect(self.btn_restore_matrix_clicked)
 
-        self.main_layout.addWidget(self.btn_crop_matrix)
-        self.main_layout.addWidget(self.btn_restore_matrix)
-
         self.txb_n_spectra = MyLineEdit()
+        self.btn_redraw_spectra = QPushButton("Redraw")
 
         hlayout = QHBoxLayout()
         hlayout.addWidget(QLabel("Number of\nspectra shown:"))
         hlayout.addWidget(self.txb_n_spectra)
+        hlayout.addWidget(self.btn_redraw_spectra)
         self.main_layout.addLayout(hlayout)
-
-        self.btn_redraw_spectra = QPushButton("Redraw spectra to selection")
-        self.main_layout.addWidget(self.btn_redraw_spectra)
 
         self.cb_SVD_filter = QCheckBox("SVD filter:")
         self.txb_SVD_filter = MyLineEdit()
@@ -71,6 +72,14 @@ class DataPanel(QWidget):
         hlayout2.addWidget(self.cb_SVD_filter)
         hlayout2.addWidget(self.txb_SVD_filter)
         self.main_layout.addLayout(hlayout2)
+
+        self.cb_ICA_filter = QCheckBox("ICA subtract filter:")
+        self.txb_ICA_filter = MyLineEdit()
+
+        hlayout3 = QHBoxLayout()
+        hlayout3.addWidget(self.cb_ICA_filter)
+        hlayout3.addWidget(self.txb_ICA_filter)
+        self.main_layout.addLayout(hlayout3)
 
         self.grid2 = QGridLayout()
         self.main_layout.addLayout(self.grid2)

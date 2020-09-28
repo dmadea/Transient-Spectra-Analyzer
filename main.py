@@ -44,10 +44,10 @@ class fMain(QMainWindow):
         self.console = Console(self)
         self.matrix = None  # object of LFP matrix
 
-        self.addDockWidget(Qt.BottomDockWidgetArea, self.console)
+        self.addDockWidget(Qt.RightDockWidgetArea, self.console)
         # fixing the resize bug https://stackoverflow.com/questions/48119969/qdockwidget-splitter-jumps-when-qmainwindow-resized
         # self.resizeDocks([self.dockTreeWidget], [270], Qt.Horizontal)
-        self.resizeDocks([self.console], [200], Qt.Vertical)
+        self.resizeDocks([self.console], [200], Qt.Horizontal)
         # self.setCorner(Qt.BottomLeftCorner, Qt.LeftDockWidgetArea)
 
         self.coor_label = QLabel()  # coordinates

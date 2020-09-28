@@ -98,10 +98,10 @@ class TargetModel:
             ax.annotate(cm, xy=xy, fontsize=13, ha="center", va="center")
 
         for i, tr in enumerate(self.transitions):
-            i = inv_idx[tr['from_comp']]
-            j = inv_idx[tr['to_comp']]
-            xi, xj = xy_pairs[i][0], xy_pairs[j][0]
-            yi, yj = xy_pairs[i][1], xy_pairs[j][1]
+            _i = inv_idx[tr['from_comp']]
+            _j = inv_idx[tr['to_comp']]
+            xi, xj = xy_pairs[_i][0], xy_pairs[_j][0]
+            yi, yj = xy_pairs[_i][1], xy_pairs[_j][1]
 
             hypotenuse = np.sqrt((xj - xi)**2 + (yj - yi)**2)
             hypotenuse = 1 if np.isclose(hypotenuse, 0) else hypotenuse

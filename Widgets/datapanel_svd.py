@@ -55,7 +55,7 @@ class DataPanelSVD(QWidget):
         self.sb_n_ICA = QSpinBox()
         self.sb_n_ICA.setMinimum(1)
         self.sb_n_ICA.setMaximum(100)
-        self.sb_n_ICA.setValue(10)
+        self.sb_n_ICA.setValue(5)
 
         hlayout3 = QHBoxLayout()
         hlayout3.addWidget(QLabel("Number of ICA components:"))

@@ -162,6 +162,10 @@ class PlotWidget(DockArea):
         self.data_panel.txb_SVD_filter.returnPressed.connect(self.txb_SVD_filter_changed)
         self.data_panel.cb_SVD_filter.toggled.connect(self.cb_SVD_filter_toggled)
 
+        self.data_panel.txb_ICA_filter.focus_lost.connect(self.txb_ICA_filter_changed)
+        self.data_panel.txb_ICA_filter.returnPressed.connect(self.txb_ICA_filter_changed)
+        self.data_panel.cb_ICA_filter.toggled.connect(self.cb_ICA_filter_toggled)
+
         self.data_panel.btn_center_levels.clicked.connect(self.btn_center_levels_clicked)
         self.data_panel.txb_SVD_filter.setText("1-5")
         self.data_panel.btn_fit_chirp_params.clicked.connect(self.fit_chirp_params)
@@ -285,11 +289,57 @@ class PlotWidget(DockArea):
         fw.update_model_par_count(update_after_fit=True)
 
     def cb_SVD_filter_toggled(self):
+        if self.matrix is None:
+            return
+
         self.matrix.SVD_filter = self.data_panel.cb_SVD_filter.isChecked()
         # self.plot_matrix(self.matrix, center_lines=False, keep_range=True)
         if self.data_panel.cb_SVD_filter.isChecked():
             self.txb_SVD_filter_changed()
         else:
+            self.plot_matrix(self.matrix, center_lines=False, keep_range=True, keep_fits=True)
+
+    def cb_ICA_filter_toggled(self):
+        if self.matrix is None:
+            return
+
+        self.matrix.ICA_filter = self.data_panel.cb_ICA_filter.isChecked()
+        if self.data_panel.cb_ICA_filter.isChecked():
+            self.txb_ICA_filter_changed()
+        else:
+            self.plot_matrix(self.matrix, center_lines=False, keep_range=True, keep_fits=True)
+
+    def txb_ICA_filter_changed(self):
+        if self.matrix is None:
+            return
+        r_text = self.data_panel.txb_ICA_filter.text()
+        vals = list(filter(None, r_text.split(',')))  # splits by comma and removes empty entries
+        int_vals = []
+
+        for val in vals:
+            try:
+                if str_is_integer(val):
+                    int_vals.append(int(val) - 1)
+                else:
+                    # we dont have a single number, but in a format of eg. '1-3'
+
+                    if '-' not in val:
+                        continue
+
+                    split = val.split('-')
+                    x0 = int(split[0])
+                    x1 = int(split[1])
+
+                    int_vals += [i - 1 for i in range(x0, x1 + 1)]
+            except:
+                continue
+
+        n_comp = int(SVDWidget.instance.data_panel.sb_n_ICA.value())
+
+        result = sorted(list(filter(lambda item: 0 < item < n_comp, int_vals)))
+        self.matrix.set_ICA_filter(result, n_components=n_comp)
+
+        if self.data_panel.cb_ICA_filter.isChecked():
             self.plot_matrix(self.matrix, center_lines=False, keep_range=True, keep_fits=True)
 
     def txb_SVD_filter_changed(self):

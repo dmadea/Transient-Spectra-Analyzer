@@ -12,7 +12,56 @@ from logger import Logger
 from scipy import fftpack
 
 from LFP_matrix import LFP_matrix
+from Widgets.svd_widget import SVDWidget
 
+
+matrices = []
+
+
+def setup_matrix(matrix):
+    if UserNamespace.instance is None:
+        return
+
+    if not isinstance(matrix, LFP_matrix):
+        return
+
+    mw = UserNamespace.instance.main_widget
+    mw.plot_widget.plot_matrix(matrix, center_lines=False)
+    SVDWidget.instance.set_data(matrix)
+
+
+def register_mat():
+
+    if UserNamespace.instance is None:
+        return
+
+    m = UserNamespace.instance.main_widget.matrix.get_factored_matrix()
+    #
+    # if any(map(lambda item: all(item.Y == m.Y) and all(item.times == m.times) and all(item.wavelengths == m.wavelengths), matrices)):
+    #     return
+
+    matrices.append(m)
+
+
+def average_matrices(plot_matrix=True):
+    if UserNamespace.instance is None:
+        return
+
+    if len(matrices) == 0:
+        return
+
+    D_stack = np.stack([m.Y for m in matrices if m is not None], axis=2)
+    D_avrg = D_stack.mean(axis=2, keepdims=False)
+
+    data_avrg = LFP_matrix.from_value_matrix(D_avrg, matrices[0].times.copy(),
+                                             matrices[0].wavelengths.copy())
+    data_avrg.name = matrices[0].name
+    data_avrg.filename = matrices[0].filename
+
+    if plot_matrix:
+        setup_matrix(data_avrg)
+
+    return data_avrg
 
 # import traceback
 
@@ -60,44 +109,6 @@ def save_fit(filepath, ST=None, C=None):
     mw = UserNamespace.instance.main_widget
 
     mw.matrix.save_fit(filepath, ST, C)
-    #
-    # D_fit = mw.matrix.C_fit @ mw.matrix.ST_fit
-    #
-    # mat = mw.matrix.Y_fit.copy()
-    # times = mw.matrix.times
-    # # wavelengths = np.concatenate([[0], mw.matrix.wavelengths])
-    #
-    # mat = np.vstack((mw.matrix.wavelengths, mat))
-    #
-    # t = np.concatenate([[0], times])
-    # mat = np.hstack((t.reshape(-1, 1), mat))
-    #
-    # string = LFP_matrix.to_string(mat, separator=',')
-    #
-    # with open(filepath, 'w') as f:
-    #     f.write(string)
-    #
-    # if A is None and C is None:
-    #     A = mw.matrix.A
-    #     C = mw.matrix.C
-    #
-    # buff_A = 'Wavelength,' + ','.join([str(i+1) for i in range(A.shape[0])]) + '\n'
-    #
-    # A = np.vstack((mw.matrix.wavelengths, A))
-    # buff_A += '\n'.join(','.join(str(num) for num in row) for row in A.T)
-    #
-    # with open(filepath + '-A.csv', 'w') as f:
-    #     f.write(buff_A)
-    #
-    # buff_C = 'Conc,' + ','.join([str(i+1) for i in range(C.shape[1])]) + '\n'
-    #
-    # C = np.hstack((times.reshape(-1, 1), C))
-    # buff_C += '\n'.join(','.join(str(num) for num in row) for row in C)
-    #
-    # with open(filepath + '-C.csv', 'w') as f:
-    #     f.write(buff_C)
-
-
 
 
 def set_gradient(name='sym'):
@@ -111,22 +122,6 @@ def set_gradient(name='sym'):
                           (0.5, (255, 255, 255, 255)), (0.75, (255, 0, 0, 255))], 'mode': 'rgb'}
 
     mw.plot_widget.hist.gradient.restoreState(positive_grad if name == 'positive' else sym_grad)
-
-
-def global_fit(model, verbose=True, method='leastsq'):
-    mw = UserNamespace.instance.main_widget
-
-    mat = mw.matrix.global_fit(model, verbose=verbose, method=method)
-
-    mw.plot_widget.set_fit_matrix(mat)
-
-
-def MCR_ALS_fit(n_components, from_original=False, max_iter=100, verbose=False):
-    mw = UserNamespace.instance.main_widget
-
-    mat = mw.matrix.MCR_ALS(n_components, from_original, max_iter, verbose)
-
-    mw.plot_widget.set_fit_matrix(mat)
 
 
 def correct_to_time_zero():

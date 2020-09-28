@@ -30,7 +30,7 @@ class SVDWidget(DockArea):
         self.U = None
         self.V_T = None
         self.S = None
-        self.D = None
+        self.D = None  # are original data here
 
         self.f_EFA_log_sing_vals = None
         self.t_idxs_fEFA = None
@@ -167,7 +167,10 @@ class SVDWidget(DockArea):
         self.left_sv.setTitle("Left ICA vectors" if show_ica else "Left singular vectors")
         self.right_sv.setTitle("Right ICA vectors" if show_ica else "Right singular vectors")
 
-        if show_ica and (self.C_ICA is None or self.C_ICA.shape[0] != self.U.shape[0]):
+        if show_ica and (self.C_ICA is None or
+                         self.C_ICA.shape[1] != int(self.data_panel.sb_n_ICA.value()) or
+                         self.C_ICA.shape[0] != self.U.shape[0] or
+                         self.ST_ICA.shape[1] != self.V_T.shape[1]):
             self.run_ICA()
 
         lefts = self.C_ICA if show_ica else self.U
