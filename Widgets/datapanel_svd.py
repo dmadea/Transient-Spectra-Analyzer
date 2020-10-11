@@ -2,9 +2,20 @@ from PyQt5.QtGui import *
 from PyQt5.QtCore import Qt
 from PyQt5.QtWidgets import QWidget, QLineEdit, QLabel, QPushButton, QGridLayout, QVBoxLayout, QHBoxLayout, QCheckBox, QSpinBox
 from .mylineedit import MyLineEdit
+from misc import setup_size_policy
+
+import random
+
 
 
 class DataPanelSVD(QWidget):
+
+    def _QLabel(self, text, **kwargs):
+        name = "qlabel_" + "".join([random.choice('abcdefghijklmnopqrstuvwxyz') for i in range(10)])
+        qlabel = QLabel(text, **kwargs)
+        setattr(self, name, qlabel)
+
+        return qlabel
 
     def __init__(self, parent=None):
         super(DataPanelSVD, self).__init__(parent=parent)
@@ -17,7 +28,7 @@ class DataPanelSVD(QWidget):
 
         # EFA settings
 
-        self.main_layout.addWidget(QLabel('Evolving Factor Analysis setting:'))
+        self.main_layout.addWidget(self._QLabel('Evolving Factor Analysis setting:'))
 
         self.sb_n_t_points = QSpinBox()
         self.sb_n_t_points.setMinimum(2)
@@ -30,12 +41,12 @@ class DataPanelSVD(QWidget):
         self.sb_n_svals.setValue(7)
 
         hlayout = QHBoxLayout()
-        hlayout.addWidget(QLabel("Number of time points:"))
+        hlayout.addWidget(self._QLabel("Number of time points:"))
         hlayout.addWidget(self.sb_n_t_points)
         self.main_layout.addLayout(hlayout)
 
         hlayout2 = QHBoxLayout()
-        hlayout2.addWidget(QLabel("Number of EFA\nsingular values shown:"))
+        hlayout2.addWidget(self._QLabel("Number of EFA singular values shown:"))
         hlayout2.addWidget(self.sb_n_svals)
         self.main_layout.addLayout(hlayout2)
 
@@ -50,7 +61,7 @@ class DataPanelSVD(QWidget):
         self.sb_n_vectors.setMaximum(1000)
         self.sb_n_vectors.setValue(3)
 
-        self.main_layout.addWidget(QLabel('Independent Component Analysis (ICA) setting:'))
+        self.main_layout.addWidget(self._QLabel('Independent Component Analysis (ICA) setting:'))
 
         self.sb_n_ICA = QSpinBox()
         self.sb_n_ICA.setMinimum(1)
@@ -58,7 +69,7 @@ class DataPanelSVD(QWidget):
         self.sb_n_ICA.setValue(5)
 
         hlayout3 = QHBoxLayout()
-        hlayout3.addWidget(QLabel("Number of ICA components:"))
+        hlayout3.addWidget(self._QLabel("Number of ICA components:"))
         hlayout3.addWidget(self.sb_n_ICA)
         self.main_layout.addLayout(hlayout3)
 
@@ -69,7 +80,7 @@ class DataPanelSVD(QWidget):
         self.main_layout.addWidget(self.cb_show_ICA_ins_SVD)
 
         hlayout = QHBoxLayout()
-        hlayout.addWidget(QLabel("Displayed vectors:"))
+        hlayout.addWidget(self._QLabel("Displayed vectors:"))
         hlayout.addWidget(self.sb_n_vectors)
         self.main_layout.addLayout(hlayout)
 
@@ -77,4 +88,6 @@ class DataPanelSVD(QWidget):
         self.cb_show_all.setChecked(True)
         self.main_layout.addWidget(self.cb_show_all)
 
-        self.main_layout.addStretch(1)
+        setup_size_policy(self)
+
+        # self.main_layout.addStretch(1)

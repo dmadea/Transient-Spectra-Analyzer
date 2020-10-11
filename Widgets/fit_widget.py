@@ -35,6 +35,8 @@ from gui_console import Console
 from fitting.constraints import ConstraintClosure
 from scipy.linalg import lstsq
 
+from misc import setup_size_policy
+
 
 class FitWidget(QWidget, Ui_Form):
     max_params = 50
@@ -187,6 +189,8 @@ class FitWidget(QWidget, Ui_Form):
             self.glKinetics.addWidget(self.error_list[i], i + 1, 5, 1, 1)
 
             self.fixed_list[i].stateChanged.connect(self.fixed_checked_changed)
+
+        # setup_size_policy(self)
 
         self.cbClass.setCurrentIndex(2)
         self.model_class_changed()

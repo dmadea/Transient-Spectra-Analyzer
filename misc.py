@@ -1,6 +1,9 @@
 import math
 import numpy as np
 from PyQt5.QtGui import QColor
+from PyQt5.QtWidgets import QWidget, QSizePolicy, QLabel, QCheckBox
+
+import inspect
 
 
 def _find_nearest_idx(array, value):
@@ -71,6 +74,23 @@ def int_default_color(counter):
     ]
 
     return QColor(*colors[counter % len(colors)])
+
+
+def setup_size_policy(ui):
+    for comp in inspect.getmembers(ui):
+        if comp[0].startswith('__'):
+            continue
+
+        if not issubclass(comp[1].__class__, QWidget):
+            continue
+
+        c = comp[1]
+
+        c.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Preferred)
+
+        if isinstance(c, QLabel):
+            # print(comp[0])
+            c.setWordWrap(True)
 
 
 def is_iterable(obj):

@@ -111,11 +111,13 @@ class MinorSymLogLocator(Locator):
 class LFP_matrix(object):
 
     @classmethod
-    def from_value_matrix(cls, value_matrix, times, wavelengths):
+    def from_value_matrix(cls, value_matrix, times, wavelengths, filename='', name=''):
         m = cls()
         m.Y = value_matrix
         m.times = times
         m.wavelengths = wavelengths
+        m.filename = filename
+        m.name = name
         m.SVD()
         m._set_D()
         return m
@@ -148,9 +150,9 @@ class LFP_matrix(object):
     def get_factored_matrix(self):
         """Returns the current/factored matrix as a LFP_Matrix object."""
 
-        m = LFP_matrix.from_value_matrix(self.D.copy(), self.times.copy(), self.wavelengths.copy())
-        m.filename = self.filename
-        m.name = self.name
+        m = LFP_matrix.from_value_matrix(self.D.copy(), self.times.copy(), self.wavelengths.copy(),
+                                         filename=self.filename,
+                                         name=self.name)
 
         return m
 
@@ -171,10 +173,10 @@ class LFP_matrix(object):
             self.wavelengths = data[0, 1:]  # first row without first column
             self.times = data[1:, 0]  # first column without the first row
 
-            self.Y = data[1:, 1:]  # slice of the original matrix
+            self.Y = data[1:, 1:]  # original matrix
             self.original_data_matrix = data
 
-            self.D = self.Y
+        self.D = self.Y
 
         self.filename = filename
         self.name = name

@@ -3,8 +3,18 @@ from PyQt5.QtCore import Qt
 from PyQt5.QtWidgets import QWidget, QLineEdit, QLabel, QPushButton, QGridLayout, QVBoxLayout, QHBoxLayout, QCheckBox
 from .mylineedit import MyLineEdit
 
+from misc import setup_size_policy
+import random
+
 
 class DataPanel(QWidget):
+
+    def _QLabel(self, text, **kwargs):
+        name = "qlabel_" + "".join([random.choice('abcdefghijklmnopqrstuvwxyz') for i in range(10)])
+        qlabel = QLabel(text, **kwargs)
+        setattr(self, name, qlabel)
+
+        return qlabel
 
     def __init__(self, parent=None):
         super(DataPanel, self).__init__(parent=parent)
@@ -15,8 +25,8 @@ class DataPanel(QWidget):
         self.grid = QGridLayout()
         self.main_layout.addLayout(self.grid)
 
-        self.grid.addWidget(QLabel("Matrix size:"), 0, 0, Qt.AlignLeft, 1)
-        self.grid.addWidget(QLabel("Cropped\nmatrix size:"), 1, 0, Qt.AlignLeft, 1)
+        self.grid.addWidget(self._QLabel("Matrix size:"), 0, 0, Qt.AlignLeft, 1)
+        self.grid.addWidget(self._QLabel("Cropped matrix size:"), 1, 0, Qt.AlignLeft, 1)
 
         self.lbl_matrix_size = QLabel("")
         self.lbl_cr_matrix_size = QLabel("")
@@ -25,7 +35,7 @@ class DataPanel(QWidget):
         self.grid.addWidget(self.lbl_matrix_size, 0, 1, Qt.AlignLeft, 1)
         self.grid.addWidget(self.lbl_cr_matrix_size, 1, 1, Qt.AlignLeft, 1)
 
-        self.grid.addWidget(QLabel("Visible area:"), 2, 0, Qt.AlignLeft, 1)
+        self.grid.addWidget(self._QLabel("Visible area:"), 2, 0, Qt.AlignLeft, 1)
         self.grid.addWidget(self.lbl_visible_area_msize, 2, 1, Qt.AlignLeft, 1)
 
         self.txb_t0 = MyLineEdit()
@@ -33,14 +43,14 @@ class DataPanel(QWidget):
         self.txb_w0 = MyLineEdit()
         self.txb_w1 = MyLineEdit()
 
-        self.grid.addWidget(QLabel("t0"), 3, 0, Qt.AlignLeft, 1)
-        self.grid.addWidget(QLabel("t1"), 3, 1, Qt.AlignLeft, 1)
+        self.grid.addWidget(self._QLabel("t0"), 3, 0, Qt.AlignLeft, 1)
+        self.grid.addWidget(self._QLabel("t1"), 3, 1, Qt.AlignLeft, 1)
 
         self.grid.addWidget(self.txb_t0, 4, 0, Qt.AlignLeft, 1)
         self.grid.addWidget(self.txb_t1, 4, 1, Qt.AlignLeft, 1)
 
-        self.grid.addWidget(QLabel("w0"), 5, 0, Qt.AlignLeft, 1)
-        self.grid.addWidget(QLabel("w1"), 5, 1, Qt.AlignLeft, 1)
+        self.grid.addWidget(self._QLabel("w0"), 5, 0, Qt.AlignLeft, 1)
+        self.grid.addWidget(self._QLabel("w1"), 5, 1, Qt.AlignLeft, 1)
 
         self.grid.addWidget(self.txb_w0, 6, 0, Qt.AlignLeft, 1)
         self.grid.addWidget(self.txb_w1, 6, 1, Qt.AlignLeft, 1)
@@ -60,7 +70,7 @@ class DataPanel(QWidget):
         self.btn_redraw_spectra = QPushButton("Redraw")
 
         hlayout = QHBoxLayout()
-        hlayout.addWidget(QLabel("Number of\nspectra shown:"))
+        hlayout.addWidget(self._QLabel("Number of spectra shown:"))
         hlayout.addWidget(self.txb_n_spectra)
         hlayout.addWidget(self.btn_redraw_spectra)
         self.main_layout.addLayout(hlayout)
@@ -84,13 +94,13 @@ class DataPanel(QWidget):
         self.grid2 = QGridLayout()
         self.main_layout.addLayout(self.grid2)
 
-        self.grid2.addWidget(QLabel("Heat map levels:"), 0, 0, Qt.AlignLeft, 1)
+        self.grid2.addWidget(self._QLabel("Heat map levels:"), 0, 0, Qt.AlignLeft, 1)
 
         self.txb_z0 = MyLineEdit()
         self.txb_z1 = MyLineEdit()
 
-        self.grid2.addWidget(QLabel("z0"), 1, 0, Qt.AlignLeft, 1)
-        self.grid2.addWidget(QLabel("z1"), 1, 1, Qt.AlignLeft, 1)
+        self.grid2.addWidget(self._QLabel("z0"), 1, 0, Qt.AlignLeft, 1)
+        self.grid2.addWidget(self._QLabel("z1"), 1, 1, Qt.AlignLeft, 1)
 
         self.grid2.addWidget(self.txb_z0, 2, 0, Qt.AlignLeft, 1)
         self.grid2.addWidget(self.txb_z1, 2, 1, Qt.AlignLeft, 1)
@@ -101,14 +111,16 @@ class DataPanel(QWidget):
         self.cb_show_chirp_points = QCheckBox("Show chirp points")
         self.btn_fit_chirp_params = QPushButton("Fit chirp params")
 
-        self.main_layout.addWidget(QLabel("For femto fitting:"))
+        self.main_layout.addWidget(self._QLabel("For femto fitting:"))
 
         hlayout2 = QHBoxLayout()
         hlayout2.addWidget(self.cb_show_chirp_points)
         hlayout2.addWidget(self.btn_fit_chirp_params)
         self.main_layout.addLayout(hlayout2)
 
-        self.main_layout.addStretch(1)
+        setup_size_policy(self)
+
+        # self.main_layout.addStretch(1)
 
     def btn_crop_matrix_clicked(self):
         pass

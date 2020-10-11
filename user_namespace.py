@@ -22,12 +22,8 @@ def setup_matrix(matrix):
     if UserNamespace.instance is None:
         return
 
-    if not isinstance(matrix, LFP_matrix):
-        return
-
     mw = UserNamespace.instance.main_widget
-    mw.plot_widget.plot_matrix(matrix, center_lines=False)
-    SVDWidget.instance.set_data(matrix)
+    mw.setup_matrix(matrix, center_lines=False)
 
 
 def register_mat():
@@ -54,9 +50,9 @@ def average_matrices(plot_matrix=True):
     D_avrg = D_stack.mean(axis=2, keepdims=False)
 
     data_avrg = LFP_matrix.from_value_matrix(D_avrg, matrices[0].times.copy(),
-                                             matrices[0].wavelengths.copy())
-    data_avrg.name = matrices[0].name
-    data_avrg.filename = matrices[0].filename
+                                             matrices[0].wavelengths.copy(),
+                                             filename=matrices[0].filename,
+                                             name=matrices[0].name)
 
     if plot_matrix:
         setup_matrix(data_avrg)

@@ -77,7 +77,6 @@ class fMain(QMainWindow):
         self.update_recent_files()
 
         Console.push_variables({'main_widget': self})
-        # Console.push_variables({'plot_widget': self.grpView})
 
         Console.execute_command("from LFP_matrix import LFP_matrix\nimport fitmodels as m\n"
                                 "import matplotlib.pyplot as plt\nfrom Widgets.fit_widget import FitWidget\n"
@@ -101,14 +100,6 @@ class fMain(QMainWindow):
         console_button.toggled.connect(self.console.setVisible)
         statusBar.addPermanentWidget(self.coor_label)
         statusBar.addPermanentWidget(console_button)
-
-    # def perform_SVD(self):
-    #
-    #     Console.show_message("Performing singular value decomposition")
-    #
-    #     self.matrix.SVD()
-    #
-    #     Console.push_variables({'U': self.matrix.U, 'S': self.matrix.S, 'V_T': self.matrix.V_T})
 
     def update_recent_files(self):
         num = min(len(Settings.recent_project_filepaths), len(self.menuBar().recent_file_actions))
@@ -160,23 +151,30 @@ class fMain(QMainWindow):
                 return
 
         Settings.import_files_dialog_path = os.path.split(filepath)[0]
-        Settings.save()
 
-        self.matrix = lfp_parser.parse_file(filepath)
+        matrix = lfp_parser.parse_file(filepath)
 
-        self.plot_widget.plot_matrix(self.matrix)
-        self.SVD_widget.set_data(self.matrix)
-
-        tail = os.path.split(filepath)[1]
-        name_of_file = os.path.splitext(tail)[0]  # without extension
-
-        self.setWindowTitle(name_of_file + ' - Transient Spectra Analyzer')
-
+        self.setup_matrix(matrix)
         self.add_recent_file(filepath)
+
+    def setup_matrix(self, matrix, *args, **kwargs):
+
+        if matrix is None or not isinstance(matrix, LFP_matrix):
+            raise ValueError(f"matrix cannot be None or have to be type of {type(LFP_matrix)}")
+
+        self.matrix = matrix
+
+        self.plot_widget.plot_matrix(self.matrix, **kwargs)
+        self.SVD_widget.set_data(self.matrix)
 
         Console.push_variables({'matrix': self.matrix})
         self.fit_widget.matrix = self.matrix
         self.fit_widget.init_matrices()
+
+        tail = os.path.split(matrix.filename)[1]
+        name_of_file = os.path.splitext(tail)[0]  # without extension
+
+        self.setWindowTitle(name_of_file + ' - Transient Spectra Analyzer')
 
 
 def my_exception_hook(exctype, value, traceback):
