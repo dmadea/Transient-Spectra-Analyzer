@@ -86,7 +86,7 @@ def setup_size_policy(ui):
 
         c = comp[1]
 
-        c.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Preferred)
+        c.setSizePolicy(QSizePolicy.Ignored, QSizePolicy.Preferred)
 
         if isinstance(c, QLabel):
             # print(comp[0])

@@ -1,6 +1,6 @@
 from PyQt5.QtGui import *
 from PyQt5.QtCore import Qt
-from PyQt5.QtWidgets import QWidget, QLineEdit, QLabel, QPushButton, QGridLayout, QVBoxLayout, QHBoxLayout, QCheckBox
+from PyQt5.QtWidgets import QWidget, QSizePolicy, QLabel, QPushButton, QGridLayout, QVBoxLayout, QHBoxLayout, QCheckBox, QSpacerItem
 from .mylineedit import MyLineEdit
 
 from misc import setup_size_policy
@@ -117,6 +117,9 @@ class DataPanel(QWidget):
         hlayout2.addWidget(self.cb_show_chirp_points)
         hlayout2.addWidget(self.btn_fit_chirp_params)
         self.main_layout.addLayout(hlayout2)
+
+        spacerItem = QSpacerItem(20, 40, QSizePolicy.Minimum, QSizePolicy.Expanding)
+        self.main_layout.addItem(spacerItem)
 
         setup_size_policy(self)
 

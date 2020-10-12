@@ -1,6 +1,6 @@
 from PyQt5.QtGui import *
 from PyQt5.QtCore import Qt
-from PyQt5.QtWidgets import QWidget, QLineEdit, QLabel, QPushButton, QGridLayout, QVBoxLayout, QHBoxLayout, QCheckBox, QSpinBox
+from PyQt5.QtWidgets import QWidget, QSpacerItem, QSizePolicy, QLabel, QPushButton, QGridLayout, QVBoxLayout, QHBoxLayout, QCheckBox, QSpinBox
 from .mylineedit import MyLineEdit
 from misc import setup_size_policy
 
@@ -87,6 +87,9 @@ class DataPanelSVD(QWidget):
         self.cb_show_all = QCheckBox("Show all")
         self.cb_show_all.setChecked(True)
         self.main_layout.addWidget(self.cb_show_all)
+
+        spacerItem = QSpacerItem(20, 40, QSizePolicy.Minimum, QSizePolicy.Expanding)
+        self.main_layout.addItem(spacerItem)
 
         setup_size_policy(self)
 
