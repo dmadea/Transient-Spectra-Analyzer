@@ -137,7 +137,7 @@ class Fitter:
         self.is_interruption_requested = lambda: False  # function that returns True or False, default no interruption
 
         # keywords args to pass to underlying fitting function - lmfit
-        self.kwds = None
+        self.kwds = {'ftol': 1e-10, 'xtol': 1e-10, 'gtol': 1e-10, 'loss': 'linear', 'verbose': self.verbose}
 
         self.update_options(**kwargs)
 
@@ -153,7 +153,7 @@ class Fitter:
         self.ST_opt = self.ST_est
         self.C_opt = self.C_est
 
-        self.kwds = {'ftol': 1e-10, 'xtol': 1e-10, 'gtol': 1e-10, 'loss': 'linear', 'verbose': self.verbose}
+        # self.kwds = {'ftol': 1e-10, 'xtol': 1e-10, 'gtol': 1e-10, 'loss': 'linear', 'verbose': self.verbose}
 
     def _regressor(self, A, B, method='ridge'):
         if method.lower() == self.regressors[0]:

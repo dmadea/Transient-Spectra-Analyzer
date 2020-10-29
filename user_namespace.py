@@ -15,7 +15,7 @@ from LFP_matrix import LFP_matrix
 from Widgets.svd_widget import SVDWidget
 
 
-matrices = []
+_matrices = []
 
 
 def setup_matrix(matrix):
@@ -24,6 +24,14 @@ def setup_matrix(matrix):
 
     mw = UserNamespace.instance.main_widget
     mw.setup_matrix(matrix, center_lines=False)
+
+
+def matrices():
+    return _matrices
+
+
+def clear():
+    _matrices.clear()
 
 
 def register_mat():
@@ -36,23 +44,23 @@ def register_mat():
     # if any(map(lambda item: all(item.Y == m.Y) and all(item.times == m.times) and all(item.wavelengths == m.wavelengths), matrices)):
     #     return
 
-    matrices.append(m)
+    _matrices.append(m)
 
 
 def average_matrices(plot_matrix=True):
     if UserNamespace.instance is None:
         return
 
-    if len(matrices) == 0:
+    if len(_matrices) == 0:
         return
 
-    D_stack = np.stack([m.Y for m in matrices if m is not None], axis=2)
+    D_stack = np.stack([m.Y for m in _matrices if m is not None], axis=2)
     D_avrg = D_stack.mean(axis=2, keepdims=False)
 
-    data_avrg = LFP_matrix.from_value_matrix(D_avrg, matrices[0].times.copy(),
-                                             matrices[0].wavelengths.copy(),
-                                             filename=matrices[0].filename,
-                                             name=matrices[0].name)
+    data_avrg = LFP_matrix.from_value_matrix(D_avrg, _matrices[0].times.copy(),
+                                             _matrices[0].wavelengths.copy(),
+                                             filename=f'{_matrices[0].filename}-avrg.txt',
+                                             name=_matrices[0].name)
 
     if plot_matrix:
         setup_matrix(data_avrg)

@@ -1773,7 +1773,7 @@ class Photosens_Model_Aug(_Model):
         i0 = 0  # last index
 
         # for each matrix in first column
-        for i, mat in enumerate(self.aug_matrix.matrices[:, 0]):
+        for i, mat in enumerate(self.aug_matrix._matrices[:, 0]):
             t = mat.times
             i1 = i0 + mat.times.shape[0]
 
@@ -3017,10 +3017,10 @@ class Test_Bilirubin_Multiset(_Photokinetic_Model):
         ]
         for i in range(len(args)):
             s, e = self.aug_matrix._C_indiv_range(i)
-            t = self.aug_matrix.matrices[i, 0].times
+            t = self.aug_matrix._matrices[i, 0].times
 
             C_out[s:e, :] = self.simulate(*args[i], wavelengths=self.wavelengths,
-                                          times=t, eps=self.ST, V=V, l=1, D=self.aug_matrix.matrices[i, 0].Y)
+                                          times=t, eps=self.ST, V=V, l=1, D=self.aug_matrix._matrices[i, 0].Y)
 
 
 

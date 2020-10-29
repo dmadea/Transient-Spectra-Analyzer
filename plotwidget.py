@@ -336,7 +336,7 @@ class PlotWidget(DockArea):
 
         n_comp = int(SVDWidget.instance.data_panel.sb_n_ICA.value())
 
-        result = sorted(list(filter(lambda item: 0 < item < n_comp, int_vals)))
+        result = sorted(list(filter(lambda item: 0 <= item < n_comp, int_vals)))
         self.matrix.set_ICA_filter(result, n_components=n_comp)
 
         if self.data_panel.cb_ICA_filter.isChecked():
@@ -523,11 +523,30 @@ class PlotWidget(DockArea):
 
         # self.plot_matrix(self.matrix, False)
 
+    def crop_matrix(self, t0=None, t1=None, w0=None, w1=None):
+        if self.matrix is None:
+            return
+
+        self.matrix.crop_data(t0, t1, w0, w1)
+
+        SVDWidget.instance.set_data(self.matrix)
+        self.cb_SVD_filter_toggled()
+
     def baseline_correct(self, t0=0, t1=0.2):
         if self.matrix is None:
             return
 
         self.matrix.baseline_corr(t0, t1)
+
+        SVDWidget.instance.set_data(self.matrix)
+        self.cb_SVD_filter_toggled()
+
+    def dimension_mul(self, t_mul=1, w_mul=1):
+        if self.matrix is None:
+            return
+
+        self.matrix.times *= t_mul
+        self.matrix.wavelengths *= w_mul
 
         SVDWidget.instance.set_data(self.matrix)
         self.cb_SVD_filter_toggled()
