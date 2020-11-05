@@ -111,16 +111,26 @@ class MinorSymLogLocator(Locator):
 class LFP_matrix(object):
 
     @classmethod
-    def from_value_matrix(cls, value_matrix, times, wavelengths, filename='', name=''):
+    def from_value_matrix(cls, value_matrix, times, wavelengths, filename='', name='', mask=[]):
         m = cls()
         m.Y = value_matrix
         m.times = times
         m.wavelengths = wavelengths
         m.filename = filename
         m.name = name
+        m.mask = mask
         m.SVD()
         m._set_D()
         return m
+
+    @property
+    def Mask(self):
+        return self._mask
+
+    @Mask.setter
+    def Mask(self, value):  # true or false
+        self._mask = value
+        self._set_D()
 
     @property
     def SVD_filter(self):
@@ -146,14 +156,18 @@ class LFP_matrix(object):
         self.D = self.Yr.copy() if self._SVD_filter else self.Y.copy()
         if self._ICA_filter:
             self.D -= self.ICA_subtr_mat
+        if self._mask:
+            self.apply_mask(self.D)
 
     def get_factored_matrix(self):
         """Returns the current/factored matrix as a LFP_Matrix object."""
 
+        if self._mask:
+            self.Mask = False
+
         m = LFP_matrix.from_value_matrix(self.D.copy(), self.times.copy(), self.wavelengths.copy(),
                                          filename=self.filename,
-                                         name=self.name)
-
+                                         name=self.name, mask=self.mask.copy())
         return m
 
     def __init__(self, data=None, filename=None, name=None):
@@ -165,6 +179,7 @@ class LFP_matrix(object):
 
         self._SVD_filter = False
         self._ICA_filter = False
+        self._mask = False
         self.ICA_components = 5
 
         self.D = None  # matrix to be plotted - factored matrix if SVD filter or ICA filter is True, else self.Y
@@ -220,7 +235,31 @@ class LFP_matrix(object):
         self.times_fine = None
         self.C_fine = None
 
+        self.mask = []
+
         self.SVD()
+
+    def add_masked_area(self, t0=None, t1=None, w0=None, w1=None):
+
+        t0_idx = find_nearest_idx(self.times, t0) if t0 is not None else 0
+        t1_idx = find_nearest_idx(self.times, t1) + 1 if t1 is not None else self.Y.shape[0]
+
+        w0_idx = find_nearest_idx(self.wavelengths, w0) if w0 is not None else 0
+        w1_idx = find_nearest_idx(self.wavelengths, w1) + 1 if w1 is not None else self.Y.shape[1]
+
+        self.mask.append([t0_idx, t1_idx, w0_idx, w1_idx])
+
+    def clear_mask(self):
+        self.mask.clear()
+
+    def apply_mask(self, matrix):
+        if len(self.mask) == 0:
+            return
+
+        assert matrix.shape[0] == self.times.shape[0] and matrix.shape[1] == self.wavelengths.shape[0]
+
+        for (t0_idx, t1_idx, w0_idx, w1_idx) in self.mask:
+            matrix[t0_idx:t1_idx, w0_idx:w1_idx] = np.nan
 
 
     @classmethod

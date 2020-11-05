@@ -288,6 +288,13 @@ class PlotWidget(DockArea):
         fw.current_model.set_parmu(parmu)
         fw.update_model_par_count(update_after_fit=True)
 
+    def use_mask(self):
+        if self.matrix is None:
+            return
+
+        self.matrix.Mask = not self.matrix.Mask
+        self.plot_matrix(self.matrix, center_lines=False, keep_range=True, keep_fits=True)
+
     def cb_SVD_filter_toggled(self):
         if self.matrix is None:
             return

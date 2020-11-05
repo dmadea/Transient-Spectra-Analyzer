@@ -47,15 +47,27 @@ def register_mat():
     _matrices.append(m)
 
 
-def average_matrices(plot_matrix=True):
+def average_matrices(plot_matrix=True, use_mask=True):
     if UserNamespace.instance is None:
         return
 
     if len(_matrices) == 0:
         return
 
-    D_stack = np.stack([m.Y for m in _matrices if m is not None], axis=2)
-    D_avrg = D_stack.mean(axis=2, keepdims=False)
+    Ds = []
+
+    for m in _matrices:
+        if m is None:
+            continue
+        D = m.Y.copy()
+        if use_mask:
+            m.apply_mask(D)
+        Ds.append(D)
+
+    D_stack = np.stack(Ds, axis=2)
+    D_avrg = np.nanmean(D_stack, axis=2, keepdims=False)
+
+    assert len(D_avrg[np.isnan(D_avrg)]) == 0  # resulting array cannot contain nan values
 
     data_avrg = LFP_matrix.from_value_matrix(D_avrg, _matrices[0].times.copy(),
                                              _matrices[0].wavelengths.copy(),
