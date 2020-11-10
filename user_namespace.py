@@ -147,12 +147,14 @@ def correct_to_time_zero():
     mw.plot_widget.plot_matrix(mw.matrix, center_lines=False)
 
 
-def load_LFP_matrix(matrix):
+def setup_matrix(matrix: [LFP_matrix, str]):
     if UserNamespace.instance is None:
         return
 
+    # filename of file or LFP_Matrix object
+
     mw = UserNamespace.instance.main_widget
-    mw.plot_widget.plot_matrix(matrix, center_lines=False)
+    mw.setup_matrix(matrix)
 
 
 def restore_original_data():

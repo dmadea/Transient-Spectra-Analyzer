@@ -380,6 +380,17 @@ class LFP_matrix(object):
 
         self.save_matrix(self.D, fname=fpath, delimiter=delimiter, encoding=encoding, t0=t0, t1=t1, w0=w0, w1=w1)
 
+    def save_original_matrix(self, output_dir='.\\', delimiter='\t', encoding='utf8', t0=None, t1=None, w0=None, w1=None):
+        if self.filename is None:
+            return
+
+        _, fname = os.path.split(self.filename)
+        name, ext = os.path.splitext(fname)
+
+        fpath = os.path.join(output_dir, f'{name}{ext}')
+
+        self.save_matrix(self.Y, fname=fpath, delimiter=delimiter, encoding=encoding, t0=t0, t1=t1, w0=w0, w1=w1)
+
     def save_matrix(self, D=None, fname='output.txt', delimiter='\t', encoding='utf8', t0=None, t1=None, w0=None, w1=None):
         # cut data if necessary
 

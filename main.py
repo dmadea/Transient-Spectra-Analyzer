@@ -159,8 +159,11 @@ class fMain(QMainWindow):
 
     def setup_matrix(self, matrix, *args, **kwargs):
 
-        if matrix is None or not isinstance(matrix, LFP_matrix):
+        if matrix is None or not isinstance(matrix, (LFP_matrix, str)):
             raise ValueError(f"matrix cannot be None or have to be type of {type(LFP_matrix)}")
+
+        if isinstance(matrix, str):
+            matrix = lfp_parser.parse_file(matrix)
 
         self.matrix = matrix
 

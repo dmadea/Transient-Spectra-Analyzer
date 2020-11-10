@@ -564,9 +564,9 @@ class _Femto(_Model):
 
     def get_weights(self, D):
         weights = np.ones_like(D)
-        for *rng, weight in self.weights:
+        for *rng, w in self.weights:
             idx0, idx1 = find_nearest_idx(self.wavelengths, rng)
-            weights[idx0:idx1+1] = weight
+            weights[:, idx0:idx1+1] = w
 
         return weights
 

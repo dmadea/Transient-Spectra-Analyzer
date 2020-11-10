@@ -302,6 +302,16 @@ class FitWidget(QWidget, Ui_Form):
         with open(fname, 'w', encoding=encoding) as f:
             f.write(buffer)
 
+    def save_S(self, fname='output.txt', delimiter='\t', encoding='utf8'):
+
+        mat = np.vstack((self.matrix.wavelengths, self._ST))
+        buffer = f'Wavelength / nm{delimiter}' + delimiter.join(self.current_model.species_names) + '\n'
+        buffer += '\n'.join(delimiter.join(f"{num}" for num in row) for row in mat.T)
+
+        with open(fname, 'w', encoding=encoding) as f:
+            f.write(buffer)
+
+
     def init_matrices(self):
         if self.matrix is None:
             return
