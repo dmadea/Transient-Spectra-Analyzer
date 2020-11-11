@@ -296,6 +296,9 @@ class _Femto(_Model):
 
         self.zero_coh_spec_range = []  # zero coherent artifact in that wavelength range
         self.weights = []  # (wl_start, wl_end, weight) default weight 1
+        self.weight_chirp = False
+        self.w_of_chirp = 0.1
+        self.t_radius_chirp = 0.2  # time radius around chirp / in ps
 
         self.chirp_type = 'poly'  # poly, exp
         self.spectra_choises = ['EADS', 'DADS']
@@ -562,11 +565,18 @@ class _Femto(_Model):
 
         return params
 
-    def get_weights(self, D):
+    def get_weights(self, D, params=None):
         weights = np.ones_like(D)
         for *rng, w in self.weights:
             idx0, idx1 = find_nearest_idx(self.wavelengths, rng)
-            weights[:, idx0:idx1+1] = w
+            weights[:, idx0:idx1+1] *= w
+
+        if self.weight_chirp:
+            mu = self.get_mu(params)
+
+            for i, t0 in enumerate(mu):
+                idx0, idx1 = find_nearest_idx(self.times, [t0 - self.t_radius_chirp / 2, t0 + self.t_radius_chirp / 2])
+                weights[idx0:idx1+1, i] *= self.w_of_chirp
 
         return weights
 

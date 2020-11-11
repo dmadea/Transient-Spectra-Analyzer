@@ -441,7 +441,7 @@ class Fitter:
             R = self.D - D_fit
 
             R = np.nan_to_num(R)
-            weights = self.c_model.get_weights(self.D)
+            weights = self.c_model.get_weights(self.D, params)
 
             return R * weights
 
