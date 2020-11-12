@@ -1142,7 +1142,8 @@ class LFP_matrix(object):
                               wls=wls_fit, marker_size=marker_size, alpha=alpha_traces,
                               marker_facecolor=marker_facecolor,
                               marker_linewidth=marker_linewidth, colors=COLORS,
-                              linscale=linscale, linthresh=linthresh, x_label=f'Time / {t_unit}', legend_spacing=legend_spacing,
+                              linscale=linscale, linthresh=linthresh, x_label=f'Time / {t_unit}',
+                              legend_spacing=legend_spacing, y_label=z_unit,
                               lw=lw_traces, legend_loc=legend_loc_traces, D_mul_factor=D_mul_factor)
 
         plt.tight_layout()
