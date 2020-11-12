@@ -467,7 +467,7 @@ class FitWidget(QWidget, Ui_Form):
             self.current_model.ST = self._ST
             self._C = self.current_model.calc_C(C_out=self._C)
 
-        elif self.current_model.method is 'femto':
+        elif self.current_model.method == 'femto':
             self.D_fit, self._C, self._ST = self.current_model.simulate_mod(self.matrix.Y)
 
         else:
@@ -565,6 +565,7 @@ class FitWidget(QWidget, Ui_Form):
         # self.matrix.E = R
         self.matrix.C_fit = self._C
         self.matrix.ST_fit = self._ST
+        self.matrix.D_fit = D_fit
 
         if self._au:
             self._au.ST_aug = self._ST
@@ -576,6 +577,9 @@ class FitWidget(QWidget, Ui_Form):
         self.fit_plot_layout.add_legend(spacing=13)
 
         for i in range(n):
+            if self._C.shape[1] == 0:
+                continue
+
             pen_fit = pg.mkPen(color=int_default_color(i), width=1)
             name = self.current_model.species_names[i]
 
@@ -585,6 +589,9 @@ class FitWidget(QWidget, Ui_Form):
                                               name=name)
 
         if self.current_model._class == 'Femto' and self.current_model.coh_spec is True:
+            self.matrix.C_COH = self.current_model.C_COH
+            self.matrix.ST_COH = self.current_model.ST_COH
+
             for i in range(self.current_model.coh_spec_order + 1):
 
                 pen_coh_spec = pg.mkPen(color=int_default_color(n + i), width=1, style=Qt.DashLine)

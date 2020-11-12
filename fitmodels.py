@@ -598,7 +598,7 @@ class _Femto(_Model):
 
         if self.coh_spec:
             _C_COH = self.simulate_coh_gaussian(zero_coh_range=zero_coh_range)
-            _C_tensor = np.concatenate((_C_tensor, _C_COH), axis=-1)
+            _C_tensor = np.concatenate((_C_tensor, _C_COH), axis=-1) if _C_tensor is not None else _C_COH
 
         _C_tensor = np.nan_to_num(_C_tensor)
 
@@ -885,6 +885,20 @@ class _Photokinetic_Model(_Model):
             raise ValueError("Spectra matrix must not be None.")
 
         return C_out
+
+
+class PumpProbeCrossCorrelation(_Femto):
+
+    name = 'Pump-Probe Cross-Correlation'
+    _class = 'Femto'
+
+    def open_model_settings(self, show_target_model=False):
+        super(PumpProbeCrossCorrelation, self).open_model_settings(False)
+
+    def calc_C(self, params=None, C_out=None):
+        super(PumpProbeCrossCorrelation, self).calc_C(params, C_out)
+
+        return None
 
 
 class Global_Analysis_Femto(_Femto):

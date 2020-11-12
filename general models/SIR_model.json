@@ -1,0 +1,34 @@
+[
+    {
+        "from_comp": [
+            "Susceptible",
+            "Infected"
+        ],
+        "to_comp": [
+            "Infected",
+            "Infected"
+        ],
+        "forward_rate": 0.5,
+        "backward_rate": 0
+    },
+    {
+        "from_comp": [
+            "Infected"
+        ],
+        "to_comp": [
+            "Recovered"
+        ],
+        "forward_rate": 0.1,
+        "backward_rate": 0
+    },
+    {
+        "from_comp": [
+            "Infected"
+        ],
+        "to_comp": [
+            "Dead"
+        ],
+        "forward_rate": 0.01,
+        "backward_rate": 0
+    }
+]
