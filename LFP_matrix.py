@@ -15,6 +15,9 @@ import matplotlib as mpl
 import matplotlib.colors as c
 from numpy import ma
 
+# from matplotlib.ticker import SymmetricalLogLocator
+from matplotlib.ticker import *
+
 
 WL_LABEL = 'Wavelength / nm'
 WN_LABEL = "Wavenumber / $10^{4}$ cm$^{-1}$"
@@ -37,7 +40,7 @@ mpl.rcParams['hatch.linewidth'] = 0.8  # hatch linewidth
 LEGEND_FONT_SIZE = 10
 MAJOR_TICK_DIRECTION = 'in'  # in, out or inout
 MINOR_TICK_DIRECTION = 'in'  # in, out or inout
-from matplotlib.ticker import *
+
 
 def eps_label(factor):
     num = np.log10(1 / factor).astype(int)
@@ -94,8 +97,8 @@ def set_main_axis(ax, x_label=WL_LABEL, y_label="Absorbance", xlim=(None, None),
     ax.tick_params(axis='both', which='minor', direction=MINOR_TICK_DIRECTION)
 
 
-def plot_traces_onefig_ax(ax, D, D_fit, times, wavelengths, wls=[355, 400, 450, 500, 550], marker_size=10,
-                          marker_linewidth=1,
+def plot_traces_onefig_ax(ax, D, D_fit, times, wavelengths, wls=(355, 400, 450, 500, 550), marker_size=10,
+                          marker_linewidth=1, n_lin_bins=10, n_log_bins=10,
                           marker_facecolor='white', alpha=0.8,
                           linthresh=1, linscale=1, colors=None, D_mul_factor=1e3, legend_spacing=0.2, lw=1.5,
                           legend_loc='lower right', y_label=dA_unit, x_label='Time / ps'):
@@ -128,7 +131,8 @@ def plot_traces_onefig_ax(ax, D, D_fit, times, wavelengths, wls=[355, 400, 450, 
 
     ax.set_xscale('symlog', subs=[2, 3, 4, 5, 6, 7, 8, 9], linscale=linscale, linthresh=linthresh)
 
-    ax.xaxis.set_minor_locator(MinorSymLogLocator(linthresh))
+    ax.xaxis.set_major_locator(MajorSymLogLocator(base=10, linthresh=linthresh))
+    ax.xaxis.set_minor_locator(MinorSymLogLocator(linthresh, n_lin_ints=n_lin_bins, n_log_ints=n_log_bins, base=10))
 
     ax.xaxis.set_major_formatter(ScalarFormatter())
 
@@ -217,7 +221,8 @@ def get_sym_space(vmin, vmax, n):
 
 def plot_data_ax(fig, ax, matrix, times, wavelengths, symlog=True, t_unit='ps',
                  z_unit=dA_unit, cmap='diverging', z_lim=(None, None),
-                 t_lim=(None, None), w_lim=(None, None), linthresh=10, linscale=1, D_mul_factor=1e3,
+                 t_lim=(None, None), w_lim=(None, None), linthresh=1, linscale=1, D_mul_factor=1e3,
+                 n_lin_bins=10, n_log_bins=10,
                  y_major_formatter=ScalarFormatter(),
                  x_minor_locator=AutoMinorLocator(10), n_levels=30, plot_countours=True,
                  colorbar_locator=MultipleLocator(50),
@@ -285,7 +290,8 @@ def plot_data_ax(fig, ax, matrix, times, wavelengths, symlog=True, t_unit='ps',
 
     if symlog:
         ax.set_yscale('symlog', subs=[2, 3, 4, 5, 6, 7, 8, 9], linscale=linscale, linthresh=linthresh)
-        ax.yaxis.set_minor_locator(MinorSymLogLocator(linthresh))
+        ax.yaxis.set_major_locator(MajorSymLogLocator(base=10, linthresh=linthresh))
+        ax.yaxis.set_minor_locator(MinorSymLogLocator(linthresh, n_lin_ints=n_lin_bins, n_log_ints=n_log_bins, base=10))
 
     if y_major_formatter:
         ax.yaxis.set_major_formatter(y_major_formatter)
@@ -402,15 +408,120 @@ def register_div_cmap(zmin, zmax):
     cm.register_cmap('diverging', custom_cmap)
 
 
+def get_mu(wls, parmu=(1, 0, 0), lambda_c=433):
+    mu = np.ones(wls.shape[0], dtype=np.float64) * parmu[0]
+    for i in range(1, len(parmu)):
+        mu += parmu[i] * ((wls - lambda_c) / 100) ** i
+
+    return mu
+
+
+def chirp_correction(matrix, times, wls, parmu=(1, 0, 0), lambda_c=433, time_offset=0.3):
+    mu = get_mu(wls, parmu, lambda_c)
+
+    idx0 = find_nearest_idx(mu, time_offset)
+    if mu[idx0] < time_offset:
+        idx0 += 1
+
+    # crop wavelengths data from idx0 to end
+    matrix_croped = matrix[:, idx0:]
+    new_wls = wls[idx0:]
+    mu = mu[idx0:]
+
+    new_times = times - mu.max()
+
+    # remove first entries to correct for time_offset
+    idx_t_min = find_nearest_idx(new_times, -time_offset)
+    if new_times[idx_t_min] < -time_offset:
+        idx_t_min += 1
+
+    new_times = new_times[idx_t_min:]
+    new_D = np.zeros((new_times.shape[0], new_wls.shape[0]), dtype=np.float64)
+
+    for i in range(new_wls.shape[0]):
+        new_D[:, i] = np.interp(new_times, times - mu[i], matrix_croped[:, i])  # linear interpolation
+
+    return new_D, new_times, new_wls
+
+
+class MajorSymLogLocator(SymmetricalLogLocator):
+    """
+    Determine the tick locations for symmetric log axes.
+    Slight modification .... TODO
+    """
+
+    def tick_values(self, vmin, vmax):
+        base = self._base
+        linthresh = self._linthresh
+
+        if vmax < vmin:
+            vmin, vmax = vmax, vmin
+
+        # if -linthresh < vmin < vmax < linthresh:
+        #     # only the linear range is present
+        #     return [vmin, vmax]
+
+        # Lower log range is present
+        has_a = (vmin < -linthresh)
+        # Upper log range is present
+        has_c = (vmax > linthresh)
+
+        # Check if linear range is present
+        has_b = (has_a and vmax > -linthresh) or (has_c and vmin < linthresh) or -linthresh < vmin < vmax < linthresh
+
+        def get_log_range(lo, hi):
+            lo = np.floor(np.log(lo) / np.log(base))
+            hi = np.ceil(np.log(hi) / np.log(base))
+            return lo, hi
+
+        # Calculate all the ranges, so we can determine striding
+        a_lo, a_hi = (0, 0)
+        if has_a:
+            a_upper_lim = min(-linthresh, vmax)
+            a_lo, a_hi = get_log_range(abs(a_upper_lim), abs(vmin) + 1)
+
+        c_lo, c_hi = (0, 0)
+        if has_c:
+            c_lower_lim = max(linthresh, vmin)
+            c_lo, c_hi = get_log_range(c_lower_lim, vmax + 1)
+
+        # Calculate the total number of integer exponents in a and c ranges
+        total_ticks = (a_hi - a_lo) + (c_hi - c_lo)
+        if has_b:
+            total_ticks += 1
+        stride = max(total_ticks // (self.numticks - 1), 1)
+
+        ticklocs = []  # places to put major ticks
+
+        if has_a:
+            ticklocs.extend(-1 * (base ** (np.arange(a_lo, a_hi,
+                                                    stride)[::-1])))
+
+        if has_c:
+            ticklocs.extend(base ** (np.arange(c_lo, c_hi, stride)))
+
+        if has_b:
+            linthresh_base = base ** np.floor(np.log(linthresh) / np.log(base))
+
+            major_ticks = np.arange(-linthresh, linthresh + linthresh_base, linthresh_base)
+
+            for tick in major_ticks:
+                if tick not in ticklocs:
+                    ticklocs.append(tick)
+
+        ret = np.array(ticklocs)
+        ret.sort()
+
+        return self.raise_if_exceeds(ret)
 
 
 class MinorSymLogLocator(Locator):
     """
     Dynamically find minor tick positions based on the positions of
-    major ticks for a symlog scaling.
+    major ticks for a symlog scaling.... Modified, TODO
     """
 
-    def __init__(self, linthresh, nints=10):
+    def __init__(self, linthresh=1, n_lin_ints=10, n_log_ints=10, base=10.):
         """
         Ticks will be placed between the major ticks.
         The placement is linear for x between -linthresh and linthresh,
@@ -418,9 +529,15 @@ class MinorSymLogLocator(Locator):
         intervals that will be bounded by the minor ticks.
         """
         self.linthresh = linthresh
-        self.nintervals = nints
+        self.nintervals = n_lin_ints
+        self.n_log_intervals = n_log_ints
+        self.base = base
 
     def __call__(self):
+        vmin, vmax = self.axis.get_view_interval()
+        return self.tick_values(vmin, vmax)
+
+    def tick_values(self, vmin, vmax):
         # Return the locations of the ticks
         majorlocs = self.axis.get_majorticklocs()
 
@@ -435,14 +552,14 @@ class MinorSymLogLocator(Locator):
         # add temporary major tick location at the lower end
         if majorlocs[0] != 0. and ((majorlocs[0] != self.linthresh and dmlower > self.linthresh) or (
                 dmlower == self.linthresh and majorlocs[0] < 0)):
-            majorlocs = np.insert(majorlocs, 0, majorlocs[0] * 10.)
+            majorlocs = np.insert(majorlocs, 0, majorlocs[0] * self.base)
         else:
             majorlocs = np.insert(majorlocs, 0, majorlocs[0] - self.linthresh)
 
         # add temporary major tick location at the upper end
         if majorlocs[-1] != 0. and ((np.abs(majorlocs[-1]) != self.linthresh and dmupper > self.linthresh) or (
                 dmupper == self.linthresh and majorlocs[-1] > 0)):
-            majorlocs = np.append(majorlocs, majorlocs[-1] * 10.)
+            majorlocs = np.append(majorlocs, majorlocs[-1] * self.base)
         else:
             majorlocs = np.append(majorlocs, majorlocs[-1] + self.linthresh)
 
@@ -455,17 +572,19 @@ class MinorSymLogLocator(Locator):
             if abs(majorlocs[i - 1] + majorstep / 2) < self.linthresh:
                 ndivs = self.nintervals
             else:
-                ndivs = self.nintervals - 1.
+                # ndivs = self.n_log_intervals - 1
+
+                # if the difference between major locks is not full decade
+                # log_ratio = np.sign(majorlocs[i - 1]) * np.log(majorlocs[i] / majorlocs[i - 1]) / np.log(self.base)
+                # if log_ratio != 1:
+                base_difference = majorstep / (self.base ** np.floor(np.log(majorstep) / np.log(self.base)))
+                ndivs = (self.n_log_intervals - 1) * base_difference / (self.base - 1)
 
             minorstep = majorstep / ndivs
             locs = np.arange(majorlocs[i - 1], majorlocs[i], minorstep)[1:]
             minorlocs.extend(locs)
 
         return self.raise_if_exceeds(np.array(minorlocs))
-
-    def tick_values(self, vmin, vmax):
-        raise NotImplementedError('Cannot get tick locations for a '
-                                  '%s type.' % type(self))
 
 
 class LFP_matrix(object):
@@ -593,6 +712,9 @@ class LFP_matrix(object):
         self.D_fit = None
         self.C_COH = None
         self.ST_COH = None
+
+        self.parmu = None  # chirp params
+        self.lambda_c = 387  # for chirp
 
         self.E = None  # residuals
 
@@ -1095,12 +1217,13 @@ class LFP_matrix(object):
 
     def plot_fit_femto(self, t_unit='ps', z_unit=dA_unit, cmap='diverging', z_lim=(None, None),
                   t_lim=(None, None), w_lim=(None, None), linthresh=1, linscale=1.5, D_mul_factor=1e3,
-                  y_major_formatter=ScalarFormatter(),
+                  y_major_formatter=ScalarFormatter(), n_lin_bins=10, n_log_bins=10,
                   x_minor_locator=AutoMinorLocator(10), n_levels=30, plot_countours=True,
                   colorbar_locator=AutoLocator(), hatch='/////', colorbar_aspect=35, add_wn_axis=True,
                   wls_fit=(355, 400, 450, 500, 550), marker_size=10, marker_linewidth=1,
                   marker_facecolor='none', alpha_traces=1, legend_spacing=0.2, lw_traces=1.5, lw_spectra=1.5,
-                  legend_loc_traces='lower right',
+                  legend_loc_traces='lower right', plot_chirp_corrected=True, chirp_time_offset=0.3,
+                  draw_chirp=False, lw_chirp=1.5, ls_chirp='--',
                   fig_size=(15, 4.5), dpi=500, filepath=None, transparent=True, hatched_wls=(None, None),
                   plot_ST=True):
 
@@ -1109,13 +1232,21 @@ class LFP_matrix(object):
 
         _D = self.D.copy()
         _D_fit = self.D_fit.copy()
+        times = self.times.copy()
+        wavelengths = self.wavelengths.copy()
 
         assert _D.shape == _D_fit.shape
 
-        if hatched_wls[0] is not None:
-            idx1, idx2 = find_nearest_idx(self.wavelengths, hatched_wls)
+        if plot_chirp_corrected and self.parmu is not None:
+            _D, _, _ = chirp_correction(_D, times, wavelengths, self.parmu, lambda_c=self.lambda_c,
+                                                      time_offset=chirp_time_offset)
+            _D_fit, times, wavelengths = chirp_correction(_D_fit, times, wavelengths, self.parmu, lambda_c=self.lambda_c,
+                                                      time_offset=chirp_time_offset)
 
-            mask = np.zeros_like(self.D)
+        if hatched_wls[0] is not None:
+            idx1, idx2 = find_nearest_idx(wavelengths, hatched_wls)
+
+            mask = np.zeros_like(_D)
             mask[:, idx1:idx2] = 1
 
             _D = ma.masked_array(_D, mask=mask)
@@ -1125,22 +1256,26 @@ class LFP_matrix(object):
 
         fig, axes = plt.subplots(1, 3 if plot_ST else 2, figsize=fig_size)
 
-        plot_data_ax(fig, axes[0], _D, self.times, self.wavelengths, D_mul_factor=D_mul_factor, symlog=True,
+        plot_data_ax(fig, axes[0], _D, times, wavelengths, D_mul_factor=D_mul_factor, symlog=True,
                      plot_countours=plot_countours,
                      n_levels=n_levels, cmap=cmap, linthresh=linthresh, linscale=linscale,
-                     t_unit=t_unit, z_unit=z_unit,
+                     t_unit=t_unit, z_unit=z_unit, n_lin_bins=n_lin_bins, n_log_bins=n_log_bins,
                      z_lim=z_lim, t_lim=t_lim, w_lim=w_lim, y_major_formatter=y_major_formatter,
                      x_minor_locator=x_minor_locator, colorbar_locator=colorbar_locator, hatch=hatch,
                      colorbar_aspect=colorbar_aspect, add_wn_axis=add_wn_axis)
+
+        if draw_chirp and self.parmu is not None:
+            mu = get_mu(wavelengths, self.parmu, self.lambda_c)
+            axes[0].plot(wavelengths, mu, color='black', lw=lw_chirp, ls=ls_chirp)
 
         if plot_ST:
             ST = self.ST_COH if self.ST_fit.shape[0] == 0 else self.ST_fit
             plot_SADS_ax(axes[1], self.wavelengths, ST.T, zero_reg=hatched_wls, colors=COLORS,
                          D_mul_factor=D_mul_factor, z_unit=z_unit, lw=lw_spectra)
 
-        plot_traces_onefig_ax(axes[-1], _D, _D_fit, self.times, self.wavelengths,
+        plot_traces_onefig_ax(axes[-1], _D, _D_fit, times, wavelengths,
                               wls=wls_fit, marker_size=marker_size, alpha=alpha_traces,
-                              marker_facecolor=marker_facecolor,
+                              marker_facecolor=marker_facecolor, n_lin_bins=n_lin_bins, n_log_bins=n_log_bins,
                               marker_linewidth=marker_linewidth, colors=COLORS,
                               linscale=linscale, linthresh=linthresh, x_label=f'Time / {t_unit}',
                               legend_spacing=legend_spacing, y_label=z_unit,
@@ -1156,30 +1291,42 @@ class LFP_matrix(object):
 
     def plot_data(self, symlog=False, t_unit='ps', z_unit=dA_unit, cmap='diverging', z_lim=(None, None),
                   t_lim=(None, None), w_lim=(None, None), linthresh=1, linscale=1.5, D_mul_factor=1e3,
-                  y_major_formatter=ScalarFormatter(),
+                  y_major_formatter=ScalarFormatter(), n_lin_bins=10, n_log_bins=10,
                   x_minor_locator=AutoMinorLocator(10), n_levels=30, plot_countours=True,
-                  colorbar_locator=AutoLocator(), hatch='/////', colorbar_aspect=35, add_wn_axis=True,
-                  fig_size=(5, 4.5), dpi=500, filepath=None, transparent=True, hatched_wls=(None, None)):
+                  colorbar_locator=AutoLocator(), hatched_wls=(None, None), hatch='/////',
+                  colorbar_aspect=35, add_wn_axis=True, plot_chirp_corrected=True, chirp_time_offset=0.3,
+                  draw_chirp=False, lw_chirp=1.5, ls_chirp='--',
+                  fig_size=(5, 4.5), dpi=500, filepath=None, transparent=True, **kwargs):
 
         fig, ax = plt.subplots(1, 1, figsize=fig_size)
 
         _D = self.D.copy()
+        times = self.times.copy()
+        wavelengths = self.wavelengths.copy()
+
+        if plot_chirp_corrected and self.parmu is not None:
+            _D, times, wavelengths = chirp_correction(_D, times, wavelengths, self.parmu, lambda_c=self.lambda_c,
+                                                           time_offset=chirp_time_offset)
 
         if hatched_wls[0] is not None:
-            idx1, idx2 = find_nearest_idx(self.wavelengths, hatched_wls)
+            idx1, idx2 = find_nearest_idx(wavelengths, hatched_wls)
 
-            mask = np.zeros_like(self.D)
+            mask = np.zeros_like(_D)
             mask[:, idx1:idx2] = 1
 
             _D = ma.masked_array(_D, mask=mask)
 
-        plot_data_ax(fig, ax, _D, self.times, self.wavelengths, D_mul_factor=D_mul_factor, symlog=symlog,
+        plot_data_ax(fig, ax, _D, times, wavelengths, D_mul_factor=D_mul_factor, symlog=symlog,
                      plot_countours=plot_countours,
                      n_levels=n_levels, cmap=cmap, linthresh=linthresh, linscale=linscale,
-                     t_unit=t_unit, z_unit=z_unit,
+                     t_unit=t_unit, z_unit=z_unit, n_lin_bins=n_lin_bins, n_log_bins=n_log_bins,
                      z_lim=z_lim, t_lim=t_lim, w_lim=w_lim, y_major_formatter=y_major_formatter,
                      x_minor_locator=x_minor_locator, colorbar_locator=colorbar_locator, hatch=hatch,
-                     colorbar_aspect=colorbar_aspect, add_wn_axis=add_wn_axis)
+                     colorbar_aspect=colorbar_aspect, add_wn_axis=add_wn_axis, **kwargs)
+
+        if draw_chirp and self.parmu is not None:
+            mu = get_mu(wavelengths, self.parmu, self.lambda_c)
+            ax.plot(wavelengths, mu, color='black', lw=lw_chirp, ls=ls_chirp)
 
         plt.tight_layout()
 

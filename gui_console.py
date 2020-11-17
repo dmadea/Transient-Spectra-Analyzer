@@ -135,6 +135,7 @@ _cdict = {'red':   ((0.0, 0.0, 0.0),
 
 _ = matplotlib.colors.LinearSegmentedColormap('div', _cdict)
 matplotlib.cm.register_cmap('div', _)
+np.seterr(divide='ignore')
 
 %matplotlib  # setup default backend
 

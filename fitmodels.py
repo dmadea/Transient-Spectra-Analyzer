@@ -511,17 +511,23 @@ class _Femto(_Model):
         plt.ylabel('IRF_FWHM / ps')
         plt.show()
 
-    def get_mu(self, params=None):
-        """Return the curve that defines chirp."""
-
-        if self.wavelengths is None:
-            return
-
+    def get_parmu(self, params=None):
         params = self.params if params is None else params
         pars = [par[1].value for par in params.items()]
 
         lambda_c, mu_lambda_c = pars[:2]
         pars = pars[2:]
+
+        n_pars = self.n_exp_chirp * 2 if self.chirp_type == 'exp' else self.n_poly_chirp
+
+        return lambda_c, mu_lambda_c, pars[:n_pars]
+
+    def get_mu(self, params=None):
+        """Return the curve that defines chirp."""
+
+        if self.wavelengths is None:
+            return
+        lambda_c, mu_lambda_c, pars = self.get_parmu(params)
 
         mu = np.ones(self.wavelengths.shape[0], dtype=np.float64) * mu_lambda_c
 

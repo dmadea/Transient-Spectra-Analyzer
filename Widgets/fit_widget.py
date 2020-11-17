@@ -562,6 +562,11 @@ class FitWidget(QWidget, Ui_Form):
         D_fit = np.dot(self._C, self._ST) if self.current_model.method is not 'femto' else self.D_fit
         R = D_fit - self.matrix.Y
 
+        if self.current_model._class == 'Femto':
+            lambda_c, mu_lambda_c, pars = self.current_model.get_parmu()
+            self.matrix.parmu = [mu_lambda_c] + pars
+            self.matrix.lambda_c = lambda_c
+
         # self.matrix.E = R
         self.matrix.C_fit = self._C
         self.matrix.ST_fit = self._ST
