@@ -1289,6 +1289,11 @@ class LFP_matrix(object):
         else:
             plt.show()
 
+    def plot_fit_no_2Dmap(self, ):
+        pass  # TODO
+
+
+
     def plot_data(self, symlog=False, t_unit='ps', z_unit=dA_unit, cmap='diverging', z_lim=(None, None),
                   t_lim=(None, None), w_lim=(None, None), linthresh=1, linscale=1.5, D_mul_factor=1e3,
                   y_major_formatter=ScalarFormatter(), n_lin_bins=10, n_log_bins=10,
