@@ -99,15 +99,15 @@ def set_main_axis(ax, x_label=WL_LABEL, y_label="Absorbance", xlim=(None, None),
 
 def plot_traces_onefig_ax(ax, D, D_fit, times, wavelengths, wls=(355, 400, 450, 500, 550), marker_size=10,
                           marker_linewidth=1, n_lin_bins=10, n_log_bins=10,
-                          marker_facecolor='white', alpha=0.8,
+                          marker_facecolor='white', alpha=0.8, y_lim=(None, None),
                           linthresh=1, linscale=1, colors=None, D_mul_factor=1e3, legend_spacing=0.2, lw=1.5,
-                          legend_loc='lower right', y_label=dA_unit, x_label='Time / ps'):
+                          legend_loc='lower right', y_label=dA_unit, x_label='Time / ps', symlog=True):
 
     n = wls.__len__()
     t = times
     norm = mpl.colors.SymLogNorm(vmin=t[0], vmax=t[-1], linscale=linscale, linthresh=linthresh, base=10, clip=True)
 
-    set_main_axis(ax, xlim=(t[0], t[-1]), y_label=y_label, x_label=x_label,
+    set_main_axis(ax, xlim=(t[0], t[-1]), ylim=y_lim, y_label=y_label, x_label=x_label,
                   y_minor_locator=None, x_minor_locator=None)
 
     ax.plot(t, np.zeros_like(t), ls='--', color='black', lw=1)
@@ -129,10 +129,21 @@ def plot_traces_onefig_ax(ax, D, D_fit, times, wavelengths, wls=(355, 400, 450, 
     ax.xaxis.set_ticks_position('both')
     ax.yaxis.set_ticks_position('both')
 
-    ax.set_xscale('symlog', subs=[2, 3, 4, 5, 6, 7, 8, 9], linscale=linscale, linthresh=linthresh)
+    if symlog:
+        ax.set_xscale('symlog', subs=[2, 3, 4, 5, 6, 7, 8, 9], linscale=linscale, linthresh=linthresh)
 
-    ax.xaxis.set_major_locator(MajorSymLogLocator(base=10, linthresh=linthresh))
-    ax.xaxis.set_minor_locator(MinorSymLogLocator(linthresh, n_lin_ints=n_lin_bins, n_log_ints=n_log_bins, base=10))
+        ax.xaxis.set_major_locator(MajorSymLogLocator(base=10, linthresh=linthresh))
+        ax.xaxis.set_minor_locator(MinorSymLogLocator(linthresh, n_lin_ints=n_lin_bins, n_log_ints=n_log_bins, base=10))
+
+        d = 0.015
+        tilt = 0.4
+        ax.set_ylim(ax.get_ylim())
+
+        sep = norm(linthresh)
+        kwargs = dict(transform=ax.transAxes, color='k', clip_on=False)
+        ax.plot([sep - d * tilt, sep + d * tilt], [-d * 0.8, +d * 0.8], **kwargs)
+        ax.plot([sep - d * tilt, sep + d * tilt], [1 - d * 0.8, 1 + d * 0.8], **kwargs)
+        ax.vlines(linthresh, ax.get_ylim()[0], ax.get_ylim()[1], ls='dotted', lw=1, color='k', zorder=10)
 
     ax.xaxis.set_major_formatter(ScalarFormatter())
 
@@ -140,70 +151,43 @@ def plot_traces_onefig_ax(ax, D, D_fit, times, wavelengths, wls=(355, 400, 450, 
     for text, color in zip(l.get_texts(), colors):
         text.set_color(color)
 
-    d = 0.015
-    tilt = 0.4
-    ax.set_ylim(ax.get_ylim())
-
-    sep = norm(linthresh)
-    kwargs = dict(transform=ax.transAxes, color='k', clip_on=False)
-    ax.plot([sep - d * tilt, sep + d * tilt], [-d * 0.8, +d * 0.8], **kwargs)
-    ax.plot([sep - d * tilt, sep + d * tilt], [1 - d * 0.8, 1 + d * 0.8], **kwargs)
-    ax.vlines(linthresh, ax.get_ylim()[0], ax.get_ylim()[1], ls='dotted', lw=1, color='k', zorder=10)
-
     ax.set_axisbelow(False)
 
 
-def plot_spectra_ax(ax, data, times=[0, 100, 1, 5, 100, 500], zero_reg=None, z_unit=dA_unit, D_mul_factor=1e3,
-                    legend_spacing=0.05, area_plot_data=(None, None), area_plot_data_red=(None, None),
-                    colors=None, fill_alpha=0.3, lw=1.5, darkens_factor=1, cmap=None, columnspacing=2,
-                    legend_loc='lower right',
-                    legend_ncol=2, ylim=None):
-    D = data.D * D_mul_factor
-    if zero_reg is not None:
-        cut_idxs = find_nearest_idx(data.wavelengths, zero_reg)
-        D[:, cut_idxs[0]:cut_idxs[1]] = np.nan
+def plot_spectra_ax(ax, D, times, wavelengths, selected_times=(0, 100), zero_reg=None, z_unit=dA_unit, D_mul_factor=1,
+                    legend_spacing=0.05, colors=None, lw=1.5, darkens_factor_cmap=1, cmap='jet', columnspacing=2,
+                    legend_loc='lower right', legend_ncol=2, ylim=None, label_prefix='t = ', time_unit='ps'):
 
-    set_main_axis(ax, y_label=z_unit,
-                  x_minor_locator=AutoMinorLocator(10), y_minor_locator=None,
-                  xlim=(data.wavelengths[0], data.wavelengths[-1]))
+    _D = D * D_mul_factor
+
+    if zero_reg[0] is not None:
+        cut_idxs = find_nearest_idx(wavelengths, zero_reg)
+        _D[:, cut_idxs[0]:cut_idxs[1]] = np.nan
+
+    set_main_axis(ax, y_label=z_unit, xlim=(wavelengths[0], wavelengths[-1]),
+                  x_minor_locator=AutoMinorLocator(10), x_major_locator=MultipleLocator(100), y_minor_locator=None)
     _ = setup_wavenumber_axis(ax, x_major_locator=MultipleLocator(0.5))
 
-    t_idxs = find_nearest_idx(data.times, times)
+    t_idxs = find_nearest_idx(times, selected_times)
 
-    if cmap is 'redorange':
-        cmap = mpl.colors.LinearSegmentedColormap.from_list('redorange', ['red', 'orange', (1, 1, 0, 1), (0, 1, 0, 1)],
-                                                            N=len(times))
-    elif cmap is 'blue':
-        cmap = mpl.colors.LinearSegmentedColormap.from_list('ccc', [(0, 1, 0, 1), 'cyan', 'blue', 'darkblue'],
-                                                            N=len(times))
-    else:
-        cmap = cm.get_cmap('gist_rainbow', t_idxs.shape[0] / 0.75) if cmap is None else cmap
-
-    ax.plot(data.wavelengths, np.zeros_like(data.wavelengths), ls='--', color='black', lw=1)
-    if ylim is not None:
-        ax.set_ylim(ylim)
+    _cmap = cm.get_cmap(cmap, t_idxs.shape[0])
+    ax.axhline(0, wavelengths[0], wavelengths[-1], ls='--', color='black', lw=1)
 
     for i in range(t_idxs.shape[0]):
         if colors is None:
-            color = np.asarray(c.to_rgb(cmap(i))) * darkens_factor
+            color = np.asarray(c.to_rgb(_cmap(i))) * darkens_factor_cmap
             color[color > 1] = 1
         else:
             color = colors[i]
 
-        ax.plot(data.wavelengths, D[t_idxs[i]], color=color, lw=lw, label=f'${times[i]:.3g}$ ps')
+        ax.plot(wavelengths, _D[t_idxs[i]], color=color, lw=lw, label=f'{label_prefix}${selected_times[i]:.3g}$ {time_unit}')
 
-    if area_plot_data[0] is not None:
-        ax.fill_between(area_plot_data[0], area_plot_data[1], color='blue', alpha=fill_alpha)
-
-    if area_plot_data_red[0] is not None:
-        ax.fill_between(area_plot_data_red[0], area_plot_data_red[1], color='red', alpha=fill_alpha)
-
-    l = ax.legend(loc=legend_loc, frameon=False, labelspacing=legend_spacing, ncol=legend_ncol, handletextpad=0,
-                  handlelength=0,
+    l = ax.legend(loc=legend_loc, frameon=False, labelspacing=legend_spacing, ncol=legend_ncol,
+                  # handlelength=0, handletextpad=0,
                   columnspacing=columnspacing)
     for i, text in enumerate(l.get_texts()):
-        text.set_ha('right')
-        text.set_color(cmap(i))
+        # text.set_ha('right')
+        text.set_color(_cmap(i))
 
     ax.set_axisbelow(False)
     ax.yaxis.set_ticks_position('both')
@@ -1289,10 +1273,63 @@ class LFP_matrix(object):
         else:
             plt.show()
 
-    def plot_fit_no_2Dmap(self, ):
-        pass  # TODO
+    def plot_fit_no_2Dmap(self, symlog=False, t_unit='ps', z_unit='$\\Delta A$', cmap='jet', z_lim=(None, None),
+                  w_lim=(None, None), n_lin_bins=10, n_log_bins=10,
+                  linthresh=1, linscale=1.5, D_mul_factor=1,
+                  # y_major_formatter=ScalarFormatter(), x_minor_locator=AutoMinorLocator(10),
+                  # add_wn_axis=True, t_lim=(None, None),
+                  wls_fit=(355, 400, 450, 500, 550), marker_size=10, marker_linewidth=1,
+                  marker_facecolor='none', alpha_traces=1, legend_spacing=0.2, lw_traces=1.5, lw_spectra=1.5,
+                  legend_loc_traces='lower right',
+                  selected_times=(0, 100),
+                  spectra_colors=None, spectra_lw=1.5, darkens_factor_cmap=1, columnspacing=2,
+                  legend_loc_spectra='lower right', legend_ncol_spectra=1, label_prefix='t = ', label_postfix='ps',
+                  fig_size=(15, 4.5), dpi=500, filepath=None, transparent=True, hatched_wls=(None, None)):
 
+        if self.D_fit is None:
+            raise ValueError("No fitting data available.")
 
+        _D = self.D.copy()
+        _D_fit = self.D_fit.copy()
+        times = self.times.copy()
+        wavelengths = self.wavelengths.copy()
+
+        if hatched_wls[0] is not None:
+            idx1, idx2 = find_nearest_idx(wavelengths, hatched_wls)
+
+            mask = np.zeros_like(_D)
+            mask[:, idx1:idx2] = 1
+
+            _D = ma.masked_array(_D, mask=mask)
+
+        COLORS = ['blue', 'red', 'green', 'orange', 'purple', 'black', 'gray']
+        fig, axes = plt.subplots(1, 3, figsize=fig_size)
+
+        plot_spectra_ax(axes[0], _D, times, wavelengths, selected_times=selected_times, zero_reg=hatched_wls,
+                        z_unit=z_unit, D_mul_factor=D_mul_factor, legend_spacing=legend_spacing, colors=spectra_colors,
+                        lw=spectra_lw, darkens_factor_cmap=darkens_factor_cmap, columnspacing=columnspacing,
+                        legend_loc=legend_loc_spectra, legend_ncol=legend_ncol_spectra, label_prefix=label_prefix,
+                        time_unit=label_postfix, cmap=cmap, ylim=z_lim)
+
+        plot_SADS_ax(axes[1], self.wavelengths, self.ST_fit.T, zero_reg=hatched_wls, colors=COLORS,
+                     D_mul_factor=D_mul_factor, z_unit=z_unit, lw=lw_spectra, w_lim=w_lim)
+
+        plot_traces_onefig_ax(axes[-1], _D, _D_fit, times, wavelengths, y_lim=z_lim,
+                              wls=wls_fit, marker_size=marker_size, alpha=alpha_traces,
+                              marker_facecolor=marker_facecolor, n_lin_bins=n_lin_bins, n_log_bins=n_log_bins,
+                              marker_linewidth=marker_linewidth, colors=COLORS,
+                              linscale=linscale, linthresh=linthresh, x_label=f'Time / {t_unit}',
+                              legend_spacing=legend_spacing, y_label=z_unit,
+                              lw=lw_traces, legend_loc=legend_loc_traces, D_mul_factor=D_mul_factor,
+                              symlog=symlog)
+
+        plt.tight_layout()
+
+        if filepath:
+            ext = os.path.splitext(filepath)[1].lower()[1:]
+            plt.savefig(fname=filepath, format=ext, transparent=transparent, dpi=dpi)
+        else:
+            plt.show()
 
     def plot_data(self, symlog=False, t_unit='ps', z_unit=dA_unit, cmap='diverging', z_lim=(None, None),
                   t_lim=(None, None), w_lim=(None, None), linthresh=1, linscale=1.5, D_mul_factor=1e3,
@@ -1343,7 +1380,7 @@ class LFP_matrix(object):
         else:
             plt.show()
 
-    def plot_fit(self, symlog=True, wls=(520, 560, 600), times=(0, 20, 200, 2000), t_unit='s', z_unit='Absorbance $A$',
+    def _plot_fit(self, symlog=True, wls=(520, 560, 600), times=(0, 20, 200, 2000), t_unit='s', z_unit='Absorbance $A$',
                  c_map='inferno_r', fpath=None, format='png', dpi=500, figsize=(18, 10), time_treshold=100,
                  time_linscale=0.5):
 
