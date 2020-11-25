@@ -1,6 +1,6 @@
 import pyqtgraph as pg
 import numpy as np
-from scipy.interpolate import interp2d
+# from scipy.interpolate import interp2d
 from pyqtgraphmodif.StringAxis import StringAxis
 from misc import find_nearest_idx
 

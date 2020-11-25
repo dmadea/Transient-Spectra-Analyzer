@@ -1,6 +1,7 @@
 import pyqtgraph as pg
 import numpy as np
 
+
 ## help from https://stackoverflow.com/questions/31775468/show-string-values-on-x-axis-in-pyqtgraph
 class StringAxis(pg.AxisItem):
     """AxisItem subclass for correctly labeling ticks on heatmap, this is necessary for nonlinearly-spaced data."""

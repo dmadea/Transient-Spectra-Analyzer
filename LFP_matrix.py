@@ -1132,7 +1132,7 @@ class LFP_matrix(object):
         A_dif = self.C_MCR @ self.A_MCR - self.Y  # the difference matrix between MCR fit and original
         x, y = np.meshgrid(self.times, self.wavelengths)  # needed for pcolormesh to correctly scale the image
         plt.pcolormesh(x, y, A_dif.T, cmap='seismic', vmin=-np.abs(np.max(A_dif)), vmax=np.abs(np.max(A_dif)))
-        plt.colorbar().set_label("$\Delta$A")
+        plt.colorbar().set_label("$\\Delta$A")
         plt.title("Residual matrix A_fit - A")
         plt.ylabel('Wavelength / nm')
         plt.xlabel('Time')
@@ -1274,16 +1274,16 @@ class LFP_matrix(object):
             plt.show()
 
     def plot_fit_no_2Dmap(self, symlog=False, t_unit='ps', z_unit='$\\Delta A$', cmap='jet', z_lim=(None, None),
-                  w_lim=(None, None), n_lin_bins=10, n_log_bins=10,
+                  w_lim=(None, None),  x_dim_name='Time',
                   linthresh=1, linscale=1.5, D_mul_factor=1,
                   # y_major_formatter=ScalarFormatter(), x_minor_locator=AutoMinorLocator(10),
                   # add_wn_axis=True, t_lim=(None, None),
-                  wls_fit=(355, 400, 450, 500, 550), marker_size=10, marker_linewidth=1,
+                  wls_fit=(355, 400, 450, 500, 550), selected_times=(0, 100),  marker_size=10, marker_linewidth=1,
                   marker_facecolor='none', alpha_traces=1, legend_spacing=0.2, lw_traces=1.5, lw_spectra=1.5,
                   legend_loc_traces='lower right',
-                  selected_times=(0, 100),
+                  n_lin_bins=10, n_log_bins=10,
                   spectra_colors=None, spectra_lw=1.5, darkens_factor_cmap=1, columnspacing=2,
-                  legend_loc_spectra='lower right', legend_ncol_spectra=1, label_prefix='t = ', label_postfix='ps',
+                  legend_loc_spectra='lower right', legend_ncol_spectra=1, label_prefix='t = ',
                   fig_size=(15, 4.5), dpi=500, filepath=None, transparent=True, hatched_wls=(None, None)):
 
         if self.D_fit is None:
@@ -1309,7 +1309,7 @@ class LFP_matrix(object):
                         z_unit=z_unit, D_mul_factor=D_mul_factor, legend_spacing=legend_spacing, colors=spectra_colors,
                         lw=spectra_lw, darkens_factor_cmap=darkens_factor_cmap, columnspacing=columnspacing,
                         legend_loc=legend_loc_spectra, legend_ncol=legend_ncol_spectra, label_prefix=label_prefix,
-                        time_unit=label_postfix, cmap=cmap, ylim=z_lim)
+                        time_unit=t_unit, cmap=cmap, ylim=z_lim)
 
         plot_SADS_ax(axes[1], self.wavelengths, self.ST_fit.T, zero_reg=hatched_wls, colors=COLORS,
                      D_mul_factor=D_mul_factor, z_unit=z_unit, lw=lw_spectra, w_lim=w_lim)
@@ -1318,7 +1318,8 @@ class LFP_matrix(object):
                               wls=wls_fit, marker_size=marker_size, alpha=alpha_traces,
                               marker_facecolor=marker_facecolor, n_lin_bins=n_lin_bins, n_log_bins=n_log_bins,
                               marker_linewidth=marker_linewidth, colors=COLORS,
-                              linscale=linscale, linthresh=linthresh, x_label=f'Time / {t_unit}',
+                              linscale=linscale, linthresh=linthresh,
+                              x_label=x_dim_name if t_unit == '' else f'{x_dim_name} / {t_unit}',
                               legend_spacing=legend_spacing, y_label=z_unit,
                               lw=lw_traces, legend_loc=legend_loc_traces, D_mul_factor=D_mul_factor,
                               symlog=symlog)

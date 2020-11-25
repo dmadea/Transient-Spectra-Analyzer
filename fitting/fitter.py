@@ -82,6 +82,7 @@ def OLS_ridge(A, B, alpha=0.0001):
 
     return x, None
 
+
 class Fitter:
     """
     Multivariate Curve Resolution - Alternating Regression
@@ -382,7 +383,7 @@ class Fitter:
             if self.st_fix:  # replace spectra to fixed ones if fix is defined
                 _ST_opt[self.st_fix, :] = self.ST_est[self.st_fix]
 
-            R =_C_opt @ _ST_opt - self.D  # calculate residuals
+            R = _C_opt @ _ST_opt - self.D  # calculate residuals
 
             return np.nan_to_num(R)
 

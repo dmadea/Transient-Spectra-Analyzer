@@ -1,6 +1,7 @@
 import pyqtgraph as pg
 
-from pyqtgraphmodif.legend_item import LegendItem
+from pyqtgraphmodif.LegendItemModif import LegendItemModif
+# from pyqtgraph.graphicsItems.LegendItem import LegendItem
 from .heatmap import HeatMapPlot
 
 
@@ -46,7 +47,7 @@ class FitLayout(pg.GraphicsLayoutWidget):
 
         self.add_legend()
 
-    def add_legend(self, size=None, spacing=5, offset=(-30, 30)):
+    def add_legend(self, size=None, spacing=0, offset=(-30, 30)):
 
         try:
             # self.grpView.plotItem.legend.scene().removeItem(self.grpView.plotItem.legend)
@@ -55,11 +56,11 @@ class FitLayout(pg.GraphicsLayoutWidget):
         except:
             pass
 
-        self.C_legend = LegendItem(size, spacing, offset)
+        self.C_legend = LegendItemModif(size, verSpacing=spacing, offset=offset)
         self.C_legend.setParentItem(self.C_plot.vb)
         self.C_plot.legend = self.C_legend
 
-        self.ST_legend = LegendItem(size, spacing, offset)
+        self.ST_legend = LegendItemModif(size, verSpacing=spacing, offset=offset)
         self.ST_legend.setParentItem(self.ST_plot.vb)
         self.ST_plot.legend = self.ST_legend
 

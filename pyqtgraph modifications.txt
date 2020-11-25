@@ -1,0 +1,17 @@
+
+
+LabelItemModif
+    - added height verSpacing parameter that changes the the minimum height
+
+LegendItemModif
+    -changed from LabelItem to LabelItemModif
+    -verSpacing parameter is saved to self and used as a parameter for LabelItemModif
+
+    ItemSampleModif
+        - changed position of drawn line in next to label
+
+StringAxis
+    -added transform function to properly plot axis labels
+
+
+modifications valid for latest developmental version of pyqtgraph on 25.11.2020

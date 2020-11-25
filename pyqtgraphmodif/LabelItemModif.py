@@ -4,7 +4,8 @@ from pyqtgraph.graphicsItems.LabelItem import LabelItem
 
 __all__ = ['LabelItem']
 
-class LblItem(LabelItem):
+
+class LabelItemModif(LabelItem):
     """
     GraphicsWidget displaying text.
     Used mainly as axis labels, titles, etc.
@@ -12,16 +13,17 @@ class LblItem(LabelItem):
     Note: To display text inside a scaled view (ViewBox, PlotWidget, etc) use TextItem
     """
 
-    def __init__(self, text=' ', parent=None, angle=0, spacing=5, **args):
-        self.spacing = spacing
-        super(LblItem, self).__init__(text, parent, angle, **args)
-
+    def __init__(self, text=' ', parent=None, angle=0, verspacing=5, **args):
+        self.verspacing = verspacing  # added vertical spacing parameter
+        super(LabelItemModif, self).__init__(text, parent, angle, **args)
 
     def updateMin(self):
         bounds = self.itemRect()
         self.setMinimumWidth(bounds.width())
-        # changed
-        self.setMinimumHeight(self.spacing)
+
+        # changed here
+        # self.setMinimumHeight(bounds.height())  # commented
+        self.setMinimumHeight(self.verspacing)  # added
 
         self._sizeHint = {
             QtCore.Qt.MinimumSize: (bounds.width(), bounds.height()),
@@ -31,18 +33,3 @@ class LblItem(LabelItem):
         }
 
         self.updateGeometry()
-    #
-    # def sizeHint(self, hint, constraint):
-    #     if hint not in self._sizeHint:
-    #         return QtCore.QSizeF(0, 0)
-    #     return QtCore.QSizeF(*self._sizeHint[hint])
-    # #
-    # def itemRect(self):
-    #     return self.item.mapRectToParent(self.item.boundingRect())
-
-    # def paint(self, p, *args):
-    #     p.setPen(fn.mkPen('r'))
-    #     p.drawRect(self.rect())
-    #     p.setPen(fn.mkPen('g'))
-    #     p.drawRect(self.itemRect())
-    #
