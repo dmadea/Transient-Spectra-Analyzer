@@ -4,6 +4,7 @@ import json
 
 
 class TargetModel:
+    """Only simulates the first order reactions."""
 
     def __init__(self):
 
@@ -64,7 +65,20 @@ class TargetModel:
         for tr, rate in zip(self.transitions, rates):
             tr['rate'] = rate
 
-    def plot_model(self, style='circle', radius=0.05, offset_alpha=0.20, offset_text=0.04):
+    def plot_model(self, style='circle', radius=0.05, offset_alpha=0.20, offset_text=0.04, filepath=None, dpi=500,
+                   transparent=False):
+        """
+
+        :param style: can be 'circle', 'linear' or 'random'
+        :param radius:
+        :param offset_alpha:
+        :param offset_text:
+        :param filepath:
+        :param dpi:
+        :param transparent:
+        :return:
+        """
+
         if self.transitions.__len__() == 0:
             return
 
