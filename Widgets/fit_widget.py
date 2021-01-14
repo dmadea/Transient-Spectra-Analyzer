@@ -311,7 +311,6 @@ class FitWidget(QWidget, Ui_Form):
         with open(fname, 'w', encoding=encoding) as f:
             f.write(buffer)
 
-
     def init_matrices(self):
         if self.matrix is None:
             return

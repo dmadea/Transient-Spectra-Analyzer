@@ -3054,9 +3054,6 @@ class Test_Bilirubin_Multiset(_Photokinetic_Model):
 
 
 
-
-
-
         return C_out
 
 

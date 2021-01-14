@@ -7,6 +7,7 @@ from plotwidget import PlotWidget
 
 from misc import crop_data, find_nearest, find_nearest_idx
 from gui_console import Console
+import os
 
 import pyqtgraph as pg
 from matplotlib import cm
@@ -638,55 +639,45 @@ def setup4():
     return au
 
 
-def setup5():
+def setup2nd():
     fw = FitWidget.instance
     pw = PlotWidget.instance
 
-    # path = r"C:\Users\Dominik\Documents\MUNI\Organic Photochemistry\Projects\2019-Bilirubin project\UV-VIS\Irradiation kinetics\HL-degassed"
-    #
-    # paths = []
-    #
-    # paths.append(path + r"\HL 375 nm irr (both modules)\cut.txt")
-    # paths.append(path + r"\Z 375 nm irr (both modules)\cut.txt")
+    _path = r"C:\Users\dominik\Documents\RealTimeSync\Projects\2020-Bilirubin - 2nd half\UV-VIS\QY\Test 2ZE"
 
-    # path = r"C:\Users\Dominik\Documents\MUNI\Organic Photochemistry\Projects\2019-Bilirubin project\UV-VIS\QY measurement\Photodiode\Z purified"
-    path = r"C:\Users\dominik\Documents\Projects\Bilirubin\UV-Vis Z purified"
+    fnames = [
+        'high conc 1Z.txt',
+        'high conc 1E.txt'
+    ]
 
+    fnames = [
+        'high conc 1Z.txt',
+        'high conc 2Z.txt',
+        'low conc 1Z.txt',
+        'low conc 2Z.txt',
+    ]
+
+    fnames = [
+        'high conc 1Z.txt',
+        'high conc 2Z.txt',
+        'low conc 1Z.txt',
+        'low conc 2Z.txt',
+        'high conc 1E.txt',
+        'high conc 2E.txt',
+        'low conc 1E.txt',
+        'low conc 2E.txt',
+    ]
 
     paths = []
-    #
 
-    # paths.append(path + r"\Z 350\cut.txt")
-    # paths.append(path + r"\E 350\cut.txt")
-
-    # paths.append(path + r"\Z 410\cut.txt")
-    # paths.append(path + r"\E 410\cut.txt")
-    #
-    paths.append(path + r"\Z 500\cut.txt")
-    paths.append(path + r"\E 500\cut.txt")
-    #
-    #
-    path += r"\reactor LEDs"
-    #
-    #
-    # paths.append(path + r"\Z 355\cut.txt")
-    # paths.append(path + r"\Z 400\cut.txt")
-    # paths.append(path + r"\Z 490\cut.txt")
-    # #
-    # paths.append(path + r"\HL 355\cut.txt")
-    # paths.append(path + r"\HL 400\cut.txt")
-    # #
-
-
-
-    # paths.append(path + r"\E 350\cut.txt")
+    for fname in fnames:
+        paths.append(os.path.join(_path, fname))
 
     au = AugmentedMatrix(len(paths), 1)
 
     for i in range(len(paths)):
         au.load_matrix(i, 0, paths[i])
         # au[i, 0].reduce(t_dim=2)
-
 
     # au[1, 0].crop_data(t1=3000)
 

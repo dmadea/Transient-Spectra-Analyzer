@@ -317,7 +317,7 @@ class Fitter:
         w_idx = find_nearest_idx(self.wls, 260)
         weights = np.ones((self.D.shape[0] + 5, self.D.shape[1]))
 
-        weights[:, :w_idx] = 0.1  # weights in the region of 230 - 260 are 0.1
+        weights[:, :w_idx] = 0.5  # weights in the region of 230 - 260 are 0.1
 
         def residuals(params):
             nonlocal _C_opt
