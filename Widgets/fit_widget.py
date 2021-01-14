@@ -198,6 +198,12 @@ class FitWidget(QWidget, Ui_Form):
         self.model_changed()
         self.sbN_value_changed()
 
+    def set_ST_from_file(self, fpath, delimiter='\t'):
+        data = np.genfromtxt(fpath, delimiter=delimiter)
+
+        self._ST = data[1:, 1:].T
+        self.plot_opt_matrices()
+
     def set_ST_full(self, data):
         if self.matrix is None:
             return
@@ -519,11 +525,13 @@ class FitWidget(QWidget, Ui_Form):
             Logger.console_message(e.__str__())
 
     def one_iter_clicked(self):
-        self._fit(max_iter=1)
+        self._fit(max_iter=1, fit_async=False)
 
     def fit(self):
         # try:
-        self._fit()
+        # self._fit()
+        self._fit(fit_async=False)
+
         # except Exception as e:
         #     Logger.status_message(e.__str__())
         #     QMessageBox.warning(self, 'fitting Error', e.__str__(), QMessageBox.Ok)

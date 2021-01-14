@@ -643,30 +643,24 @@ def setup2nd():
     fw = FitWidget.instance
     pw = PlotWidget.instance
 
-    _path = r"C:\Users\dominik\Documents\RealTimeSync\Projects\2020-Bilirubin - 2nd half\UV-VIS\QY\Test 2ZE"
+    _path = r"C:\Users\Dominik\Documents\MUNI\Organic Photochemistry\RealTimeSync\Projects\2020-Bilirubin - 2nd half\UV-VIS\QY\Test 2ZE"
+    # _path = r"C:\Users\dominik\Documents\RealTimeSync\Projects\2020-Bilirubin - 2nd half\UV-VIS\QY\Test 2ZE"
 
     fnames = [
-        'high conc 1Z.txt',
+        'low conc 1Z.txt',
         'high conc 1E.txt'
     ]
-
-    fnames = [
-        'high conc 1Z.txt',
-        'high conc 2Z.txt',
-        'low conc 1Z.txt',
-        'low conc 2Z.txt',
-    ]
-
-    fnames = [
-        'high conc 1Z.txt',
-        'high conc 2Z.txt',
-        'low conc 1Z.txt',
-        'low conc 2Z.txt',
-        'high conc 1E.txt',
-        'high conc 2E.txt',
-        'low conc 1E.txt',
-        'low conc 2E.txt',
-    ]
+    #
+    # fnames = [
+    #     'high conc 1Z.txt',
+    #     'high conc 2Z.txt',
+    #     'low conc 1Z.txt',
+    #     'low conc 2Z.txt',
+    #     'high conc 1E.txt',
+    #     'high conc 2E.txt',
+    #     'low conc 1E.txt',
+    #     'low conc 2E.txt',
+    # ]
 
     paths = []
 

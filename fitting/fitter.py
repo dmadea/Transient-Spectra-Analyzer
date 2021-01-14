@@ -313,11 +313,11 @@ class Fitter:
         self.update_options(**kwargs)
 
         _C_opt = self.C_est.copy() if C_est is None else C_est
+        #
+        # w_idx = find_nearest_idx(self.wls, 260)
+        # weights = np.ones((self.D.shape[0] + 5, self.D.shape[1]))
 
-        w_idx = find_nearest_idx(self.wls, 260)
-        weights = np.ones((self.D.shape[0] + 5, self.D.shape[1]))
-
-        weights[:, :w_idx] = 0.5  # weights in the region of 230 - 260 are 0.1
+        # weights[:, :w_idx] = 0.5  # weights in the region of 230 - 260 are 0.1
 
         def residuals(params):
             nonlocal _C_opt
@@ -336,7 +336,6 @@ class Fitter:
             R = np.zeros((t + n + 1, w), dtype=np.float64)  # residual matrix
             # R = np.zeros((n + 1, w), dtype=np.float64)  # residual matrix
 
-
             # nonnegativity of spectra
             # put negative values, positives will be zero, normalization to maximum of individual spectrum
             R_sp = ST * (ST < 0) / ST.max(axis=0, keepdims=True) * 2
@@ -345,7 +344,10 @@ class Fitter:
 
             # fixed spectrum
             # R[n, :] = (self.c_model.Z_true - ST[0]) / self.c_model.Z_true.max()
-            R[n, :] = np.ones_like(w) * (self.c_model.Z_true.max() - ST[0].max())  # norm to maximum
+            # R[n, :] = np.ones_like(w) * (self.c_model.Z_true.max() - ST[0].max())  # norm to maximum
+            Z_eps415 = 39033
+            R[n, :] = np.ones_like(w) * (Z_eps415 - ST[0].max())  # norm to maximum
+
             #
             # _C_opt = self.c_model.calc_C(params, _C_opt)
             #
@@ -354,10 +356,12 @@ class Fitter:
             # R_C = (_C_opt - C_basis) / _C_opt.max()
 
             # return np.hstack((R.flatten(), R_C.flatten()))
-            return R * weights
+            # return R * weights
+            return R
 
         self.minimizer = lmfit.Minimizer(residuals, self.c_model.params)
-        kws = {} if self.kwds is None else self.kwds
+        # kws = {} if self.kwds is None else self.kwds
+        kws = {'verbose': 2}
         self.last_result = self.minimizer.minimize(method=self.fit_alg, **kws)  # minimize the residuals
 
         self.c_model.params = self.last_result.params

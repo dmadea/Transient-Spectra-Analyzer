@@ -635,7 +635,7 @@ class _Photokinetic_Model(_Model):
             {'name': 'Variable Projection (fit full matrix)', 'abbr': 'VarPro'}
         ]
 
-        self.method = self.fit_methods[2]['abbr']
+        self.method = self.fit_methods[0]['abbr']
 
         self.times = times
         self.C = None
@@ -651,6 +651,8 @@ class _Photokinetic_Model(_Model):
 
         self.T = np.zeros((self.n, self.n), dtype=np.float64) if rot_mat else None
         self.U, self.Sigma, self.VT = None, None, None  # truncated SVD based on actual n components
+
+        self.params = None
 
         self.update_n()
 
@@ -712,7 +714,6 @@ class _Photokinetic_Model(_Model):
                                                        set_result=set_result)
         self.model_settigs_dialog.show()
         self.model_settigs_dialog.exec()
-
 
     def update_n(self, new_n=None):
         super(_Photokinetic_Model, self).update_n(new_n)
@@ -803,7 +804,7 @@ class _Photokinetic_Model(_Model):
         return result
 
     @staticmethod
-    def simul_photokin_model(I0, c0, K, eps, times, V=0.003, l=1, t0=0, use_numba=True):
+    def simul_photokin_model(I0, c0, K=None, eps=None, times=None, V=0.003, l=1, t0=0, use_numba=True):
         """
         no wl dependence of K
         I0 - irradiation spectrum scalled by q0 = PDF * q0 so that integral(I0) = q0
@@ -813,6 +814,8 @@ class _Photokinetic_Model(_Model):
         V - volume in the cuvette in L
         c0 - total initial concentration vector of compounds
         """
+
+        c0 = np.asarray(c0)
 
         assert c0.shape[0] == K.shape[0]
 
@@ -1299,6 +1302,90 @@ class Sequential_Model_FK(_Photokinetic_Model):
                                            use_numba=self.use_numba)
 
         return self.get_conc_matrix(C_out, self._connectivity)
+
+
+class CisTransIsomerization(_Photokinetic_Model):
+
+    name = 'Cis Trans isomerization'
+    _class = 'Steady state photokinetics'
+
+    def __init__(self):
+        super(CisTransIsomerization, self).__init__()
+
+        path = r'C:\Users\Dominik\Documents\MUNI\Organic Photochemistry\RealTimeSync\Projects\2020-Bilirubin - 2nd half\UV-VIS\QY\Test 2ZE\irr spectrum.txt'
+
+        _data_irr = np.genfromtxt(path, delimiter='\t')
+        self.Irr_norm = _data_irr[1:, 1]
+        self.Irr_norm /= np.trapz(self.Irr_norm)  # normalized irradiation spectrum
+
+        path = r'C:\Users\Dominik\Documents\MUNI\Organic Photochemistry\RealTimeSync\Projects\2020-Bilirubin - 2nd half\UV-VIS\QY\q rel.txt'
+
+        self.q_rel = np.genfromtxt(path, delimiter='\t')[1:, 1]
+        self.overlap = np.trapz(self.Irr_norm * self.q_rel)
+
+        self.use_numba = True
+
+    def init_model_params(self):
+        params = super(CisTransIsomerization, self).init_model_params()
+        # params.add('c0', value=1e-3, min=0, max=np.inf, vary=False)  # initial concentration of species A
+        params.add('IZ', value=55e-6, min=0, max=np.inf, vary=False)  # total photon flux
+        params.add('IE', value=56e-6, min=0, max=np.inf, vary=False)  # total photon flux
+        params.add('l', value=1, min=0, max=np.inf, vary=False)  # length of cuvette
+        params.add('V', value=3e-3, min=0, max=np.inf, vary=False)  # volume of solution in cuvette
+        params.add('t0Z', value=7, min=0, max=np.inf, vary=False)  # time of start of irradiation
+        params.add('t0E', value=7, min=0, max=np.inf, vary=False)  # time of start of irradiation
+        params.add('xZ', value=0.05, min=0, max=np.inf, vary=False)  # time of start of irradiation
+
+        # params.add('t02', value=0, min=0, max=np.inf, vary=False)  # time of start of irradiation
+
+        params.add('Phi_ZE', value=0.5, min=0, max=1, vary=False)  # time of start of irradiation
+        params.add('Phi_EZ', value=0.2, min=0, max=1, vary=False)  # time of start of irradiation
+        params.add('Phi_ZED', value=0.05, min=0, max=1, vary=False)  # time of start of irradiation
+
+        return params
+
+    def get_conc_vector(self, spectrum, populations):
+        pop = np.asarray(populations, dtype=np.float64)
+        pop /= pop.sum()
+        assert pop.shape[0] == self.ST.shape[0]
+
+        ST_avrg = (pop[:, None] * self.ST).sum(axis=0)
+
+        STST_sum = (ST_avrg * ST_avrg).sum()
+
+        c0 = (spectrum * ST_avrg).sum() / STST_sum
+
+        return pop * c0
+
+    def calc_C(self, params=None, C_out=None):
+        super(CisTransIsomerization, self).calc_C(params, C_out)
+
+        IZ, IE, l, V, t0Z, t0E, xZ, Phi_ZE, Phi_EZ, Phi_ZED = self.get_photokin_params()
+
+        K = np.asarray([[-Phi_ZE - Phi_ZED, Phi_EZ, 0],
+                        [Phi_ZE, -Phi_EZ - Phi_ZED, 0],
+                        [Phi_ZED, Phi_ZED, 0]])
+
+        irr = self.Irr_norm  # if self.Irr_norm is not None else self.get_LED_source()
+
+        args = [
+            [IZ * self.overlap, [1, 0, 0], t0Z],
+            [IE * self.overlap, [xZ, 1 - xZ, 0], t0E]
+        ]
+
+        for i in range(len(args)):
+            q0, pop, t0 = args[i]
+
+            s, e = self.aug_matrix._C_indiv_range(i)
+            mat = self.aug_matrix.matrices[i, 0]
+
+            c0 = self.get_conc_vector(mat.Y[0], pop)
+
+            C_out[s:e, :] = self.simul_photokin_model(q0 * irr, c0, times=mat.times, eps=self.ST, V=V, t0=t0, l=1, K=K,
+                                                      use_numba=self.use_numba)
+
+        return C_out
+
 
 
 class AB_Model(_Model):

@@ -31,7 +31,7 @@ class TaskFit(Task):
             else:
                 self.fw.fitter.fit_full_model()
 
-        elif self.fw.current_model.connectivity.count(0) == int(self.fw.sbN.value()):  # pure MCR fit
+        elif self.fw.current_model.connectivity.count( 0) == int(self.fw.sbN.value()):  # pure MCR fit
             self.fw.fitter.HS_MCR_fit(c_model=None)
         else:  # mix of two, HS-fit
             self.fw.fitter.HS_MCR_fit(c_model=self.fw.current_model)
