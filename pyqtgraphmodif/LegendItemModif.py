@@ -13,11 +13,11 @@ class LegendItemModif(LegendItem):
 
     def __init__(self, size=None, offset=None, horSpacing=25, verSpacing=0,
                  pen=None, brush=None, labelTextColor=None, frame=True,
-                 labelTextSize='9pt', rowCount=1, colCount=1,  **kwargs):
+                 labelTextSize='9pt', colCount=1, sampleType=None, **kwargs):
 
         super(LegendItemModif, self).__init__(size, offset, horSpacing, verSpacing,
-                 pen, brush, labelTextColor, frame,
-                 labelTextSize, rowCount, colCount, **kwargs)
+                                         pen, brush, labelTextColor, frame,
+                                         labelTextSize, colCount, sampleType, **kwargs)
 
         self.verSpacing = verSpacing  # verSpacing parameter used as a setup for setMinimumHeight in LabelItemModif
 
