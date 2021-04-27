@@ -640,7 +640,11 @@ class PlotWidget(DockArea):
 
         self.spectra_plot.clearPlots()
 
-        w0, w1, t0, t1 = self.get_selected_range()
+        tup = self.get_selected_range()
+        if tup is None:
+            return
+
+        w0, w1, t0, t1 = tup
 
         D_crop, times, wavelengths = crop_data(self.matrix.D, self.matrix.times, self.matrix.wavelengths, t0,
                                                          t1, w0, w1)

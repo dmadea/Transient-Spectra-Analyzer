@@ -40,7 +40,8 @@ class HeatMapPlot(pg.GraphicsLayout):
         self.range_changed = self.heat_map_plot.getViewBox().sigRangeChanged
         self.Y_range_changed = self.heat_map_plot.getViewBox().sigYRangeChanged
 
-        self.heat_map = Heatmap()
+        self.heat_map = pg.ImageItem()
+        # self.heat_map = Heatmap()
         self.heat_map_plot.addItem(self.heat_map)
 
         self.heat_map_plot.showAxis('top', show=True)
@@ -79,6 +80,17 @@ class HeatMapPlot(pg.GraphicsLayout):
         matrix_min = -np.abs(extrem)
         matrix_max = -matrix_min
 
+        # self.heat_map.set_heat_map(matrix.T, wavelengths[0], times[0], wavelengths[-1], times[-1])
+        self.heat_map.setImage(matrix.T)
+        self.heat_map.resetTransform()
+        x0, y0, x_max, y_max = wavelengths[0], times[0], wavelengths[-1], times[-1]
+        self.heat_map.translate(x0, y0)
+        self.heat_map.scale((x_max - x0) / self.heat_map.width(), (y_max - y0) / self.heat_map.height())
+        self.heat_map.render()
+        self.heat_map.update()
+
+        # self.hist.setImageItem(self.heat_map)
+
         self.hist.setLevels(z_range[0] if z_range else matrix_min,
                             z_range[1] if z_range else matrix_max)
         if z_range is None:
@@ -95,7 +107,6 @@ class HeatMapPlot(pg.GraphicsLayout):
         #     # replace the matrix by interpolated one
         #     matrix = func(wavelengths, new_t)
 
-        self.heat_map.set_heat_map(matrix.T, wavelengths[0], times[0], wavelengths[-1], times[-1])
 
         # autoscale heatmap
         # self.heat_map_plot.autoBtnClicked()
@@ -141,22 +152,22 @@ class HeatMapPlot(pg.GraphicsLayout):
         y0, y1 = self.inv_transform_t_pos(y0), self.inv_transform_t_pos(y1)
         self.heat_map_plot.getViewBox().setRange(xRange=[x0, x1], yRange=[y0, y1], padding=padding)
 
-
-class Heatmap(pg.ImageItem):
-
-    def __init__(self, image=None):
-        self.image = image
-        pg.ImageItem.__init__(self, self.image)
-
-    def set_heat_map(self, matrix, x0, y0, x_max, y_max):
-        self.image = matrix
-
-        self.resetTransform()
-        self.translate(x0, y0)
-        self.scale((x_max - x0) / self.width(), (y_max - y0) / self.height())
-
-        self.render()
-        self.update()
-
-
-
+#
+# class Heatmap(pg.ImageItem):
+#
+#     def __init__(self, image=None):
+#         self.image = image
+#         pg.ImageItem.__init__(self, self.image)
+#
+#     def set_heat_map(self, matrix, x0, y0, x_max, y_max):
+#         self.image = matrix
+#
+#         self.resetTransform()
+#         self.translate(x0, y0)
+#         self.scale((x_max - x0) / self.width(), (y_max - y0) / self.height())
+#
+#         self.render()
+#         self.update()
+#
+#
+#
