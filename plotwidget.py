@@ -183,8 +183,10 @@ class PlotWidget(DockArea):
             time_pos = self.heat_map_hline.pos()
             wl_pos = self.heat_map_vline.pos()
 
-            self.spectrum_vline.setPos(wl_pos[0])
-            self.spectra_vline.setPos(wl_pos[0])
+            new_pos = self.heat_map_plot.transform_wl_pos(wl_pos[0])
+
+            self.spectrum_vline.setPos(new_pos)
+            self.spectra_vline.setPos(new_pos)
             self.trace_vline.setPos(self.heat_map_plot.transform_t_pos(time_pos[1]))
 
         def update_heat_lines():
@@ -192,11 +194,13 @@ class PlotWidget(DockArea):
             wl_pos = self.spectrum_vline.pos()
 
             self.heat_map_hline.setPos(self.heat_map_plot.inv_transform_t_pos(time_pos[0]))
-            self.heat_map_vline.setPos(wl_pos[0])
+            # self.heat_map_vline.setPos(wl_pos[0])
+            self.heat_map_vline.setPos(self.heat_map_plot.inv_transform_wl_pos(wl_pos[0]))
+
 
         def update_heat_lines_spectra():
             wl_pos = self.spectra_vline.pos()
-            self.heat_map_vline.setPos(wl_pos[0])
+            self.heat_map_vline.setPos(self.heat_map_plot.inv_transform_wl_pos(wl_pos[0]))
 
         self.heat_map_vline.sigPositionChanged.connect(update_v_lines)
         self.heat_map_hline.sigPositionChanged.connect(update_v_lines)
@@ -230,7 +234,7 @@ class PlotWidget(DockArea):
         for i, h in enumerate(self.roi.getHandles()):
             qPoint = self.roi.mapSceneToParent(h.scenePos())
 
-            positions[i, 0] = qPoint.x()
+            positions[i, 0] = self.heat_map_plot.transform_wl_pos(qPoint.x())
             positions[i, 1] = self.heat_map_plot.transform_t_pos(qPoint.y())
 
         return positions
@@ -258,7 +262,8 @@ class PlotWidget(DockArea):
     def add_chirp(self, wls,  mu):  # plots the chirp
         pen = pg.mkPen(color=QColor('black'), width=2)
         mu_tr = self.heat_map_plot.inv_transform_t_pos(mu)
-        self.chirp.setData(wls, mu_tr, pen=pen)
+        wls_tr = self.heat_map_plot.inv_transform_wl_pos(wls)
+        self.chirp.setData(wls_tr, mu_tr, pen=pen)
 
     def fit_chirp_params(self):
         from Widgets.fit_widget import FitWidget as _fw
@@ -411,7 +416,10 @@ class PlotWidget(DockArea):
         self.change_range_lock = True
 
         if vb == self.spectrum.getViewBox():
-            self.heat_map_plot.heat_map_plot.getViewBox().setXRange(range[0][0], range[0][1], padding=0)
+            w0 = self.heat_map_plot.inv_transform_wl_pos(range[0][0])
+            w1 = self.heat_map_plot.inv_transform_wl_pos(range[0][1])
+
+            self.heat_map_plot.heat_map_plot.getViewBox().setXRange(w0, w1, padding=0)
             self.set_txb_ranges(w0=range[0][0], w1=range[0][1])
         else:
             t0 = self.heat_map_plot.inv_transform_t_pos(range[0][0])
@@ -456,6 +464,9 @@ class PlotWidget(DockArea):
 
         t0 = self.heat_map_plot.transform_t_pos(t0)  # transform t positions
         t1 = self.heat_map_plot.transform_t_pos(t1)
+
+        w0 = self.heat_map_plot.transform_wl_pos(w0)  # transform t positions
+        w1 = self.heat_map_plot.transform_wl_pos(w1)
 
         self.set_txb_ranges(w0, w1, t0, t1)
 
@@ -581,6 +592,7 @@ class PlotWidget(DockArea):
         time_pos = self.heat_map_hline.pos()[1]
         time_pos = self.heat_map_plot.transform_t_pos(time_pos)
         wl_pos = self.heat_map_vline.pos()[0]
+        wl_pos = self.heat_map_plot.transform_wl_pos(wl_pos)
 
         wavelengths = self.matrix.wavelengths
         times = self.matrix.times

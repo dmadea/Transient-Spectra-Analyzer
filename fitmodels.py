@@ -527,6 +527,7 @@ class _Femto(_Model):
 
         if self.wavelengths is None:
             return
+
         lambda_c, mu_lambda_c, pars = self.get_parmu(params)
 
         mu = np.ones(self.wavelengths.shape[0], dtype=np.float64) * mu_lambda_c
@@ -554,7 +555,7 @@ class _Femto(_Model):
         params = super(_Femto, self).init_model_params()
 
         params.add('lambda_c', value=433, min=0, max=1000, vary=False)
-        params.add('parmu_lambda_c', value=1.539, min=0, max=np.inf, vary=True)
+        params.add('parmu_lambda_c', value=1.539, min=-np.inf, max=np.inf, vary=True)
 
         if self.chirp_type is 'exp':
             for i in range(self.n_exp_chirp):

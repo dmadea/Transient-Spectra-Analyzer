@@ -22,9 +22,15 @@ def parse_file(path_to_file):
     # CSV file
     delimiter = ','
     transpose = False
+    skip_header = 0
 
     if ext == '.csv':
         delimiter = ','
+
+    # elif ext.lower() == '.ascii':  # for glotaran
+    #     skip_header = 5
+    #     transpose = False
+    #     delimiter = '\t'
 
     elif ext.startswith('.a'):  # a0-an from femto
         delimiter = '\t'
@@ -33,12 +39,31 @@ def parse_file(path_to_file):
         delimiter = '\t'
         transpose = True
 
-    try:
-        data = np.genfromtxt(path_to_file, dtype=np.float32, skip_header=0, delimiter=delimiter, filling_values=0,
-                         autostrip=True)
-    except ValueError:
-        data = np.genfromtxt(path_to_file, dtype=np.float32, skip_header=0, delimiter=delimiter, filling_values=0,
-                             autostrip=True, encoding='utf16')
+    # try:
+
+    if ext.lower() == '.ascii':
+        skip_header = 5
+        transpose = False
+        delimiter = '\t'
+
+        data = np.genfromtxt(path_to_file, dtype=np.float32, skip_header=skip_header, delimiter=delimiter, filling_values=0,
+                             autostrip=True)
+
+        with open(path_to_file, mode='r') as tsf:
+            for i in range(skip_header - 1):
+                tsf.readline()
+
+            times = tsf.readline()
+            times = [0] + [float_try_parse(num.strip()) for num in times.strip().split(delimiter)]
+            times = np.asarray(times)
+            data = np.vstack((times, data))
+    else:
+        data = np.genfromtxt(path_to_file, dtype=np.float32, skip_header=skip_header, delimiter=delimiter,
+                             filling_values=0,
+                             autostrip=True)
+    # except ValueError:
+    #     data = np.genfromtxt(path_to_file, dtype=np.float32, skip_header=skip_header, delimiter=delimiter, filling_values=0,
+    #                          autostrip=True, encoding='utf16')
 
     data = np.nan_to_num(data)
 

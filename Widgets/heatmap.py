@@ -3,6 +3,7 @@ import numpy as np
 # from scipy.interpolate import interp2d
 from pyqtgraphmodif.StringAxis import StringAxis
 from misc import find_nearest_idx
+from functools import partial
 
 
 class HeatMapPlot(pg.GraphicsLayout):
@@ -28,12 +29,18 @@ class HeatMapPlot(pg.GraphicsLayout):
 
         # self.heat_map_levels = None
         self.times = None
+        self.wavelengths = None
 
         self.stringaxis_left = StringAxis(None, orientation='left')
         self.stringaxis_right = StringAxis(None, orientation='right')
 
+        self.stringaxis_bottom = StringAxis(None, orientation='bottom')
+        self.stringaxis_top = StringAxis(None, orientation='top')
+
         self.heat_map_plot = self.addPlot(title=title, axisItems={'left': self.stringaxis_left,
-                                                                  'right': self.stringaxis_right})
+                                                                  'right': self.stringaxis_right,
+                                                                  'bottom': self.stringaxis_bottom,
+                                                                  'top': self.stringaxis_top})
         self.heat_map_plot.getViewBox().invertY(True)
 
         # signals
@@ -119,37 +126,57 @@ class HeatMapPlot(pg.GraphicsLayout):
                           t_range[0] if t_range else times[0], t_range[1] if t_range else times[-1])
 
         t_diff = np.abs(times[1:] - times[:-1])
+        wl_diff = np.abs(wavelengths[1:] - wavelengths[:-1])
         if not np.allclose(t_diff, t_diff[0], atol=0):  # if loaded data are not spaced linearly,
             self.times = times  # set times
             self.stringaxis_left.transform = self.transform_t_pos
             self.stringaxis_right.transform = self.transform_t_pos
 
-    def transform_t_pos(self, time):
-        """works for scalar and arrays"""
-        if self.times is None:
-            return time
+        if not np.allclose(wl_diff, wl_diff[0], atol=0):
+            self.wavelengths = wavelengths
+            self.stringaxis_bottom.transform = self.transform_wl_pos
+            self.stringaxis_top.transform = self.transform_wl_pos
 
-        t_min, t_max = self.times.min(), self.times.max()
-        idx = (time - t_min) / (t_max - t_min) * (self.times.shape[0] - 1)  # map the linear scale to data time scale
+    def transform_t_pos(self, value):
+        return self.transform_value_pos(value, self.times)
+
+    def inv_transform_t_pos(self, value):
+        return self.inv_transform_value_pos(value, self.times)
+
+    def transform_wl_pos(self, value):
+        return self.transform_value_pos(value, self.wavelengths)
+
+    def inv_transform_wl_pos(self, value):
+        return self.inv_transform_value_pos(value, self.wavelengths)
+
+    def transform_value_pos(self, value, arr=None):
+        """works for scalar and arrays"""
+        if arr is None:
+            return value
+
+        t_min, t_max = arr.min(), arr.max()
+        idx = (value - t_min) / (t_max - t_min) * (arr.shape[0] - 1)  # map the linear scale to data time scale
         idx = np.round(idx, 0).astype(int)
         if isinstance(idx, np.ndarray):
-            idx[idx >= self.times.shape[0]] = self.times.shape[0] - 1
+            idx[idx >= arr.shape[0]] = arr.shape[0] - 1
         else:
-            idx = self.times.shape[0] - 1 if idx >= self.times.shape[0] else idx
-        return self.times[idx]
+            idx = arr.shape[0] - 1 if idx >= arr.shape[0] else idx
+        return arr[idx]
 
-    def inv_transform_t_pos(self, time):
+    def inv_transform_value_pos(self, value, arr=None):
         """works for scalar and arrays"""
-        if self.times is None:
-            return time
+        if arr is None:
+            return value
 
-        t_min, t_max = self.times.min(), self.times.max()
-        t_idx = find_nearest_idx(self.times, time)
-        inv_t = t_min + t_idx * (t_max - t_min) / (self.times.shape[0] - 1)  # inverse transform
+        t_min, t_max = arr.min(), arr.max()
+        t_idx = find_nearest_idx(arr,  value)
+        inv_t = t_min + t_idx * (t_max - t_min) / (arr.shape[0] - 1)  # inverse transform
         return inv_t
 
     def set_xy_range(self, x0, x1, y0, y1, padding=0):
         y0, y1 = self.inv_transform_t_pos(y0), self.inv_transform_t_pos(y1)
+        x0, x1 = self.inv_transform_wl_pos(x0), self.inv_transform_wl_pos(x1)
+
         self.heat_map_plot.getViewBox().setRange(xRange=[x0, x1], yRange=[y0, y1], padding=padding)
 
 #
