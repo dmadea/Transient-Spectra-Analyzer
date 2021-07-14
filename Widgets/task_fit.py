@@ -18,7 +18,7 @@ class TaskFit(Task):
 
     def run_fit(self):
         # hard model fit
-        if self.fw.current_model.connectivity.count(0) == 0:
+        if self.fw.current_model.connectivity.count(0) == 0 or self.fw.current_model._class == 'Femto':
             if self.fw.current_model._class == 'Femto':
                 self.fw.D_fit = self.fw.fitter.var_pro_femto()
             elif self.fw.current_model._class == 'Steady state photokinetics':

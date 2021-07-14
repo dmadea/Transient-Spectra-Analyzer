@@ -245,13 +245,14 @@ def plot_traces_onefig_ax(ax, D, D_fit, times, wavelengths, wls=(355, 400, 450, 
                           marker_linewidth=1, n_lin_bins=10, n_log_bins=10,
                           marker_facecolor='white', alpha=0.8, y_lim=(None, None),
                           linthresh=1, linscale=1, colors=None, D_mul_factor=1e3, legend_spacing=0.2, lw=1.5,
-                          legend_loc='lower right', y_label=dA_unit, x_label='Time / ps', symlog=True):
+                          legend_loc='lower right', y_label=dA_unit, x_label='Time / ps', symlog=True, t_lim=(None, None)):
 
     n = wls.__len__()
     t = times
     norm = mpl.colors.SymLogNorm(vmin=t[0], vmax=t[-1], linscale=linscale, linthresh=linthresh, base=10, clip=True)
 
-    set_main_axis(ax, xlim=(t[0], t[-1]), ylim=y_lim, y_label=y_label, x_label=x_label,
+    t_lim = (times[0] if t_lim[0] is None else t_lim[0], times[-1] if t_lim[1] is None else t_lim[1])
+    set_main_axis(ax, xlim=t_lim, ylim=y_lim, y_label=y_label, x_label=x_label,
                   y_minor_locator=None, x_minor_locator=None)
 
     ax.plot(t, np.zeros_like(t), ls='--', color='black', lw=1)
@@ -344,7 +345,7 @@ def plot_data_ax(fig, ax, matrix, times, wavelengths, symlog=True, t_unit='ps',
                  y_major_formatter=ScalarFormatter(),
                  x_minor_locator=AutoMinorLocator(10), n_levels=30, plot_countours=True,
                  colorbar_locator=MultipleLocator(50),
-                 diverging_white_cmap_tr=0.98, hatch='/////', colorbar_aspect=35, add_wn_axis=True):
+                 diverging_white_cmap_tr=0.98, hatch='/////', colorbar_aspect=35, add_wn_axis=True, x_label="Wavelength / nm"):
     """data is individual dataset"""
 
     # assert type(data) == Data
@@ -371,7 +372,7 @@ def plot_data_ax(fig, ax, matrix, times, wavelengths, symlog=True, t_unit='ps',
 
     # plot data matrix D
 
-    set_main_axis(ax, xlim=w_lim, ylim=t_lim, x_label=r'Wavelength / nm', y_label=f'Time delay / {t_unit}',
+    set_main_axis(ax, xlim=w_lim, ylim=t_lim, x_label=x_label, y_label=f'Time delay / {t_unit}',
                   x_minor_locator=x_minor_locator, y_minor_locator=None)
     if add_wn_axis:
         w_ax = setup_wavenumber_axis(ax, x_major_locator=MultipleLocator(0.5))
