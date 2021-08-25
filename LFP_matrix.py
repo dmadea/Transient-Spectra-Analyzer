@@ -722,7 +722,7 @@ class LFP_matrix(object):
                   legend_loc_traces='lower right', plot_chirp_corrected=True, chirp_time_offset=0.3,
                   draw_chirp=False, lw_chirp=1.5, ls_chirp='--',
                   fig_size=(15, 4.5), dpi=500, filepath=None, transparent=True, hatched_wls=(None, None),
-                  plot_ST=True):
+                  plot_ST=True, x_label="Wavelength / nm"):
 
         if self.D_fit is None:
             raise ValueError("No fitting data available.")
@@ -759,7 +759,7 @@ class LFP_matrix(object):
                      t_unit=t_unit, z_unit=z_unit, n_lin_bins=n_lin_bins, n_log_bins=n_log_bins,
                      z_lim=z_lim, t_lim=t_lim, w_lim=w_lim, y_major_formatter=y_major_formatter,
                      x_minor_locator=x_minor_locator, colorbar_locator=colorbar_locator, hatch=hatch,
-                     colorbar_aspect=colorbar_aspect, add_wn_axis=add_wn_axis)
+                     colorbar_aspect=colorbar_aspect, add_wn_axis=add_wn_axis, x_label=x_label)
 
         if draw_chirp and self.parmu is not None:
             mu = get_mu(wavelengths, self.parmu, self.lambda_c)
@@ -768,7 +768,7 @@ class LFP_matrix(object):
         if plot_ST:
             ST = self.ST_COH if self.ST_fit.shape[0] == 0 else self.ST_fit
             plot_SADS_ax(axes[1], self.wavelengths, ST.T, zero_reg=hatched_wls, colors=COLORS,
-                         D_mul_factor=D_mul_factor, z_unit=z_unit, lw=lw_spectra)
+                         D_mul_factor=D_mul_factor, z_unit=z_unit, lw=lw_spectra, w_lim=w_lim)
 
         plot_traces_onefig_ax(axes[-1], _D, _D_fit, times, wavelengths,
                               wls=wls_fit, marker_size=marker_size, alpha=alpha_traces,
@@ -776,7 +776,8 @@ class LFP_matrix(object):
                               marker_linewidth=marker_linewidth, colors=COLORS,
                               linscale=linscale, linthresh=linthresh, x_label=f'Time / {t_unit}',
                               legend_spacing=legend_spacing, y_label=z_unit,
-                              lw=lw_traces, legend_loc=legend_loc_traces, D_mul_factor=D_mul_factor)
+                              lw=lw_traces, legend_loc=legend_loc_traces, D_mul_factor=D_mul_factor,
+                              t_lim=t_lim)
 
         plt.tight_layout()
 
@@ -852,7 +853,7 @@ class LFP_matrix(object):
                   colorbar_locator=AutoLocator(), hatched_wls=(None, None), hatch='/////',
                   colorbar_aspect=35, add_wn_axis=True, plot_chirp_corrected=True, chirp_time_offset=0.3,
                   draw_chirp=False, lw_chirp=1.5, ls_chirp='--',
-                  fig_size=(5, 4.5), dpi=500, filepath=None, transparent=True, **kwargs):
+                  fig_size=(5, 4.5), dpi=500, filepath=None, transparent=True, x_label="Wavelength / nm", **kwargs):
 
         fig, ax = plt.subplots(1, 1, figsize=fig_size)
 
@@ -878,7 +879,7 @@ class LFP_matrix(object):
                      t_unit=t_unit, z_unit=z_unit, n_lin_bins=n_lin_bins, n_log_bins=n_log_bins,
                      z_lim=z_lim, t_lim=t_lim, w_lim=w_lim, y_major_formatter=y_major_formatter,
                      x_minor_locator=x_minor_locator, colorbar_locator=colorbar_locator, hatch=hatch,
-                     colorbar_aspect=colorbar_aspect, add_wn_axis=add_wn_axis, **kwargs)
+                     colorbar_aspect=colorbar_aspect, add_wn_axis=add_wn_axis, x_label=x_label, **kwargs)
 
         if draw_chirp and self.parmu is not None:
             mu = get_mu(wavelengths, self.parmu, self.lambda_c)

@@ -530,7 +530,7 @@ class FitWidget(QWidget, Ui_Form):
     def fit(self):
         # try:
         # self._fit()
-        self._fit(fit_async=False)
+        self._fit(fit_async=True)
 
         # except Exception as e:
         #     Logger.status_message(e.__str__())
