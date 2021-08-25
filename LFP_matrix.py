@@ -366,6 +366,36 @@ class LFP_matrix(object):
         with open(fname, 'w', encoding=encoding) as f:
             f.write(buffer)
 
+
+    def save_to_GTA(self, fname=None, delimiter='\t', encoding='utf8', t0=None, t1=None, w0=None, w1=None):
+        _dir, _fname = os.path.split(self.filename)   # get dir and filename
+        _fname, _ = os.path.splitext(_fname)  # get filename without extension
+
+        if fname is None:
+            fname = os.path.join(_dir, f'{_fname}.ascii')
+
+        # cut data if necessary
+
+        t_idx_start = find_nearest_idx(self.times, t0) if t0 is not None else 0
+        t_idx_end = find_nearest_idx(self.times, t1) + 1 if t1 is not None else self.D.shape[0]
+
+        wl_idx_start = find_nearest_idx(self.wavelengths, w0) if w0 is not None else 0
+        wl_idx_end = find_nearest_idx(self.wavelengths, w1) + 1 if w1 is not None else self.D.shape[1]
+
+        # crop the data if necessary
+        D_crop = self.D[t_idx_start:t_idx_end, wl_idx_start:wl_idx_end]
+        times_crop = self.times[t_idx_start:t_idx_end]
+        wavelengths_crop = self.wavelengths[wl_idx_start:wl_idx_end]
+
+        mat = np.vstack((wavelengths_crop, D_crop))
+        buffer = f'Header\nOriginal filename: fname\nTime explicit\nintervalnr {times_crop.shape[0]}\n'
+        buffer += delimiter + delimiter.join(f"{num}" for num in times_crop) + '\n'
+        buffer += '\n'.join(delimiter.join(f"{num}" for num in row) for row in mat.T)
+
+        with open(fname, 'w', encoding=encoding) as f:
+            f.write(buffer)
+
+
     # non-negative matrix factorization solution
     def get_NMF_solution(self, n_components=3, random_state=0):
         model = NMF(n_components=n_components, init='random', random_state=random_state)
