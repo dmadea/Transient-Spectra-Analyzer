@@ -241,7 +241,7 @@ def get_sym_space(vmin, vmax, n):
     return np.linspace((neg_steps + 0.5) * -raw_step, (pos_steps + 0.5) * raw_step, pos_steps + neg_steps + 2)
 
 
-def plot_traces_onefig_ax(ax, D, D_fit, times, wavelengths, wls=(355, 400, 450, 500, 550), marker_size=10,
+def plot_traces_onefig_ax(ax, D, D_fit, times, wavelengths, mu=None, wls=(355, 400, 450, 500, 550), marker_size=10,
                           marker_linewidth=1, n_lin_bins=10, n_log_bins=10,
                           marker_facecolor='white', alpha=0.8, y_lim=(None, None),
                           linthresh=1, linscale=1, colors=None, D_mul_factor=1e3, legend_spacing=0.2, lw=1.5,
@@ -249,13 +249,14 @@ def plot_traces_onefig_ax(ax, D, D_fit, times, wavelengths, wls=(355, 400, 450, 
 
     n = wls.__len__()
     t = times
+    mu = np.zeros_like(t) if mu is None else mu
     norm = mpl.colors.SymLogNorm(vmin=t[0], vmax=t[-1], linscale=linscale, linthresh=linthresh, base=10, clip=True)
 
     t_lim = (times[0] if t_lim[0] is None else t_lim[0], times[-1] if t_lim[1] is None else t_lim[1])
     set_main_axis(ax, xlim=t_lim, ylim=y_lim, y_label=y_label, x_label=x_label,
                   y_minor_locator=None, x_minor_locator=None)
 
-    ax.plot(t, np.zeros_like(t), ls='--', color='black', lw=1)
+    ax.plot(t - mu[0].mean(), np.zeros_like(t), ls='--', color='black', lw=1)
 
     colors = plt.rcParams['axes.prop_cycle'].by_key()['color'] if colors is None else colors
 
@@ -264,12 +265,13 @@ def plot_traces_onefig_ax(ax, D, D_fit, times, wavelengths, wls=(355, 400, 450, 
         color_line = np.asarray(color_points) * 0.7
 
         idx = find_nearest_idx(wavelengths, wls[i])
-        ax.scatter(t, D[:, idx] * D_mul_factor, edgecolor=color_points, facecolor=marker_facecolor,
+        tt = t - mu[idx]
+        ax.scatter(tt, D[:, idx] * D_mul_factor, edgecolor=color_points, facecolor=marker_facecolor,
                    alpha=alpha, marker='o', s=marker_size, linewidths=marker_linewidth)
 
         ax.scatter([], [], edgecolor=color_points, facecolor=marker_facecolor,
                    alpha=alpha, marker='o', label=f'{wls[i]} nm', s=marker_size * 2, linewidths=marker_linewidth)
-        ax.plot(t, D_fit[:, idx] * D_mul_factor, lw=lw, color=color_line)
+        ax.plot(tt, D_fit[:, idx] * D_mul_factor, lw=lw, color=color_line)
 
     ax.xaxis.set_ticks_position('both')
     ax.yaxis.set_ticks_position('both')

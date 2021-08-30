@@ -24,7 +24,7 @@ def get_mu(wls, parmu=(1, 0, 0), lambda_c=433):
     return mu
 
 
-def chirp_correction(matrix, times, wls, parmu=(1, 0, 0), lambda_c=433, time_offset=0.3):
+def chirp_correction_old(matrix, times, wls, parmu=(1, 0, 0), lambda_c=433, time_offset=0.3):
     mu = get_mu(wls, parmu, lambda_c)
 
     idx0 = find_nearest_idx(mu, time_offset)
@@ -51,6 +51,24 @@ def chirp_correction(matrix, times, wls, parmu=(1, 0, 0), lambda_c=433, time_off
         new_D[:, i] = np.interp(new_times, times - mu[i], matrix_croped[:, i])
 
     return new_D, new_times, new_wls
+
+
+def chirp_correction(matrix, times, wls, parmu=(1, 0, 0), lambda_c=433, offset_before_zero=0.3):
+    mu = get_mu(wls, parmu, lambda_c)
+
+    assert np.min(mu) - times[0] >= offset_before_zero
+
+    new_times = np.concatenate((np.linspace(-offset_before_zero, offset_before_zero, 200, endpoint=False),
+                                np.logspace(np.log10(offset_before_zero), np.log10(times[-1] - np.max(mu)), 300)))
+
+    new_D = np.zeros((new_times.shape[0], wls.shape[0]), dtype=np.float64)
+
+    for i in range(wls.shape[0]):
+        # linear interpolation for each wavelength
+        new_D[:, i] = np.interp(new_times, times - mu[i], matrix[:, i])
+
+    return new_D, new_times, wls
+
 
 
 class LFP_matrix(object):
@@ -713,32 +731,32 @@ class LFP_matrix(object):
         plt.show()
 
     def plot_fit_femto(self, t_unit='ps', z_unit=dA_unit, cmap='diverging', z_lim=(None, None),
-                  t_lim=(None, None), w_lim=(None, None), linthresh=1, linscale=1.5, D_mul_factor=1e3,
-                  y_major_formatter=ScalarFormatter(), n_lin_bins=10, n_log_bins=10,
-                  x_minor_locator=AutoMinorLocator(10), n_levels=30, plot_countours=True,
-                  colorbar_locator=AutoLocator(), hatch='/////', colorbar_aspect=35, add_wn_axis=True,
-                  wls_fit=(355, 400, 450, 500, 550), marker_size=10, marker_linewidth=1,
-                  marker_facecolor='none', alpha_traces=1, legend_spacing=0.2, lw_traces=1.5, lw_spectra=1.5,
-                  legend_loc_traces='lower right', plot_chirp_corrected=True, chirp_time_offset=0.3,
-                  draw_chirp=False, lw_chirp=1.5, ls_chirp='--',
-                  fig_size=(15, 4.5), dpi=500, filepath=None, transparent=True, hatched_wls=(None, None),
-                  plot_ST=True, x_label="Wavelength / nm"):
+                       t_lim=(None, None), w_lim=(None, None), linthresh=1, linscale=1.5, D_mul_factor=1e3,
+                       y_major_formatter=ScalarFormatter(), n_lin_bins=10, n_log_bins=10,
+                       x_minor_locator=AutoMinorLocator(10), n_levels=30, plot_countours=True,
+                       colorbar_locator=AutoLocator(), hatch='/////', colorbar_aspect=35, add_wn_axis=True,
+                       wls_fit=(355, 400, 450, 500, 550), marker_size=10, marker_linewidth=1,
+                       marker_facecolor='none', alpha_traces=1, legend_spacing=0.2, lw_traces=1.5, lw_spectra=1.5,
+                       legend_loc_traces='lower right', plot_chirp_corrected=True, offset_before_zero=0.3,
+                       draw_chirp=False, lw_chirp=1.5, ls_chirp='--',
+                       fig_size=(15, 4.5), dpi=500, filepath=None, transparent=True, hatched_wls=(None, None),
+                       plot_ST=True, x_label="Wavelength / nm"):
 
         if self.D_fit is None:
             raise ValueError("No fitting data available.")
 
         _D = self.D.copy()
-        _D_fit = self.D_fit.copy()
+        # _D_fit = self.D_fit.copy()
         times = self.times.copy()
         wavelengths = self.wavelengths.copy()
 
-        assert _D.shape == _D_fit.shape
+        assert _D.shape == self.D_fit.shape
 
         if plot_chirp_corrected and self.parmu is not None:
-            _D, _, _ = chirp_correction(_D, times, wavelengths, self.parmu, lambda_c=self.lambda_c,
-                                                      time_offset=chirp_time_offset)
-            _D_fit, times, wavelengths = chirp_correction(_D_fit, times, wavelengths, self.parmu, lambda_c=self.lambda_c,
-                                                      time_offset=chirp_time_offset)
+            _D, times, _wavelengths = chirp_correction(_D, times, wavelengths, self.parmu, lambda_c=self.lambda_c,
+                                        offset_before_zero=offset_before_zero)
+            # _D_fit, times, wavelengths = chirp_correction(_D_fit, times, wavelengths, self.parmu, lambda_c=self.lambda_c,
+            #                             offset_before_zero=offset_before_zero)
 
         if hatched_wls[0] is not None:
             idx1, idx2 = find_nearest_idx(wavelengths, hatched_wls)
@@ -761,8 +779,9 @@ class LFP_matrix(object):
                      x_minor_locator=x_minor_locator, colorbar_locator=colorbar_locator, hatch=hatch,
                      colorbar_aspect=colorbar_aspect, add_wn_axis=add_wn_axis, x_label=x_label)
 
+        mu = get_mu(wavelengths, self.parmu, self.lambda_c) if self.parmu is not None else None
+
         if draw_chirp and self.parmu is not None:
-            mu = get_mu(wavelengths, self.parmu, self.lambda_c)
             axes[0].plot(wavelengths, mu, color='black', lw=lw_chirp, ls=ls_chirp)
 
         if plot_ST:
@@ -770,7 +789,7 @@ class LFP_matrix(object):
             plot_SADS_ax(axes[1], self.wavelengths, ST.T, zero_reg=hatched_wls, colors=COLORS,
                          D_mul_factor=D_mul_factor, z_unit=z_unit, lw=lw_spectra, w_lim=w_lim)
 
-        plot_traces_onefig_ax(axes[-1], _D, _D_fit, times, wavelengths,
+        plot_traces_onefig_ax(axes[-1], self.D, self.D_fit, self.times, self.wavelengths, mu=mu,
                               wls=wls_fit, marker_size=marker_size, alpha=alpha_traces,
                               marker_facecolor=marker_facecolor, n_lin_bins=n_lin_bins, n_log_bins=n_log_bins,
                               marker_linewidth=marker_linewidth, colors=COLORS,
@@ -851,7 +870,7 @@ class LFP_matrix(object):
                   y_major_formatter=ScalarFormatter(), n_lin_bins=10, n_log_bins=10,
                   x_minor_locator=AutoMinorLocator(10), n_levels=30, plot_countours=True,
                   colorbar_locator=AutoLocator(), hatched_wls=(None, None), hatch='/////',
-                  colorbar_aspect=35, add_wn_axis=True, plot_chirp_corrected=True, chirp_time_offset=0.3,
+                  colorbar_aspect=35, add_wn_axis=True, plot_chirp_corrected=True, offset_before_zero=0.3,
                   draw_chirp=False, lw_chirp=1.5, ls_chirp='--',
                   fig_size=(5, 4.5), dpi=500, filepath=None, transparent=True, x_label="Wavelength / nm", **kwargs):
 
@@ -863,7 +882,7 @@ class LFP_matrix(object):
 
         if plot_chirp_corrected and self.parmu is not None:
             _D, times, wavelengths = chirp_correction(_D, times, wavelengths, self.parmu, lambda_c=self.lambda_c,
-                                                           time_offset=chirp_time_offset)
+                                                           offset_before_zero=offset_before_zero)
 
         if hatched_wls[0] is not None:
             idx1, idx2 = find_nearest_idx(wavelengths, hatched_wls)
