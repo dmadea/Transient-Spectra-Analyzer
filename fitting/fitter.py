@@ -4,6 +4,7 @@ from scipy.linalg import lstsq
 import scipy
 from copy import deepcopy
 from scipy.optimize import nnls as _nnls
+from scipy.optimize import least_squares
 from numba import njit
 import sys
 from misc import find_nearest_idx

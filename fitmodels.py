@@ -561,7 +561,7 @@ class _Femto(_Model):
             for i in range(self.n_exp_chirp):
                 params.add(f'mu_A{i+1}', value=0.5, min=-np.inf, max=np.inf, vary=True)
                 params.add(f'mu_B{i+1}', value=70, min=-np.inf, max=np.inf, vary=True)
-        else:  # polynomial by Ivo von Stokkum
+        else:  # polynomial by Ivo van Stokkum
             for i in range(self.n_poly_chirp):
                 params.add(f'parmu_{i+1}', value=0.5, min=-np.inf, max=np.inf, vary=True)
 
