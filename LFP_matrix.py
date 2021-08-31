@@ -53,8 +53,7 @@ def chirp_correction_old(matrix, times, wls, parmu=(1, 0, 0), lambda_c=433, time
     return new_D, new_times, new_wls
 
 
-def chirp_correction(matrix, times, wls, parmu=(1, 0, 0), lambda_c=433, offset_before_zero=0.3):
-    mu = get_mu(wls, parmu, lambda_c)
+def chirp_correction(matrix, times, wls, mu, offset_before_zero=0.3):
 
     assert np.min(mu) - times[0] >= offset_before_zero
 
@@ -197,8 +196,7 @@ class LFP_matrix(object):
         self.C_COH = None
         self.ST_COH = None
 
-        self.parmu = None  # chirp params
-        self.lambda_c = 387  # for chirp
+        self.mu = None  # time zero for each wavelength, chirp
 
         self.E = None  # residuals
 
@@ -752,8 +750,8 @@ class LFP_matrix(object):
 
         assert _D.shape == self.D_fit.shape
 
-        if plot_chirp_corrected and self.parmu is not None:
-            _D, times, _wavelengths = chirp_correction(_D, times, wavelengths, self.parmu, lambda_c=self.lambda_c,
+        if plot_chirp_corrected and self.mu is not None:
+            _D, times, _wavelengths = chirp_correction(_D, times, wavelengths, self.mu,
                                         offset_before_zero=offset_before_zero)
             # _D_fit, times, wavelengths = chirp_correction(_D_fit, times, wavelengths, self.parmu, lambda_c=self.lambda_c,
             #                             offset_before_zero=offset_before_zero)
@@ -779,17 +777,17 @@ class LFP_matrix(object):
                      x_minor_locator=x_minor_locator, colorbar_locator=colorbar_locator, hatch=hatch,
                      colorbar_aspect=colorbar_aspect, add_wn_axis=add_wn_axis, x_label=x_label)
 
-        mu = get_mu(wavelengths, self.parmu, self.lambda_c) if self.parmu is not None else None
+        # mu = get_mu(wavelengths, self.parmu, self.lambda_c) if self.parmu is not None else None
 
-        if draw_chirp and self.parmu is not None:
-            axes[0].plot(wavelengths, mu, color='black', lw=lw_chirp, ls=ls_chirp)
+        if draw_chirp and self.mu is not None:
+            axes[0].plot(wavelengths, self.mu, color='black', lw=lw_chirp, ls=ls_chirp)
 
         if plot_ST:
             ST = self.ST_COH if self.ST_fit.shape[0] == 0 else self.ST_fit
             plot_SADS_ax(axes[1], self.wavelengths, ST.T, zero_reg=hatched_wls, colors=COLORS,
                          D_mul_factor=D_mul_factor, z_unit=z_unit, lw=lw_spectra, w_lim=w_lim)
 
-        plot_traces_onefig_ax(axes[-1], self.D, self.D_fit, self.times, self.wavelengths, mu=mu,
+        plot_traces_onefig_ax(axes[-1], self.D, self.D_fit, self.times, self.wavelengths, mu=self.mu,
                               wls=wls_fit, marker_size=marker_size, alpha=alpha_traces,
                               marker_facecolor=marker_facecolor, n_lin_bins=n_lin_bins, n_log_bins=n_log_bins,
                               marker_linewidth=marker_linewidth, colors=COLORS,
@@ -880,8 +878,8 @@ class LFP_matrix(object):
         times = self.times.copy()
         wavelengths = self.wavelengths.copy()
 
-        if plot_chirp_corrected and self.parmu is not None:
-            _D, times, wavelengths = chirp_correction(_D, times, wavelengths, self.parmu, lambda_c=self.lambda_c,
+        if plot_chirp_corrected and self.mu is not None:
+            _D, times, wavelengths = chirp_correction(_D, times, wavelengths, self.mu,
                                                            offset_before_zero=offset_before_zero)
 
         if hatched_wls[0] is not None:
@@ -900,9 +898,8 @@ class LFP_matrix(object):
                      x_minor_locator=x_minor_locator, colorbar_locator=colorbar_locator, hatch=hatch,
                      colorbar_aspect=colorbar_aspect, add_wn_axis=add_wn_axis, x_label=x_label, **kwargs)
 
-        if draw_chirp and self.parmu is not None:
-            mu = get_mu(wavelengths, self.parmu, self.lambda_c)
-            ax.plot(wavelengths, mu, color='black', lw=lw_chirp, ls=ls_chirp)
+        if draw_chirp and self.mu is not None:
+            ax.plot(wavelengths, self.mu, color='black', lw=lw_chirp, ls=ls_chirp)
 
         plt.tight_layout()
 

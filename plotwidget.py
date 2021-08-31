@@ -16,7 +16,57 @@ from Widgets.datapanel import DataPanel
 from Widgets.svd_widget import SVDWidget
 
 from scipy.linalg import lstsq
+from scipy.integrate import cumtrapz
 
+
+# from https://math.stackexchange.com/questions/1428566/fit-sum-of-exponentials/3808325#3808325
+def fit_sum_exp(x, y, n=2, fit_intercept=False):
+    """Fits the data with the sum of exponential function and returns
+
+    if fit_intercept is True, last multiplier will be the intercept, also the 0 will be added
+    at the end of lambda vector"""
+
+    assert isinstance(x, np.ndarray) and isinstance(y, np.ndarray)
+    assert x.shape[0] == y.shape[0]
+    assert x.shape[0] >= 2 * n
+
+    Y_size = 2 * n + 1 if fit_intercept else 2 * n
+    Y = np.empty((x.shape[0], Y_size))
+
+    Y[:, 0] = cumtrapz(y, x, initial=0)
+    for i in range(1, n):
+        Y[:, i] = cumtrapz(Y[:, i - 1], x, initial=0)
+
+    Y[:, -1] = 1
+    for i in reversed(range(n, Y_size - 1)):
+        Y[:, i] = Y[:, i + 1] * x
+
+    A = lstsq(Y, y)[0]
+    Ahat = np.diag(np.ones(n - 1), -1)
+    Ahat[0] = A[:n]
+
+    lambdas = np.linalg.eigvals(Ahat)
+    # remove imaginary values
+    if any(np.iscomplex(lambdas)):
+        lambdas = lambdas.real
+
+    X = np.exp(lambdas[None, :] * x[:, None])
+    if fit_intercept:
+        X = np.hstack((X, np.ones_like(x)[:, None]))
+        lambdas = np.insert(lambdas, n, 0)
+    multipliers = lstsq(X, y)[0]
+
+    return multipliers, lambdas
+
+
+def fit_polynomial_coefs(x, y, n=3):
+    X = np.ones((x.shape[0], n))  # polynomial regression matrix
+
+    for i in range(1, n):
+        X[:, i:] *= x[:, None] / 100
+
+    parmu = lstsq(X, y)[0]
+    return parmu
 
 class PlotWidget(DockArea):
     instance = None
@@ -278,19 +328,17 @@ class PlotWidget(DockArea):
 
         roi_pos = self.get_roi_pos()
         x, y = roi_pos[:, 0], roi_pos[:, 1]
-
-        n = fw.current_model.n_poly_chirp + 1
-
         lambda_c = fw.current_model.get_lambda_c()
 
-        X = np.ones((x.shape[0], n))  # polynomial regression matrix
+        if fw.current_model.chirp_type == 'exp':
+            mul, lam = fit_sum_exp(x - lambda_c, y, fw.current_model.n_exp_chirp, fit_intercept=True)
+            parmu = [mul[-1]] + [entry for tup in zip(mul[:-1], lam[:-1]) for entry in tup]
+            fw.current_model.set_parmu(parmu, 'exp')
+        else:
+            n = fw.current_model.n_poly_chirp + 1
+            parmu = fit_polynomial_coefs(x - lambda_c, y, n)
+            fw.current_model.set_parmu(parmu, 'poly')
 
-        for i in range(1, n):
-            X[:, i:] *= (x[:, None] - lambda_c) / 100
-
-        parmu = lstsq(X, y)[0]
-
-        fw.current_model.set_parmu(parmu)
         fw.update_model_par_count(update_after_fit=True)
 
     def use_mask(self):

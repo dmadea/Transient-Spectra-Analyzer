@@ -570,9 +570,7 @@ class FitWidget(QWidget, Ui_Form):
         R = D_fit - self.matrix.Y
 
         if self.current_model._class == 'Femto':
-            lambda_c, mu_lambda_c, pars = self.current_model.get_parmu()
-            self.matrix.parmu = [mu_lambda_c] + pars
-            self.matrix.lambda_c = lambda_c
+            self.matrix.mu = self.current_model.get_mu()
 
         # self.matrix.E = R
         self.matrix.C_fit = self._C

@@ -28,6 +28,7 @@ import glob, os
 # from concurrent.futures import ProcessPoolExecutor
 
 
+
 ## inspiration from https://github.com/Tillsten/skultrafast/blob/9544c3cc3c3c3fa46b728156198807e2b21ba24b/skultrafast/base_funcs/pytorch_fitter.py
 def blstsq(A, B, alpha=0.001):
     """
@@ -270,7 +271,7 @@ class _Model(object):
 class _Femto(_Model):
 
     n_poly_chirp = 5  # order of polynomial for chirp_type: 'poly'
-    n_exp_chirp = 1  # number of exponentials to describe chirp for mu_type = 'exp'
+    n_exp_chirp = 2  # number of exponentials to describe chirp for mu_type = 'exp'
     n_partau = 2
     spectra = 'EADS'  # or 'EADS'
 
@@ -302,6 +303,7 @@ class _Femto(_Model):
 
         self.chirp_type = 'poly'  # poly, exp
         self.spectra_choises = ['EADS', 'DADS']
+        self.chirp_type_choices = ['poly', 'exp']
 
         self.update_n()
         self.ridge_alpha = 0.0001
@@ -317,6 +319,11 @@ class _Femto(_Model):
         sbChripOrder.setMinimum(0)
         sbChripOrder.setMaximum(10)
         sbChripOrder.setValue(self.n_poly_chirp)
+
+        sbChripExp = QSpinBox()
+        sbChripExp.setMinimum(0)
+        sbChripExp.setMaximum(10)
+        sbChripExp.setValue(self.n_exp_chirp)
 
         cbParTau = QCheckBox('Include Variable IRF-FWHM (partau)')
         cbParTau.setChecked(self.partau)
@@ -347,6 +354,10 @@ class _Femto(_Model):
         cbSpectra.addItems(self.spectra_choises)
         cbSpectra.setCurrentIndex(self.spectra_choises.index(self.spectra))
 
+        cbChirp = QComboBox()
+        cbChirp.addItems(self.chirp_type_choices)
+        cbChirp.setCurrentIndex(self.chirp_type_choices.index(self.chirp_type))
+
         dsbAlpha = QDoubleSpinBox()
         dsbAlpha.setDecimals(5)
         dsbAlpha.setMinimum(0)
@@ -354,7 +365,9 @@ class _Femto(_Model):
         dsbAlpha.setSingleStep(0.1)
         dsbAlpha.setValue(self.ridge_alpha)
 
-        widgets = [['Chirp polynomial order:', sbChripOrder],
+        widgets = [['Model of chirp:', cbChirp],
+                   ['Chirp polynomial order:', sbChripOrder],
+                   ['Number of exponentials (chirp):', sbChripExp],
                    [cbParTau, None],
                    ['Variable IRF-FWHM polynomial order:', sbParTau],
                    [btnPlotTau, None],
@@ -369,11 +382,13 @@ class _Femto(_Model):
 
         def set_result():
             self.n_poly_chirp = int(sbChripOrder.value())
+            self.n_exp_chirp = int(sbChripExp.value())
             self.partau = cbParTau.isChecked()
             self.n_partau = int(sbParTau.value())
             self.coh_spec = cbCohSpec.isChecked()
             self.coh_spec_order = int(sbCohSpecOrder.value())
             self.spectra = self.spectra_choises[cbSpectra.currentIndex()]
+            self.chirp_type = self.chirp_type_choices[cbChirp.currentIndex()]
             self.ridge_alpha = float(dsbAlpha.value())
             if show_target_model:
                 self.target_model = TargetModel.load(models[cbModel.currentIndex()])
@@ -529,27 +544,33 @@ class _Femto(_Model):
             return
 
         lambda_c, mu_lambda_c, pars = self.get_parmu(params)
-
         mu = np.ones(self.wavelengths.shape[0], dtype=np.float64) * mu_lambda_c
+        x = self.wavelengths - lambda_c
 
         if self.chirp_type is 'exp':
             for i in range(self.n_exp_chirp):
-                mu += pars[2*i] * (1 - np.exp((lambda_c - self.wavelengths) / pars[2*i+1]))
-
+                # mu += pars[2*i] * (1 - np.exp((lambda_c - self.wavelengths) / pars[2*i+1]))
+                mu += pars[2*i] * np.exp(x * pars[2*i+1])
         else:
             for i in range(0, self.n_poly_chirp):
-                mu += pars[i] * ((self.wavelengths - lambda_c) / 100) ** (i + 1)
+                mu += pars[i] * (x / 100) ** (i + 1)
 
         return mu
 
-    # works only for poly type, normal polynomial coefficients
     def set_parmu(self, coefs, type='poly'):
-        assert(len(coefs) == self.n_poly_chirp + 1)
-
         self.params['parmu_lambda_c'].value = coefs[0]
 
-        for i in range(self.n_poly_chirp):
-            self.params[f'parmu_{i+1}'].value = coefs[i+1]
+        if type == 'poly':
+            for i in range(self.n_poly_chirp):
+                self.params[f'parmu_{i+1}'].value = coefs[i+1]
+
+        else:  # exponential coeffitients
+            # coefs consist of - 1. is lambda_c, then are pairs of multiplier and lambdas
+
+            for i in range(self.n_exp_chirp):
+                self.params[f'mul_{i+1}'].value = coefs[i*2 + 1]
+                self.params[f'lam_{i+1}'].value = coefs[i*2 + 2]
+
 
     def init_model_params(self):
         params = super(_Femto, self).init_model_params()
@@ -559,8 +580,9 @@ class _Femto(_Model):
 
         if self.chirp_type is 'exp':
             for i in range(self.n_exp_chirp):
-                params.add(f'mu_A{i+1}', value=0.5, min=-np.inf, max=np.inf, vary=True)
-                params.add(f'mu_B{i+1}', value=70, min=-np.inf, max=np.inf, vary=True)
+                params.add(f'mul_{i+1}', value=0.5, min=-np.inf, max=np.inf, vary=True)
+                params.add(f'lam_{i+1}', value=0.01, min=-np.inf, max=np.inf, vary=True)
+
         else:  # polynomial by Ivo van Stokkum
             for i in range(self.n_poly_chirp):
                 params.add(f'parmu_{i+1}', value=0.5, min=-np.inf, max=np.inf, vary=True)
