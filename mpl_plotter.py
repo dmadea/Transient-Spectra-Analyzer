@@ -429,8 +429,14 @@ def plot_SADS_ax(ax, wls, SADS, labels=None, zero_reg=(None, None), z_unit=dA_un
         _SADS[cut_idxs[0]:cut_idxs[1]] = np.nan
 
     w_lim = (wls[0] if w_lim[0] is None else w_lim[0], wls[-1] if w_lim[1] is None else w_lim[1])
+    w1, w2 = find_nearest_idx(wls, w_lim)
+    _SADS = _SADS[w1:w2 + 1]
+    wls = wls[w1:w2 + 1]
 
-    set_main_axis(ax, y_label=z_unit, xlim=w_lim,
+    # fctr = 1.1
+    # _min, _max = abs(np.nanmin(_SADS)) * fctr * np.sign(np.nanmin(_SADS)), abs(np.nanmax(_SADS)) * fctr * np.sign(np.nanmax(_SADS))
+
+    set_main_axis(ax, y_label=z_unit, xlim=w_lim, #, ylim=(_min, _max),
                   x_minor_locator=AutoMinorLocator(10), x_major_locator=MultipleLocator(100), y_minor_locator=None)
     _ = setup_wavenumber_axis(ax, x_major_locator=MultipleLocator(0.5))
 

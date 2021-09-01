@@ -108,33 +108,35 @@ import numpy as np
 import matplotlib
 import matplotlib.pyplot as plt
 from user_namespace import *
-#from IPython.display import display, Math, Latex
+import warnings
+warnings.filterwarnings('ignore')
+# #from IPython.display import display, Math, Latex
 from augmentedmatrix import AugmentedMatrix
+# 
+# _cdict = {'red':   ((0.0, 0.0, 0.0),
+#                    (2/5, 0.0, 0.0),
+#                    (1/2, 1.0, 1.0),
+#                    (3/5, 1.0, 1.0),
+#                    (4/5, 1.0, 1.0),
+#                    (1.0, 0.3, 0.3)),
+# 
+#          'green': ((0.0, 0, 0),
+#                    (2/5, 0.0, 0.0),
+#                    (1/2, 1.0, 1.0),
+#                    (3/5, 1.0, 1.0),
+#                    (4/5, 0.0, 0.0),
+#                    (1.0, 0.0, 0.0)),
+# 
+#          'blue':  ((0.0, 0.3, 0.3),
+#                    (2/5, 1.0, 1.0),
+#                    (1/2, 1.0, 1.0),
+#                    (3/5, 0.0, 0.0),
+#                    (4/5, 0.0, 0.0),
+#                    (1.0, 0.0, 0.0))
+#         }
 
-_cdict = {'red':   ((0.0, 0.0, 0.0),
-                   (2/5, 0.0, 0.0),
-                   (1/2, 1.0, 1.0),
-                   (3/5, 1.0, 1.0),
-                   (4/5, 1.0, 1.0),
-                   (1.0, 0.3, 0.3)),
-
-         'green': ((0.0, 0, 0),
-                   (2/5, 0.0, 0.0),
-                   (1/2, 1.0, 1.0),
-                   (3/5, 1.0, 1.0),
-                   (4/5, 0.0, 0.0),
-                   (1.0, 0.0, 0.0)),
-
-         'blue':  ((0.0, 0.3, 0.3),
-                   (2/5, 1.0, 1.0),
-                   (1/2, 1.0, 1.0),
-                   (3/5, 0.0, 0.0),
-                   (4/5, 0.0, 0.0),
-                   (1.0, 0.0, 0.0))
-        }
-
-_ = matplotlib.colors.LinearSegmentedColormap('div', _cdict)
-matplotlib.cm.register_cmap('div', _)
+# _ = matplotlib.colors.LinearSegmentedColormap('div', _cdict)
+# matplotlib.cm.register_cmap('div', _)
 np.seterr(divide='ignore')
 
 %matplotlib  # setup default backend

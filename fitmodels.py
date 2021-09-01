@@ -301,7 +301,7 @@ class _Femto(_Model):
         self.w_of_chirp = 0.1
         self.t_radius_chirp = 0.2  # time radius around chirp / in ps
 
-        self.chirp_type = 'poly'  # poly, exp
+        self.chirp_type = 'exp'  # poly, exp chirp type
         self.spectra_choises = ['EADS', 'DADS']
         self.chirp_type_choices = ['poly', 'exp']
 
