@@ -594,8 +594,8 @@ class _Femto(_Model):
 
         return params
 
-    def get_weights(self, D, params=None):
-        weights = np.ones_like(D)
+    def get_weights(self, params=None):
+        weights = np.ones((self.times.shape[0], self.wavelengths.shape[0]))
         for *rng, w in self.weights:
             idx0, idx1 = find_nearest_idx(self.wavelengths, rng)
             weights[:, idx0:idx1+1] *= w
@@ -609,10 +609,7 @@ class _Femto(_Model):
 
         return weights
 
-    def simulate_mod(self, D, params=None, return_only_res=False):
-        if D is None:
-            raise ValueError('param D cannot be None')
-
+    def simulate_C_tensor(self, params=None):
         if params is None:
             params = self.params
 
@@ -631,10 +628,19 @@ class _Femto(_Model):
 
         _C_tensor = np.nan_to_num(_C_tensor)
 
-        ST, D_fit = blstsq(_C_tensor, D.T, self.ridge_alpha)  # solve batched least squares problem
+        return _C_tensor
 
-        # for i in range(self.wavelengths.shape[0]):
-        #     ST[:, i] = lstsq(_C_tensor[i], D[:, i])[0]
+
+    def simulate_mod(self, D, params=None):
+        if D is None:
+            raise ValueError('param D cannot be None')
+
+        if params is None:
+            params = self.params
+
+        _C_tensor = self.simulate_C_tensor(params)
+
+        ST, D_fit = blstsq(_C_tensor, D.T, self.ridge_alpha)  # solve batched least squares problem
 
         if self.coh_spec:
             self.ST_COH = ST[-self.coh_spec_order - 1:]
