@@ -1,68 +1,116 @@
 import numpy as np
+import numba as nb
+from scipy.special import erfc
+
+from math import erfc
+import time
+from collections import namedtuple
 import matplotlib.pyplot as plt
-from scipy.integrate import cumtrapz
-from numpy.linalg import lstsq
 
-x = np.linspace(0, 10, 500)
-
-m = np.asarray([1.5, -5, 50])
-l = np.asarray([0.5, 0.35, 0])
-
-y = (m[None, :] * np.exp(l[None, :] * x[:, None])).sum(axis=-1)
-
-ynoise = np.random.normal(y, 0)
-
-xR, yR = x[::20], ynoise[::20]
-
-# from https://math.stackexchange.com/questions/1428566/fit-sum-of-exponentials/3808325#3808325
-def fit_sum_exp(x, y, n=2, fit_intercept=False):
-    """Fits the data with the sum of exponential function and returns
-
-    if fit_intercept is True, last multiplier will be the intercept, also the 0 will be added
-    at the end of lambda vector"""
-
-    assert isinstance(x, np.ndarray) and isinstance(y, np.ndarray)
-    assert x.shape[0] == y.shape[0]
-    assert x.shape[0] >= 2 * n
-
-    Y_size = 2 * n + 1 if fit_intercept else 2 * n
-    Y = np.empty((x.shape[0], Y_size))
-
-    Y[:, 0] = cumtrapz(y, x, initial=0)
-    for i in range(1, n):
-        Y[:, i] = cumtrapz(Y[:, i - 1], x, initial=0)
-
-    Y[:, -1] = 1
-    for i in reversed(range(n, Y_size - 1)):
-        Y[:, i] = Y[:, i + 1] * x
-
-    A = lstsq(Y, y, rcond=None)[0]
-    Ahat = np.diag(np.ones(n - 1), -1)
-    Ahat[0] = A[:n]
-
-    lambdas = np.linalg.eigvals(Ahat)
-    # remove complex values
-    if any(np.iscomplex(lambdas)):
-        lambdas = lambdas.real
-
-    X = np.exp(lambdas[None, :] * x[:, None])
-    if fit_intercept:
-        X = np.hstack((X, np.ones_like(x)[:, None]))
-        lambdas = np.insert(lambdas, n, 0)
-    multipliers = lstsq(X, y, rcond=None)[0]
-
-    return multipliers, lambdas
+# @nb.vectorize(fastmath=True)
+# def my_erfc(x):
+#     return erfc(x)
 
 
-multipliers, lambdas = fit_sum_exp(xR, yR, 2, True)
-print(multipliers, lambdas)
+BenchResult = namedtuple('BenchResult', 'all mean std')
 
-best_fit = multipliers[None, :] * np.exp(lambdas[None, :] * x[:, None])
-best_fit = best_fit.sum(axis=-1, keepdims=False)
 
-plt.scatter(xR, yR)
-plt.plot(x, y, label='original')
-plt.plot(x, best_fit, lw=2, ls='--', color='k')
-plt.legend()
+def benchmark(func, ta_shape=(1000, 400), N=100):
+    t_array = np.subtract.outer(np.linspace(-1, 50, ta_shape[0]),
+                                np.linspace(-3, 3, ta_shape[1]))
+    w = 0.1
+    taus = np.array([0.1, 2, 10, 1000])
+    #Run once for jit
+    func(t_array, w, 0., taus)
+    out = []
+    for i in range(N):
+        t = time.time()
+        func(t_array, w, 0., taus)
+        out.append(time.time() - t)
+    out = np.array(out)
+    mean = out.mean()
+    std = out.std()
+    return BenchResult(out, mean, std)
+
+
+def fast_erfc(x):
+    """
+    Calculates the erfc near zero faster than
+    the libary function, but has a bigger error, which
+    is not a problem for us.
+    Parameters
+    ----------
+    x: float
+        The array
+    Returns
+    -------
+    ret: float
+        The erfc of x.
+    """
+    a1 = 0.278393
+    a2 = 0.230389
+    a3 = 0.000972
+    a4 = 0.078108
+    smaller = x < 0
+    if smaller:
+        x = x * -1.
+    bot = 1 + a1 * x + a2 * x * x + a3 * x * x * x + a4 * x * x * x * x
+    ret = 1. / (bot * bot * bot * bot)
+
+    if smaller:
+        ret = -ret + 2.
+
+    return ret
+
+
+my_erfc = nb.vectorize(fast_erfc)
+
+
+def _fold_exp(tt, w, tz, tau):
+    """
+    Returns the values of the folded exponentials for given parameters.
+    Parameters
+    ----------
+    tt:  ndarray(N)
+        Array containing the time-coordinates
+    w:  float
+        The assumed width/sq2
+    tz: float
+        The assumed time zero.
+    tau: ndarray(M)
+        The M-decay rates.
+    Returns
+    -------
+    y: ndarray(N,M)
+       Folded exponential for given taus.
+    """
+    ws = w
+    k = 1 / tau
+    k = k.reshape(tau.size, 1, 1)
+
+    t = (tt + tz).T.reshape(1, tt.shape[1], tt.shape[0])
+    y = np.zeros_like(t)
+    idx = (np.abs(t/w) < 3)
+    y[idx] = np.exp(k * (ws * ws * k / (4.0) - t[idx])) * 0.5 * my_erfc(-t[idx] / ws + ws * k / (2.0))
+    #y = np.exp(k * (ws * ws * k / (4.0) - t))
+    #y *= 0.5 * my_erfc(-t / ws + ws * k / (2.0))
+    return y.T
+
+
+jit1 = nb.njit(_fold_exp, parallel=True, fastmath=True)
+jit2 = nb.njit(_fold_exp, parallel=False, fastmath=True)
+jit3 = nb.njit(_fold_exp, parallel=True, fastmath=False)
+jit4 = nb.njit(_fold_exp, parallel=False, fastmath=False)
+
+# from base_functions_numba import _fold_exp as jit5
+
+plt.figure()
+for i, j in enumerate([jit1, jit2, jit3, jit4]):
+    for N in np.geomspace(10, 1000, 5):
+        res_jit = benchmark(j, ta_shape=(300, int(N)), N=30)
+        plt.plot(np.ones_like(res_jit.all) * N,
+                 res_jit.all,
+                 'x',
+                 c='C' + str(i))
+
 plt.show()
-

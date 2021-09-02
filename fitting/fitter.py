@@ -36,44 +36,75 @@ def _res_varpro(C, D):
     return R.flatten()
 
 
-def res_par_varpro(C, D, rcond=1e-10):
+# def res_par_varpro(C, D, rcond=1e-10):
+#     """Calculates residuals efficiently  by partitioned variable projection.
+#     residuals are (I - CC+)D. C is tensor (n_w, n_t, k), D is matrix (n_t, n_w)
+#     Projector CC+ is calculated by batched pseudoinverse
+#     """
+#
+#     # t0 = time.perf_counter()
+#
+#     Cp = pinv(C, rcond=rcond)  # calculate batch pseudoinverse
+#     I = np.eye(C.shape[1])[None, ...]  # eye matrix
+#     P = I - np.matmul(C, Cp)  # calculate the projector
+#     residuals = np.matmul(P, D.T[..., None]).squeeze().T  # and final residuals
+#
+#     # tdiff = time.perf_counter() - t0
+#     # print(f"res_par_varpro took {tdiff * 1e3} ms")
+#
+#     return residuals
+
+
+def res_parvarpro_pinv(C, D, rcond=1e-10):
     """Calculates residuals efficiently  by partitioned variable projection.
     residuals are (I - CC+)D. C is tensor (n_w, n_t, k), D is matrix (n_t, n_w)
     Projector CC+ is calculated by batched pseudoinverse
     """
-
-    # t0 = time.perf_counter()
-
     Cp = pinv(C, rcond=rcond)  # calculate batch pseudoinverse
-    I = np.eye(C.shape[1])[None, ...]  # eye matrix
-    P = I - np.matmul(C, Cp)  # calculate the projector
-    residuals = np.matmul(P, D.T[..., None]).squeeze().T  # and final residuals
-
-    # tdiff = time.perf_counter() - t0
-    # print(f"res_par_varpro took {tdiff * 1e3} ms")
-
+    CpD = np.matmul(Cp, D.T[..., None])
+    CCpD = np.matmul(C, CpD).squeeze().T
+    residuals = D - CCpD
     return residuals
 
 
-@njit(parallel=False, fastmath=False)
-def res_par_varpro_nb(C, D, rcond=1e-10):
+def res_parvarpro_svd(C, D, rcond=1e-10):
     """Calculates residuals efficiently  by partitioned variable projection.
     residuals are (I - CC+)D. C is tensor (n_w, n_t, k), D is matrix (n_t, n_w)
-    Projector CC+ is calculated by batched pseudoinverse
+    Projector CC+ is calculated by batched svd
     """
+    U, S, VT = np.linalg.svd(C, full_matrices=False)  # calculate batch svd of C tensor
+    cutoff = rcond * np.max(S, axis=-1, keepdims=True)
+    small = S < cutoff
+    small = np.tile(small[:, None, :], [1, U.shape[1], 1])
+    U[small] = 0  # set vector with small singular values to zero
 
-    residuals = np.empty_like(D)
+    UT = np.transpose(U, (0, 2, 1))
 
-    I = np.eye(C.shape[1])
-
-    for i in range(C.shape[0]):
-        Cpi = pinv(C[i], rcond=rcond)
-        P = I - C[i].dot(Cpi)  # projector C @ C+
-
-        #         P.flat[::P.shape[0] + 1] += 1  # add ones to main diagonal
-        residuals[:, i] = P.dot(D[:, i])
+    UTD = np.matmul(UT, D.T[..., None])
+    UUTD = np.matmul(U, UTD).squeeze().T
+    residuals = D - UUTD
 
     return residuals
+
+# @njit(parallel=False, fastmath=False)
+# def res_par_varpro_nb(C, D, rcond=1e-10):
+#     """Calculates residuals efficiently  by partitioned variable projection.
+#     residuals are (I - CC+)D. C is tensor (n_w, n_t, k), D is matrix (n_t, n_w)
+#     Projector CC+ is calculated by batched pseudoinverse
+#     """
+#
+#     residuals = np.empty_like(D)
+#
+#     I = np.eye(C.shape[1])
+#
+#     for i in range(C.shape[0]):
+#         Cpi = pinv(C[i], rcond=rcond)
+#         P = I - C[i].dot(Cpi)  # projector C @ C+
+#
+#         #         P.flat[::P.shape[0] + 1] += 1  # add ones to main diagonal
+#         residuals[:, i] = P.dot(D[:, i])
+#
+#     return residuals
 
 
 def mse(C, ST, D_actual, D_calculated):
@@ -184,7 +215,8 @@ class Fitter:
         self.is_interruption_requested = lambda: False  # function that returns True or False, default no interruption
 
         # keywords args to pass to underlying fitting function - lmfit
-        self.kwds = {'ftol': 1e-10, 'xtol': 1e-10, 'gtol': 1e-10, 'loss': 'linear', 'verbose': self.verbose}
+        self.kwds = {'ftol': 1e-10, 'xtol': 1e-10, 'gtol': 1e-10, 'loss': 'linear', 'verbose': self.verbose,
+                     'jac': '2-point'}
 
         self.update_options(**kwargs)
 
@@ -489,26 +521,27 @@ class Fitter:
 
             if self.fit_varpro:
                 C = self.c_model.simulate_C_tensor(params)
-                R = res_par_varpro(C, self.D)
+                _t = time.perf_counter()
+                # print(f"C tensor calc took {(_t - t0) * 1e3} ms")
+                t0 = _t
+                R = res_parvarpro_svd(C, self.D)
             else:
-                # classical naive batched least squares solution is so far almost 1 order of magnitude faster than "fancy"
+                # classical naive batched least squares solution is so far a bit faster than "fancy"
                 # partitioned variable projection algorithm...
-                # pinv could be improved by really partitioning, because the projector matrices are large
-                # or to use GPUs
+                # caclulation of C tensor takes  still quite a long time
                 D_fit, self.C_opt, self.ST_opt = self.c_model.simulate_mod(self.D, params)
                 R = self.D - D_fit
-
 
             # R = np.nan_to_num(R)
             weights = self.c_model.get_weights(params)
 
             tdiff = time.perf_counter() - t0
-            print(f"residuals took {tdiff * 1e3} ms")
+            # print(f"residuals took {tdiff * 1e3} ms")
 
             return R * weights
 
         # iter_cb - callback function
-        self.minimizer = lmfit.Minimizer(residuals, self.c_model.params,
+        self.minimizer = lmfit.Minimizer(residuals, self.c_model.params, nan_policy='omit',
                                          iter_cb=lambda params, iter, resid, *args, **kws: self.is_interruption_requested())
         self.kwds.update(kwargs)
         self.last_result = self.minimizer.minimize(method=self.fit_alg, **self.kwds)  # minimize the residuals

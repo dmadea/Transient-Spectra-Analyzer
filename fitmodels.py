@@ -64,8 +64,40 @@ def blstsq(A, B, alpha=0.001):
 
     return X.squeeze().T, fit
 
+# copied from https://github.com/Tillsten/skultrafast/blob/23572ba9ea32238f34a8a15390fb572ecd8bc6fa/skultrafast/base_funcs/backend_tester.py
+# © Till Stensitzki
+# @vectorize(nopython=True, fastmath=False)
+def fast_erfc(x):
+    """
+    Calculates the erfc near zero faster than
+    the libary function, but has a bigger error, which
+    is not a problem for us.
+    Parameters
+    ----------
+    x: float
+        The array
+    Returns
+    -------
+    ret: float
+        The erfc of x.
+    """
+    a1 = 0.278393
+    a2 = 0.230389
+    a3 = 0.000972
+    a4 = 0.078108
+    smaller = x < 0
+    if smaller:
+        x = x * -1.
+    bot = 1 + a1 * x + a2 * x * x + a3 * x * x * x + a4 * x * x * x * x
+    ret = 1. / (bot * bot * bot * bot)
 
-@vectorize(nopython=True)
+    if smaller:
+        ret = -ret + 2.
+
+    return ret
+
+
+@vectorize(nopython=True, fastmath=False)
 def fold_exp(t, k, fwhm):
 
     w = fwhm / (2 * np.sqrt(np.log(2)))  # width
@@ -84,7 +116,7 @@ def fold_exp(t, k, fwhm):
 #             np.exp(-t * k) * np.heaviside(t, 1))
 
 
-@vectorize(nopython=True)
+@vectorize(nopython=True, fastmath=False)
 def photokin_factor(A):
     ln10 = np.log(10)
     ll2 = ln10 ** 2 / 2
@@ -650,6 +682,7 @@ class _Femto(_Model):
         C = _C_tensor[0, :, :-self.coh_spec_order - 1] if self.coh_spec else _C_tensor[0]
         ST = ST[:-self.coh_spec_order - 1] if self.coh_spec else ST
 
+        D_fit = np.nan_to_num(D_fit)
         return D_fit, C, ST
 
 class _Photokinetic_Model(_Model):

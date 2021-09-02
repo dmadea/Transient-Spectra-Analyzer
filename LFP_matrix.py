@@ -728,8 +728,8 @@ class LFP_matrix(object):
 
         plt.show()
 
-    def plot_fit_femto(self, t_unit='ps', z_unit=dA_unit, cmap='diverging', z_lim=(None, None),
-                       t_lim=(None, None), w_lim=(None, None), linthresh=1, linscale=1.5, D_mul_factor=1e3,
+    def plot_fit_femto(self, t_unit='ps', z_unit=dA_unit, cmap='diverging', z_lim=[None, None],
+                       t_lim=[None, None], w_lim=[None, None], linthresh=1, linscale=1.5, D_mul_factor=1e3,
                        y_major_formatter=ScalarFormatter(), n_lin_bins=10, n_log_bins=10,
                        x_minor_locator=AutoMinorLocator(10), n_levels=30, plot_countours=True,
                        colorbar_locator=AutoLocator(), hatch='/////', colorbar_aspect=35, add_wn_axis=True,
@@ -751,6 +751,8 @@ class LFP_matrix(object):
         assert _D.shape == self.D_fit.shape
 
         if plot_chirp_corrected and self.mu is not None:
+            if t_lim[0] is None:
+                t_lim[0] = -offset_before_zero
             _D, times, _wavelengths = chirp_correction(_D, times, wavelengths, self.mu,
                                         offset_before_zero=offset_before_zero)
             # _D_fit, times, wavelengths = chirp_correction(_D_fit, times, wavelengths, self.parmu, lambda_c=self.lambda_c,
@@ -863,8 +865,8 @@ class LFP_matrix(object):
         else:
             plt.show()
 
-    def plot_data(self, symlog=False, t_unit='ps', z_unit=dA_unit, cmap='diverging', z_lim=(None, None),
-                  t_lim=(None, None), w_lim=(None, None), linthresh=1, linscale=1.5, D_mul_factor=1e3,
+    def plot_data(self, symlog=False, t_unit='ps', z_unit=dA_unit, cmap='diverging', z_lim=[None, None],
+                  t_lim=[None, None], w_lim=[None, None], linthresh=1, linscale=1.5, D_mul_factor=1e3,
                   y_major_formatter=ScalarFormatter(), n_lin_bins=10, n_log_bins=10,
                   x_minor_locator=AutoMinorLocator(10), n_levels=30, plot_countours=True,
                   colorbar_locator=AutoLocator(), hatched_wls=(None, None), hatch='/////',
@@ -879,6 +881,8 @@ class LFP_matrix(object):
         wavelengths = self.wavelengths.copy()
 
         if plot_chirp_corrected and self.mu is not None:
+            if t_lim[0] is None:
+                t_lim[0] = -offset_before_zero
             _D, times, wavelengths = chirp_correction(_D, times, wavelengths, self.mu,
                                                            offset_before_zero=offset_before_zero)
 
