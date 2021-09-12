@@ -792,7 +792,7 @@ class LFP_matrix(object):
         plot_traces_onefig_ax(axes[-1], self.D, self.D_fit, self.times, self.wavelengths, mu=self.mu,
                               wls=wls_fit, marker_size=marker_size, alpha=alpha_traces,
                               marker_facecolor=marker_facecolor, n_lin_bins=n_lin_bins, n_log_bins=n_log_bins,
-                              marker_linewidth=marker_linewidth, colors=COLORS,
+                              marker_linewidth=marker_linewidth, colors=COLORS, t_axis_formatter=y_major_formatter,
                               linscale=linscale, linthresh=linthresh, x_label=f'Time / {t_unit}',
                               legend_spacing=legend_spacing, y_label=z_unit,
                               lw=lw_traces, legend_loc=legend_loc_traces, D_mul_factor=D_mul_factor,

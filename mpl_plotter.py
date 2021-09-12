@@ -242,7 +242,7 @@ def get_sym_space(vmin, vmax, n):
 
 
 def plot_traces_onefig_ax(ax, D, D_fit, times, wavelengths, mu=None, wls=(355, 400, 450, 500, 550), marker_size=10,
-                          marker_linewidth=1, n_lin_bins=10, n_log_bins=10,
+                          marker_linewidth=1, n_lin_bins=10, n_log_bins=10, t_axis_formatter=ScalarFormatter(),
                           marker_facecolor='white', alpha=0.8, y_lim=(None, None),
                           linthresh=1, linscale=1, colors=None, D_mul_factor=1e3, legend_spacing=0.2, lw=1.5,
                           legend_loc='lower right', y_label=dA_unit, x_label='Time / ps', symlog=True, t_lim=(None, None)):
@@ -292,7 +292,8 @@ def plot_traces_onefig_ax(ax, D, D_fit, times, wavelengths, mu=None, wls=(355, 4
         ax.plot([sep - d * tilt, sep + d * tilt], [1 - d * 0.8, 1 + d * 0.8], **kwargs)
         ax.vlines(linthresh, ax.get_ylim()[0], ax.get_ylim()[1], ls='dotted', lw=1, color='k', zorder=10)
 
-    ax.xaxis.set_major_formatter(ScalarFormatter())
+    if t_axis_formatter:
+        ax.xaxis.set_major_formatter(t_axis_formatter)
 
     l = ax.legend(loc=legend_loc, frameon=False, labelspacing=legend_spacing)
     for text, color in zip(l.get_texts(), colors):
