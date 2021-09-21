@@ -387,7 +387,8 @@ class Fitter:
 
         return True
 
-    def obj_func_fit(self, C_est=None, **kwargs):  # resolving factor analysis
+    # resolving factor analysis fit
+    def obj_func_fit(self, C_est=None, **kwargs):
         self.update_options(**kwargs)
 
         _C_opt = self.C_est.copy() if C_est is None else C_est

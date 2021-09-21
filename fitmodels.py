@@ -1374,13 +1374,13 @@ class CisTransIsomerization(_Photokinetic_Model):
     def __init__(self):
         super(CisTransIsomerization, self).__init__()
 
-        path = r'C:\Users\Dominik\Documents\MUNI\Organic Photochemistry\RealTimeSync\Projects\2020-Bilirubin - 2nd half\UV-VIS\QY\Test 2ZE\irr spectrum.txt'
+        path = r'C:\Users\dominik\Documents\RealTimeSync\Projects\2020-Bilirubin - 2nd half\UV-VIS\QY\Test 2ZE new setup\405 nm LED 0,5A.txt'
 
         _data_irr = np.genfromtxt(path, delimiter='\t')
         self.Irr_norm = _data_irr[1:, 1]
         self.Irr_norm /= np.trapz(self.Irr_norm)  # normalized irradiation spectrum
 
-        path = r'C:\Users\Dominik\Documents\MUNI\Organic Photochemistry\RealTimeSync\Projects\2020-Bilirubin - 2nd half\UV-VIS\QY\q rel.txt'
+        path = r'C:\Users\dominik\Documents\RealTimeSync\Projects\2020-Bilirubin - 2nd half\UV-VIS\QY\q rel.txt'
 
         self.q_rel = np.genfromtxt(path, delimiter='\t')[1:, 1]
         self.overlap = np.trapz(self.Irr_norm * self.q_rel)
@@ -1390,19 +1390,19 @@ class CisTransIsomerization(_Photokinetic_Model):
     def init_model_params(self):
         params = super(CisTransIsomerization, self).init_model_params()
         # params.add('c0', value=1e-3, min=0, max=np.inf, vary=False)  # initial concentration of species A
-        params.add('IZ', value=55e-6, min=0, max=np.inf, vary=False)  # total photon flux
-        params.add('IE', value=56e-6, min=0, max=np.inf, vary=False)  # total photon flux
+        params.add('IZ', value=13.6e-6, min=0, max=np.inf, vary=False)  # total photon flux
+        params.add('IE', value=13.6e-6, min=0, max=np.inf, vary=False)  # total photon flux
         params.add('l', value=1, min=0, max=np.inf, vary=False)  # length of cuvette
         params.add('V', value=3e-3, min=0, max=np.inf, vary=False)  # volume of solution in cuvette
-        params.add('t0Z', value=7, min=0, max=np.inf, vary=False)  # time of start of irradiation
-        params.add('t0E', value=7, min=0, max=np.inf, vary=False)  # time of start of irradiation
-        params.add('xZ', value=0.05, min=0, max=np.inf, vary=False)  # time of start of irradiation
+        params.add('t0Z', value=0, min=0, max=np.inf, vary=False)  # time of start of irradiation
+        params.add('t0E', value=0, min=0, max=np.inf, vary=False)  # time of start of irradiation
+        params.add('xZ', value=0.1, min=0, max=np.inf, vary=False)  # time of start of irradiation
 
         # params.add('t02', value=0, min=0, max=np.inf, vary=False)  # time of start of irradiation
 
-        params.add('Phi_ZE', value=0.5, min=0, max=1, vary=False)  # time of start of irradiation
+        params.add('Phi_ZE', value=0.2, min=0, max=1, vary=False)  # time of start of irradiation
         params.add('Phi_EZ', value=0.2, min=0, max=1, vary=False)  # time of start of irradiation
-        params.add('Phi_ZED', value=0.05, min=0, max=1, vary=False)  # time of start of irradiation
+        params.add('Phi_ZED', value=0.005, min=0, max=1, vary=False)  # time of start of irradiation
 
         return params
 

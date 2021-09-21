@@ -99,6 +99,9 @@ class PlotWidget(DockArea):
         self.trace_plot_item_fit = None
         self.spectrum_plot_item_fit = None
 
+        self.trace_orig_plot_item = None
+        self.spectrum_orig_plot_item = None
+
         self.heat_map_levels = None
         self.selected_range_idxs = None
 
@@ -628,6 +631,9 @@ class PlotWidget(DockArea):
         self.trace_plot_item = self.trace.plot([])
         self.spectrum_plot_item = self.spectrum.plot([])
 
+        self.trace_orig_plot_item = self.trace.plot([])
+        self.spectrum_orig_plot_item = self.spectrum.plot([])
+
     def init_fit_trace_sp(self):
         self.trace_plot_item_fit = self.trace.plot([])
         self.spectrum_plot_item_fit = self.spectrum.plot([])
@@ -649,19 +655,32 @@ class PlotWidget(DockArea):
         wl_idx = find_nearest_idx(wavelengths, wl_pos)
 
         trace_y_data = self.matrix.D[:, wl_idx]
+        trace_y_datorig = self.matrix.Y[:, wl_idx]
 
         pen = pg.mkPen(color=QColor('black'), width=1)
+        pen_orig_data = pg.mkPen(color=QColor('blue'), width=1)
 
-        if self.smooth_count == 0:
-            spectrum_y_data = self.matrix.D[t_idx, :]
-        else:
-            avrg_slice_matrix = self.matrix.D[t_idx - self.smooth_count:t_idx + self.smooth_count, :]
-            spectrum_y_data = np.average(avrg_slice_matrix, axis=0)
+        spectrum_y_data = self.matrix.D[t_idx, :]
+        spectrum_y_data_orig = self.matrix.Y[t_idx, :]
+
+        # if self.smooth_count == 0:
+        #     spectrum_y_data = self.matrix.D[t_idx, :]
+        #     spectrum_y_data_orig = self.matrix.Y[t_idx, :]
+        # else:
+        #     avrg_slice_matrix = self.matrix.D[t_idx - self.smooth_count:t_idx + self.smooth_count, :]
+        #     spectrum_y_data = np.average(avrg_slice_matrix, axis=0)
 
         if self.trace_plot_item is not None:
             self.trace_plot_item.setData(times, trace_y_data, pen=pen)
             self.spectrum_plot_item.setData(wavelengths, spectrum_y_data, pen=pen)
+            if not np.allclose(trace_y_data, trace_y_datorig):
+                self.trace_orig_plot_item.setData(times, trace_y_datorig, pen=pen_orig_data)
+                self.spectrum_orig_plot_item.setData(wavelengths, spectrum_y_data_orig, pen=pen_orig_data)
+            else:
+                self.trace_orig_plot_item.setData([])
+                self.spectrum_orig_plot_item.setData([])
 
+        # plotting fit
         if self.spectrum_plot_item_fit is not None and self.trace_plot_item_fit is not None and self.fit_matrix is not None:
             trace_y_data_fit = self.fit_matrix.Y[:, wl_idx]
 

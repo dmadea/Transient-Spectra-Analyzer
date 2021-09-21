@@ -24,49 +24,67 @@ def get_mu(wls, parmu=(1, 0, 0), lambda_c=433):
     return mu
 
 
-def chirp_correction_old(matrix, times, wls, parmu=(1, 0, 0), lambda_c=433, time_offset=0.3):
-    mu = get_mu(wls, parmu, lambda_c)
+def double_points(arr):
+    """Inserts the averages of each pair of points in the array. The array must be sorted.
+    The total shape of the array will be 2 * [arr.shape[0]] - 1
 
-    idx0 = find_nearest_idx(mu, time_offset)
-    if mu[idx0] < time_offset:
-        idx0 += 1
+    So if input array is [-1, -0.5, 0, 5], the output will be
+    [-1, -0.75, -0.5, -0.25, 0, 2.5, 5]
+    """
+    new_arr = np.empty(2 * arr.shape[0] - 1)
 
-    # crop wavelengths data from idx0 to end
-    matrix_croped = matrix[:, idx0:]
-    new_wls = wls[idx0:]
-    mu = mu[idx0:]
+    avrg = (arr[:-1] + arr[1:]) / 2
 
-    new_times = times - mu.max()
+    new_arr[::2] = arr
+    new_arr[1::2] = avrg
+    return new_arr
 
-    # remove first entries to correct for time_offset
-    idx_t_min = find_nearest_idx(new_times, -time_offset)
-    if new_times[idx_t_min] < -time_offset:
-        idx_t_min += 1
+def chirp_correction(data, mu, offset_before_zero=0.3, t_smooth_order=1):
+    """
+    Performs the chirp correction of the data array. Modifies the original data.
+    mu is array defining time zero. The time dimension of data will be cropped to [-offset_before_zero:].
+    t_smooth_order is the number of doubling of original time points. if 0, no doubling is performed.
+    """
 
-    new_times = new_times[idx_t_min:]
-    new_D = np.zeros((new_times.shape[0], new_wls.shape[0]), dtype=np.float64)
+    assert np.min(mu) - data.times[0] >= offset_before_zero
 
-    for i in range(new_wls.shape[0]):
+    idx_0 = find_nearest_idx(data.times, -offset_before_zero)
+
+    # create new time array starting with -offset_before_zero
+    if data.times[idx_0] == -offset_before_zero:
+        new_times = data.times[idx_0:]
+    else:
+        num = int(data.times[idx_0] < -offset_before_zero)
+        new_times = np.insert(data.times[idx_0 + num:], 0, -offset_before_zero)
+
+    # perform doubling of time points
+    for i in range(t_smooth_order):
+        new_times = double_points(new_times)
+
+    new_D = np.empty((new_times.shape[0], data.wavelengths.shape[0]), dtype=np.float64)
+
+    for i in range(data.wavelengths.shape[0]):
         # linear interpolation for each wavelength
-        new_D[:, i] = np.interp(new_times, times - mu[i], matrix_croped[:, i])
+        new_D[:, i] = np.interp(new_times, data.times - mu[i], data.D[:, i])
 
-    return new_D, new_times, new_wls
+    return new_D, new_times
 
 
-def chirp_correction(matrix, times, wls, mu, offset_before_zero=0.3):
 
-    assert np.min(mu) - times[0] >= offset_before_zero
-
-    new_times = np.concatenate((np.linspace(-offset_before_zero, offset_before_zero, 200, endpoint=False),
-                                np.logspace(np.log10(offset_before_zero), np.log10(times[-1] - np.max(mu)), 300)))
-
-    new_D = np.zeros((new_times.shape[0], wls.shape[0]), dtype=np.float64)
-
-    for i in range(wls.shape[0]):
-        # linear interpolation for each wavelength
-        new_D[:, i] = np.interp(new_times, times - mu[i], matrix[:, i])
-
-    return new_D, new_times, wls
+# def chirp_correction(matrix, times, wls, mu, offset_before_zero=0.3):
+#
+#     assert np.min(mu) - times[0] >= offset_before_zero
+#
+#     new_times = np.concatenate((np.linspace(-offset_before_zero, offset_before_zero, 200, endpoint=False),
+#                                 np.logspace(np.log10(offset_before_zero), np.log10(times[-1] - np.max(mu)), 300)))
+#
+#     new_D = np.zeros((new_times.shape[0], wls.shape[0]), dtype=np.float64)
+#
+#     for i in range(wls.shape[0]):
+#         # linear interpolation for each wavelength
+#         new_D[:, i] = np.interp(new_times, times - mu[i], matrix[:, i])
+#
+#     return new_D, new_times, wls
 
 
 

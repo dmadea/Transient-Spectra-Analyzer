@@ -3,26 +3,23 @@ import matplotlib.pyplot as plt
 import json
 
 
-class TargetModel:
-    """Only simulates the first order reactions."""
+class Photokin_Thermal_Model:
+    """General model for simulating thermal (only first order reactions) and photokinetics."""
 
     def __init__(self):
 
+        self.initial_conditions = {}
+        self.scheme = ""
+
         self.transitions = []  # list of dictionaries
         self.fpath = ""
+        self.func = None  # function that returns dc_dt for current c and t for build model
 
-    @classmethod
-    def from_list(cls, list_of_transitions):
-        model = cls()
-        for tr in list_of_transitions:
-            assert len(tr) >= 2
+    def add_transition(self, from_comp='a', to_comp='b', rate: float=1.0, kind='therm'):
+        """kind can be 'therm' or 'photo'
 
-            model.add_transition(tr[0], tr[1], tr[2] if len(tr) > 2 else 1)
-
-        return model
-
-    def add_transition(self, from_comp='a', to_comp='b', rate=1):
-        d_transition = dict(from_comp=from_comp.upper(), to_comp=to_comp.upper(), rate=rate)
+        """
+        d_transition = dict(from_comp=from_comp.upper(), to_comp=to_comp.upper(), rate=rate, kind=kind)
 
         if d_transition not in self.transitions:
             self.transitions.append(d_transition)
@@ -39,25 +36,44 @@ class TargetModel:
                 l.append(trans['to_comp'])
         return l
 
-    def build_K_matrix(self):
-        """ Builds the n x n k-matrix """
+
+    # @classmethod
+    # def from_list(cls, list_of_transitions):
+    #     model = cls()
+    #     for tr in list_of_transitions:
+    #         assert len(tr) >= 2
+    #
+    #         model.add_transition(tr[0], tr[1], tr[2] if len(tr) > 2 else 1)
+    #
+    #     return model
+
+    def build_matrices(self):
+        """ Builds the n x n K and Phi-matrix """
 
         comp = self.get_compartments()
         n = len(comp)
         idx_dict = dict(enumerate(comp))
         inv_idx = dict(zip(idx_dict.values(), idx_dict.keys()))
-        matrix = np.zeros((n, n), dtype=np.float64)
+        K_matrix = np.zeros((n, n), dtype=np.float64)
+        Phi_matrix = np.zeros((n, n), dtype=np.float64)
 
         for tr in self.transitions:
             i = inv_idx[tr['from_comp']]
             j = inv_idx[tr['to_comp']]
+            matrix = K_matrix if tr['kind'] == 'therm' else Phi_matrix
             matrix[i, i] -= tr['rate']
             matrix[j, i] = tr['rate']
 
-        return matrix
+        return K_matrix, Phi_matrix
 
-    def get_names_rates(self):
-        return [(f"k_{tr['from_comp']}{tr['to_comp']}", tr['rate']) for tr in self.transitions]
+    def get_rate_names(self):
+        names = []
+
+        for tr in self.transitions:
+            letter = 'k' if tr['kind'] == 'therm' else 'Phi'
+            names.append(f"{letter}_{tr['from_comp']}{tr['to_comp']}")
+
+        return names
 
     def set_rates(self, rates):
         assert len(rates) == len(self.transitions)
@@ -179,7 +195,8 @@ class TargetModel:
 
     def print_model(self):
         for tr in self.transitions:
-            print(f"Transition: {tr['from_comp']}\u2192{tr['to_comp']}, rate/QY: {tr['rate']}")
+            rate_text = 'rate' if tr['kind'] == 'therm' else 'QY'
+            print(f"Transition:  {tr['from_comp']}\u2192{tr['to_comp']}, {rate_text}: {tr['rate']}")
 
 
 if __name__ == '__main__':
@@ -189,44 +206,25 @@ if __name__ == '__main__':
     # print(model.get_rate_names())
     # model.plot_model()
 
-    model = TargetModel()
+    model = Photokin_Thermal_Model()
 
-    compartments = list('abcde')
+    compartments = list('ZE')
     n = len(compartments)
-    for i in range(n):
-        j = (i + 1) % n
-        k = (i + 2) % n
-        model.add_transition(compartments[i], compartments[j], i*j + 1)
-        # model.add_transition(compartments[i], compartments[k], i*k + 1)
+    # for i in range(n):
+    #     j = (i + 1) % n
+    #     k = (i + 2) % n
+    #     model.add_transition(compartments[i], compartments[j], i*j + 1)
+    #     # model.add_transition(compartments[i], compartments[k], i*k + 1)
+
+    model.add_transition('Z', 'E', 1, kind='photo')
+    model.add_transition('E', 'Z', 0.2, kind='photo')
 
 
-    #
-    #
-    # model.add_transition('a', 'b', 50)
-    # model.add_transition('b', 'c', 50)
-    # model.add_transition('c', 'd', 50)
-    # model.add_transition('d', 'e', 50)
-    # model.add_transition('e', 'f', 50)
-    # model.add_transition('f', 'a', 50)
-    # #
-    # model.add_transition('a', 'c', 50)
-    # model.add_transition('b', 'd', 50)
-    # model.add_transition('c', 'e', 50)
-    # model.add_transition('d', 'f', 50)
-    # model.add_transition('e', 'a', 50)
-    # model.add_transition('f', 'b', 50)
-    #
-    # model.add_transition('a', 'd', 50)
-    # model.add_transition('b', 'e', 50)
-    # model.add_transition('c', 'f', 50)
-    # model.add_transition('d', 'a', 50)
-    # model.add_transition('e', 'b', 50)
-    # model.add_transition('f', 'c', 50)
-    #
     model.print_model()
-    # print(model.build_K_matrix())
+    print(model.build_matrices())
+    print(model.get_rate_names())
     # print(model.get_rate_names())
-    model.plot_model()
+    # model.plot_model()
     # model.save('target models/11_com_cyclic.json')
     #
     # model.save()

@@ -4,6 +4,7 @@ from LFP_matrix import LFP_matrix, MinorSymLogLocator
 
 from Widgets.fit_widget import FitWidget
 from plotwidget import PlotWidget
+from Widgets.svd_widget import SVDWidget
 
 from misc import crop_data, find_nearest, find_nearest_idx
 from gui_console import Console
@@ -643,24 +644,14 @@ def setup2nd():
     fw = FitWidget.instance
     pw = PlotWidget.instance
 
-    _path = r"C:\Users\Dominik\Documents\MUNI\Organic Photochemistry\RealTimeSync\Projects\2020-Bilirubin - 2nd half\UV-VIS\QY\Test 2ZE"
+    _path = r"C:\Users\dominik\Documents\RealTimeSync\Projects\2020-Bilirubin - 2nd half\UV-VIS\QY\Test 2ZE"
     # _path = r"C:\Users\dominik\Documents\RealTimeSync\Projects\2020-Bilirubin - 2nd half\UV-VIS\QY\Test 2ZE"
 
     fnames = [
         'low conc 1Z.txt',
         'high conc 1E.txt'
     ]
-    #
-    # fnames = [
-    #     'high conc 1Z.txt',
-    #     'high conc 2Z.txt',
-    #     'low conc 1Z.txt',
-    #     'low conc 2Z.txt',
-    #     'high conc 1E.txt',
-    #     'high conc 2E.txt',
-    #     'low conc 1E.txt',
-    #     'low conc 2E.txt',
-    # ]
+
 
     paths = []
 
@@ -678,9 +669,46 @@ def setup2nd():
     m = au.get_aug_LFP_matrix()
 
     pw.plot_matrix(m)
+    SVDWidget.instance.set_data(m)
     fw.matrix = m
     fw._au = au
     Console.push_variables({'matrix': m})
+
+
+    return au
+
+def setup2nd_405_test():
+    fw = FitWidget.instance
+    pw = PlotWidget.instance
+
+    _path = r"C:\Users\dominik\Documents\RealTimeSync\Projects\2020-Bilirubin - 2nd half\UV-VIS\QY\Test 2ZE new setup"
+
+    fnames = [
+        '2Z 405 02.txt',
+        '2E 405 01.txt'
+    ]
+
+    paths = []
+
+    for fname in fnames:
+        paths.append(os.path.join(_path, fname))
+
+    au = AugmentedMatrix(len(paths), 1)
+
+    for i in range(len(paths)):
+        au.load_matrix(i, 0, paths[i])
+        # au[i, 0].reduce(t_dim=2)
+
+    # au[1, 0].crop_data(t1=3000)
+
+    m = au.get_aug_LFP_matrix()
+
+    pw.plot_matrix(m)
+    SVDWidget.instance.set_data(m)
+    fw.matrix = m
+    fw._au = au
+    Console.push_variables({'matrix': m})
+
 
     return au
 
