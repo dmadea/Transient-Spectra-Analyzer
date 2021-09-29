@@ -719,6 +719,8 @@ def setup2nd_385_test():
     pw = PlotWidget.instance
 
     _path = r"C:\Users\dominik\Documents\RealTimeSync\Projects\2020-Bilirubin - 2nd half\UV-VIS\QY\Test 2ZE new setup\better one"
+    # _path = r"C:\Users\Dominik\Documents\MUNI\Organic Photochemistry\RealTimeSync\Projects\2020-Bilirubin - 2nd half\UV-VIS\QY\Test 2ZE new setup\better one"
+
 
     fnames = [
         '2Z 385 01.txt',
