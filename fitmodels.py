@@ -1374,24 +1374,31 @@ class CisTransIsomerization(_Photokinetic_Model):
     def __init__(self):
         super(CisTransIsomerization, self).__init__()
 
-        path = r'C:\Users\dominik\Documents\RealTimeSync\Projects\2020-Bilirubin - 2nd half\UV-VIS\QY\Test 2ZE new setup\405 nm LED 0,5A.txt'
+        LUX_file = r'C:\Users\dominik\Documents\RealTimeSync\Projects\2020-Bilirubin - 2nd half\UV-VIS\QY\Test 2ZE new setup\LUX LEDs 0.1 A norm.txt'
 
-        _data_irr = np.genfromtxt(path, delimiter='\t')
-        self.Irr_norm = _data_irr[1:, 1]
-        self.Irr_norm /= np.trapz(self.Irr_norm)  # normalized irradiation spectrum
+        _data_irr = np.genfromtxt(LUX_file, delimiter='\t')
+        leds = _data_irr[1:, 1:]
+        leds /= np.trapz(leds, axis=0)  # normalize to unit area
+        self.LED385 = leds[:, 0]
+        self.LED405 = leds[:, 1]
+        self.LED415 = leds[:, 2]
+        self.LED450 = leds[:, 3]
 
         path = r'C:\Users\dominik\Documents\RealTimeSync\Projects\2020-Bilirubin - 2nd half\UV-VIS\QY\q rel.txt'
 
         self.q_rel = np.genfromtxt(path, delimiter='\t')[1:, 1]
-        self.overlap = np.trapz(self.Irr_norm * self.q_rel)
+        self.overlap385 = np.trapz(self.LED385 * self.q_rel)
+        self.overlap405 = np.trapz(self.LED405 * self.q_rel)
+        self.overlap415 = np.trapz(self.LED415 * self.q_rel)
+        self.overlap450 = np.trapz(self.LED450 * self.q_rel)
 
-        self.use_numba = True
+        self.use_numba = False
 
     def init_model_params(self):
         params = super(CisTransIsomerization, self).init_model_params()
         # params.add('c0', value=1e-3, min=0, max=np.inf, vary=False)  # initial concentration of species A
-        params.add('IZ', value=13.6e-6, min=0, max=np.inf, vary=False)  # total photon flux
-        params.add('IE', value=13.6e-6, min=0, max=np.inf, vary=False)  # total photon flux
+        params.add('IZ', value=72.1e-6, min=0, max=np.inf, vary=False)  # total photon flux
+        params.add('IE', value=71.1e-6, min=0, max=np.inf, vary=False)  # total photon flux
         params.add('l', value=1, min=0, max=np.inf, vary=False)  # length of cuvette
         params.add('V', value=3e-3, min=0, max=np.inf, vary=False)  # volume of solution in cuvette
         params.add('t0Z', value=0, min=0, max=np.inf, vary=False)  # time of start of irradiation
@@ -1428,11 +1435,11 @@ class CisTransIsomerization(_Photokinetic_Model):
                         [Phi_ZE, -Phi_EZ - Phi_ZED, 0],
                         [Phi_ZED, Phi_ZED, 0]])
 
-        irr = self.Irr_norm  # if self.Irr_norm is not None else self.get_LED_source()
+        irr = self.LED385
 
         args = [
-            [IZ * self.overlap, [1, 0, 0], t0Z],
-            [IE * self.overlap, [xZ, 1 - xZ, 0], t0E]
+            [IZ * self.overlap385, [1, 0, 0], t0Z],
+            [IE * self.overlap385, [xZ, 1 - xZ, 0], t0E]
         ]
 
         for i in range(len(args)):

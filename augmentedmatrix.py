@@ -677,15 +677,52 @@ def setup2nd():
 
     return au
 
-def setup2nd_405_test():
+
+def settup_baseline_test():
     fw = FitWidget.instance
     pw = PlotWidget.instance
 
-    _path = r"C:\Users\dominik\Documents\RealTimeSync\Projects\2020-Bilirubin - 2nd half\UV-VIS\QY\Test 2ZE new setup"
+    _path = r"C:\Users\dominik\Documents\GitHub Repositories\Jupyter-Tutorials\Photoreaction kinetics"
 
     fnames = [
-        '2Z 405 02.txt',
-        '2E 405 01.txt'
+        'D_test.txt',
+        'D_baseline_test.txt'
+    ]
+
+    paths = []
+
+    for fname in fnames:
+        paths.append(os.path.join(_path, fname))
+
+    au = AugmentedMatrix(len(paths), 1)
+
+    for i in range(len(paths)):
+        au.load_matrix(i, 0, paths[i])
+        # au[i, 0].reduce(t_dim=2)
+
+    # au[1, 0].crop_data(t1=3000)
+
+    m = au.get_aug_LFP_matrix()
+
+    pw.plot_matrix(m)
+    SVDWidget.instance.set_data(m)
+    fw.matrix = m
+    fw._au = au
+    Console.push_variables({'matrix': m})
+
+
+    return au
+
+
+def setup2nd_385_test():
+    fw = FitWidget.instance
+    pw = PlotWidget.instance
+
+    _path = r"C:\Users\dominik\Documents\RealTimeSync\Projects\2020-Bilirubin - 2nd half\UV-VIS\QY\Test 2ZE new setup\better one"
+
+    fnames = [
+        '2Z 385 01.txt',
+        '2Z 385 02.txt'
     ]
 
     paths = []

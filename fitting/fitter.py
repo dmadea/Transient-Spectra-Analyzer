@@ -216,7 +216,7 @@ class Fitter:
 
         # keywords args to pass to underlying fitting function - lmfit
         self.kwds = {'ftol': 1e-10, 'xtol': 1e-10, 'gtol': 1e-10, 'loss': 'linear', 'verbose': self.verbose,
-                     'jac': '2-point'}
+                     'jac': '3-point'}
 
         self.update_options(**kwargs)
 
