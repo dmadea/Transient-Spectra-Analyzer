@@ -718,13 +718,12 @@ def setup2nd_385_test():
     fw = FitWidget.instance
     pw = PlotWidget.instance
 
-    _path = r"C:\Users\dominik\Documents\RealTimeSync\Projects\2020-Bilirubin - 2nd half\UV-VIS\QY\Test 2ZE new setup\better one"
+    _path = r"C:\Users\dominik\Documents\RealTimeSync\Projects\2020-Bilirubin - 2nd half\UV-VIS\QY\new setup final\385 nm"
     # _path = r"C:\Users\Dominik\Documents\MUNI\Organic Photochemistry\RealTimeSync\Projects\2020-Bilirubin - 2nd half\UV-VIS\QY\Test 2ZE new setup\better one"
 
-
     fnames = [
-        '2Z 385 01.txt',
-        '2Z 385 02.txt'
+        '2Z high conc 01/2Z high conc 01.txt',
+        '2E high conc 01/2E high conc 01.txt'
     ]
 
     paths = []

@@ -866,7 +866,7 @@ class _Photokinetic_Model(_Model):
         return result
 
     @staticmethod
-    def simul_photokin_model(I0, c0, K=None, eps=None, times=None, V=0.003, l=1, t0=0, use_numba=True):
+    def simul_photokin_model(I0, c0, K=None, eps=None, times=None, V=0.003, l=1, t0=0, R=0.036, use_Ieff_correction=True, use_numba=True):
         """
         no wl dependence of K
         I0 - irradiation spectrum scalled by q0 = PDF * q0 so that integral(I0) = q0
@@ -875,11 +875,14 @@ class _Photokinetic_Model(_Model):
         l - length of cuvette
         V - volume in the cuvette in L
         c0 - total initial concentration vector of compounds
+        R - reflectivity of cuvette, for fused silica, it is 0.036 around 400 nm
+        use_Ieff_correction - if True, correction for effective irradiance will be used
         """
 
         c0 = np.asarray(c0)
 
         assert c0.shape[0] == K.shape[0]
+        ln10 = np.log(10)
 
         def dc_dt(c, t):
             p_A = c[:, None] * eps * l  # hadamard product - partial absorbance
@@ -887,7 +890,11 @@ class _Photokinetic_Model(_Model):
 
             F = photokin_factor(A)  # (1-10^-A) / A
 
-            product = K * (F * I0 * eps * l).sum(axis=-1)  # K @ sum(diag(F * I0 * eps * l))
+            # Ieff = I0 * (1-R)*(1 + R*T) = I_solvent * (1 + R*T) / (1 - R), where T is transmittance
+            # I0 is Isolvent, so irradiance measured after cuvette with pure solvent
+            Ieff = I0 * (1 + R * np.exp(-ln10 * A)) / (1 - R) if use_Ieff_correction else I0
+
+            product = K * (F * Ieff * eps * l).sum(axis=-1)  # K @ sum(diag(F * I0 * eps * l))
 
             irr_on = 1 if t >= t0 else 0
 
@@ -1374,7 +1381,7 @@ class CisTransIsomerization(_Photokinetic_Model):
     def __init__(self):
         super(CisTransIsomerization, self).__init__()
 
-        LUX_file = r'C:\Users\dominik\Documents\RealTimeSync\Projects\2020-Bilirubin - 2nd half\UV-VIS\QY\Test 2ZE new setup\LUX LEDs 0.1 A norm.txt'
+        LUX_file = r'C:\Users\dominik\Documents\RealTimeSync\Projects\2020-Bilirubin - 2nd half\UV-VIS\QY\new setup final\LEDs norm.txt'
 
         _data_irr = np.genfromtxt(LUX_file, delimiter='\t')
         leds = _data_irr[1:, 1:]
@@ -1397,10 +1404,10 @@ class CisTransIsomerization(_Photokinetic_Model):
     def init_model_params(self):
         params = super(CisTransIsomerization, self).init_model_params()
         # params.add('c0', value=1e-3, min=0, max=np.inf, vary=False)  # initial concentration of species A
-        params.add('IZ', value=72.1e-6, min=0, max=np.inf, vary=False)  # total photon flux
-        params.add('IE', value=71.1e-6, min=0, max=np.inf, vary=False)  # total photon flux
+        params.add('IZ', value=0.0001188, min=0, max=np.inf, vary=False)  # total photon flux
+        params.add('IE', value=0.0001188, min=0, max=np.inf, vary=False)  # total photon flux
         params.add('l', value=1, min=0, max=np.inf, vary=False)  # length of cuvette
-        params.add('V', value=3e-3, min=0, max=np.inf, vary=False)  # volume of solution in cuvette
+        params.add('V', value=2.5e-3, min=0, max=np.inf, vary=False)  # volume of solution in cuvette
         params.add('t0Z', value=0, min=0, max=np.inf, vary=False)  # time of start of irradiation
         params.add('t0E', value=0, min=0, max=np.inf, vary=False)  # time of start of irradiation
         params.add('xZ', value=0.1, min=0, max=np.inf, vary=False)  # time of start of irradiation
