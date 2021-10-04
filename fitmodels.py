@@ -866,7 +866,8 @@ class _Photokinetic_Model(_Model):
         return result
 
     @staticmethod
-    def simul_photokin_model(I0, c0, K=None, eps=None, times=None, V=0.003, l=1, t0=0, R=0.036, use_Ieff_correction=True, use_numba=True):
+    def simul_photokin_model(I0, c0, K=None, eps=None, times=None, V=0.003, l=1, t0=0, R=0.036,
+                             use_backref_correction=True,  scaling_coef=1e6):
         """
         no wl dependence of K
         I0 - irradiation spectrum scalled by q0 = PDF * q0 so that integral(I0) = q0
@@ -877,6 +878,9 @@ class _Photokinetic_Model(_Model):
         c0 - total initial concentration vector of compounds
         R - reflectivity of cuvette, for fused silica, it is 0.036 around 400 nm
         use_Ieff_correction - if True, correction for effective irradiance will be used
+        scaling_coef is there to keep numerical integrator stable, if the simulated profiles has low values,
+        it can cause some numerical errors in the integrator, so the spectra are scaled down but initial concentrations
+        and photon flux is scaled up by this coefficient, thereby making the result equal to non-scaled simulation
         """
 
         c0 = np.asarray(c0)
@@ -884,25 +888,30 @@ class _Photokinetic_Model(_Model):
         assert c0.shape[0] == K.shape[0]
         ln10 = np.log(10)
 
+        eps_s = eps / scaling_coef
+        I0_s = I0 * scaling_coef
+        c0_s = c0 * scaling_coef
+
         def dc_dt(c, t):
-            p_A = c[:, None] * eps * l  # hadamard product - partial absorbance
+            p_A = c[:, None] * eps_s * l  # hadamard product - partial absorbance
             A = p_A.sum(axis=0)  # total absorbance
 
             F = photokin_factor(A)  # (1-10^-A) / A
 
             # Ieff = I0 * (1-R)*(1 + R*T) = I_solvent * (1 + R*T) / (1 - R), where T is transmittance
             # I0 is Isolvent, so irradiance measured after cuvette with pure solvent
-            Ieff = I0 * (1 + R * np.exp(-ln10 * A)) / (1 - R) if use_Ieff_correction else I0
+            Ieff = I0_s * (1 + R * np.exp(-ln10 * A)) / (1 - R) if use_backref_correction else I0_s
 
-            product = K * (F * Ieff * eps * l).sum(axis=-1)  # K @ sum(diag(F * I0 * eps * l))
+            product = K * (F * Ieff * eps_s * l).sum(axis=-1)  # K @ sum(diag(F * I0 * eps * l))
 
             irr_on = 1 if t >= t0 else 0
 
             return irr_on * product.dot(c) / V  # final dot product / V
 
-        result = odeint(_dc_dt_nb, c0, times, args=(I0, K, eps * l, V, t0)) if use_numba else odeint(dc_dt, c0, times)
+        # result = odeint(_dc_dt_nb, c0 * scaling_coef, times, args=(I0 * scaling_coef, K, eps * l / scaling_coef, V, t0)) if use_numba else odeint(dc_dt, c0, times)
+        result = odeint(dc_dt, c0_s, times)
 
-        return result
+        return result / scaling_coef
 
     #
     # @staticmethod
