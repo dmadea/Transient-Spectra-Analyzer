@@ -780,11 +780,11 @@ class _Photokinetic_Model(_Model):
     def update_n(self, new_n=None):
         super(_Photokinetic_Model, self).update_n(new_n)
 
-        self.T = np.zeros((self.n, self.n), dtype=np.float64) if self.T is not None else None
+        self.T = np.zeros((self.n, self.n + 1), dtype=np.float64) if self.T is not None else None
 
         if self.aug_matrix:
             U, S, VT = svd(self.aug_matrix.aug_mat, full_matrices=False)
-            self.U, self.Sigma, self.VT = U[:, :self.n], np.diag(S[:self.n]), VT[:self.n, :]
+            self.U, self.Sigma, self.VT = U[:, :self.n + 1], np.diag(S[:self.n + 1]), VT[:self.n + 1, :]
 
     def get_T(self, params=None):
         if self.T is None:
@@ -796,7 +796,7 @@ class _Photokinetic_Model(_Model):
         assert type(n) is int
 
         pars = [par[1].value for par in params.items()]
-        self.T = np.asarray(pars[:n**2]).reshape((n, n))
+        self.T = np.asarray(pars[:n*(n+1)]).reshape((n, n+1))
 
         return self.T
 
@@ -805,7 +805,7 @@ class _Photokinetic_Model(_Model):
         pars = [par[1].value for par in params.items()]
 
         if self.method is 'RFA':
-            pars = pars[self.n**2:]
+            pars = pars[self.n*(self.n + 1):]
 
         return pars
 
@@ -817,7 +817,7 @@ class _Photokinetic_Model(_Model):
 
         if self.T is not None:
             for i in range(self.n):
-                for j in range(self.n):
+                for j in range(self.n + 1):
                     params.add(f't_{i+1}{j+1}', value=1 if i == j else 0, min=-np.inf, max=np.inf, vary=True)
 
         return params
@@ -1413,19 +1413,20 @@ class CisTransIsomerization(_Photokinetic_Model):
     def init_model_params(self):
         params = super(CisTransIsomerization, self).init_model_params()
         # params.add('c0', value=1e-3, min=0, max=np.inf, vary=False)  # initial concentration of species A
-        params.add('IZ', value=0.0001188, min=0, max=np.inf, vary=False)  # total photon flux
-        params.add('IE', value=0.0001188, min=0, max=np.inf, vary=False)  # total photon flux
+        params.add('IZ', value=75.9e-6, min=0, max=np.inf, vary=False)  # total photon flux
+        params.add('IE', value=75.9e-6, min=0, max=np.inf, vary=False)  # total photon flux
         params.add('l', value=1, min=0, max=np.inf, vary=False)  # length of cuvette
         params.add('V', value=2.5e-3, min=0, max=np.inf, vary=False)  # volume of solution in cuvette
         params.add('t0Z', value=0, min=0, max=np.inf, vary=False)  # time of start of irradiation
         params.add('t0E', value=0, min=0, max=np.inf, vary=False)  # time of start of irradiation
-        params.add('xZ', value=0.1, min=0, max=np.inf, vary=False)  # time of start of irradiation
+        params.add('xZ', value=0.234, min=0, max=np.inf, vary=False)  # time of start of irradiation
+        # xZ = 0.234 from last measurement of 2E
 
         # params.add('t02', value=0, min=0, max=np.inf, vary=False)  # time of start of irradiation
 
-        params.add('Phi_ZE', value=0.2, min=0, max=1, vary=False)  # time of start of irradiation
-        params.add('Phi_EZ', value=0.2, min=0, max=1, vary=False)  # time of start of irradiation
-        params.add('Phi_ZED', value=0.005, min=0, max=1, vary=False)  # time of start of irradiation
+        params.add('Phi_ZE', value=0.2, min=0, max=1, vary=True)  # time of start of irradiation
+        params.add('Phi_EZ', value=0.2, min=0, max=1, vary=True)  # time of start of irradiation
+        params.add('Phi_ZED', value=0.005, min=0, max=1, vary=True)  # time of start of irradiation
 
         return params
 
@@ -1467,10 +1468,9 @@ class CisTransIsomerization(_Photokinetic_Model):
             c0 = self.get_conc_vector(mat.Y[0], pop)
 
             C_out[s:e, :] = self.simul_photokin_model(q0 * irr, c0, times=mat.times, eps=self.ST, V=V, t0=t0, l=1, K=K,
-                                                      use_numba=self.use_numba)
+                                                      use_backref_correction=True)
 
         return C_out
-
 
 
 class AB_Model(_Model):
