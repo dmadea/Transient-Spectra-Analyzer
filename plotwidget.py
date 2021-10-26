@@ -695,7 +695,7 @@ class PlotWidget(DockArea):
             self.spectrum_plot_item_fit.setData(wavelengths, spectrum_y_data_fit, pen=pen_fit)
 
         if self.set_coordinate_func is not None:
-            self.set_coordinate_func('w = {:.3g}, t = {:.3g}'.format(wavelengths[wl_idx], times[t_idx]))
+            self.set_coordinate_func('w = {:.5g}, t = {:.5g}'.format(wavelengths[wl_idx], times[t_idx]))
 
         # self.spectrum.setTitle("Spectrum, t = {:.3g} us".format(time_pos))
         # self.trace.setTitle("Trace, \u03bb = {:.3g} nm".format(wl_pos))
