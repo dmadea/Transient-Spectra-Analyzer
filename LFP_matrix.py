@@ -39,35 +39,35 @@ def double_points(arr):
     new_arr[1::2] = avrg
     return new_arr
 
-def chirp_correction(data, mu, offset_before_zero=0.3, t_smooth_order=1):
+def chirp_correction(matrix, times, wavelengths, mu, offset_before_zero=0.3, t_smooth_order=1):
     """
     Performs the chirp correction of the data array. Modifies the original data.
     mu is array defining time zero. The time dimension of data will be cropped to [-offset_before_zero:].
     t_smooth_order is the number of doubling of original time points. if 0, no doubling is performed.
     """
 
-    assert np.min(mu) - data.times[0] >= offset_before_zero
+    assert np.min(mu) - times[0] >= offset_before_zero
 
-    idx_0 = find_nearest_idx(data.times, -offset_before_zero)
+    idx_0 = find_nearest_idx(times, -offset_before_zero)
 
     # create new time array starting with -offset_before_zero
-    if data.times[idx_0] == -offset_before_zero:
-        new_times = data.times[idx_0:]
+    if times[idx_0] == -offset_before_zero:
+        new_times = times[idx_0:]
     else:
-        num = int(data.times[idx_0] < -offset_before_zero)
-        new_times = np.insert(data.times[idx_0 + num:], 0, -offset_before_zero)
+        num = int(times[idx_0] < -offset_before_zero)
+        new_times = np.insert(times[idx_0 + num:], 0, -offset_before_zero)
 
     # perform doubling of time points
     for i in range(t_smooth_order):
         new_times = double_points(new_times)
 
-    new_D = np.empty((new_times.shape[0], data.wavelengths.shape[0]), dtype=np.float64)
+    new_D = np.empty((new_times.shape[0], wavelengths.shape[0]), dtype=np.float64)
 
-    for i in range(data.wavelengths.shape[0]):
+    for i in range(wavelengths.shape[0]):
         # linear interpolation for each wavelength
-        new_D[:, i] = np.interp(new_times, data.times - mu[i], data.D[:, i])
+        new_D[:, i] = np.interp(new_times, times - mu[i], matrix[:, i])
 
-    return new_D, new_times
+    return new_D, new_times, wavelengths
 
 
 
@@ -771,8 +771,9 @@ class LFP_matrix(object):
         if plot_chirp_corrected and self.mu is not None:
             if t_lim[0] is None:
                 t_lim[0] = -offset_before_zero
-            _D, times, _wavelengths = chirp_correction(_D, times, wavelengths, self.mu,
-                                        offset_before_zero=offset_before_zero)
+            _D, times, _wavelengths = chirp_correction(_D, times, wavelengths, self.mu, offset_before_zero=offset_before_zero)
+
+
             # _D_fit, times, wavelengths = chirp_correction(_D_fit, times, wavelengths, self.parmu, lambda_c=self.lambda_c,
             #                             offset_before_zero=offset_before_zero)
 
