@@ -241,22 +241,46 @@ def get_sym_space(vmin, vmax, n):
     return np.linspace((neg_steps + 0.5) * -raw_step, (pos_steps + 0.5) * raw_step, pos_steps + neg_steps + 2)
 
 
+def _plot_tilts(ax, norm, at_value, axis='y', inverted_axis=False):
+    d = 0.015
+    tilt = 0.4
+
+    sep = 1 - norm(at_value) if inverted_axis else norm(at_value)
+    kwargs = dict(transform=ax.transAxes, color='k', clip_on=False)
+
+    x_vals = [[-d * 0.8, +d * 0.8],
+             [1 - d * 0.8, 1 + d * 0.8],
+             [0, 1]]
+    y_vals = [[sep - d * tilt, sep + d * tilt],
+             [sep - d * tilt, sep + d * tilt],
+             [sep, sep]]
+
+    if axis == 'x':
+        x_vals, y_vals = y_vals, x_vals
+
+    ax.plot(x_vals[0], y_vals[0], **kwargs)
+    ax.plot(x_vals[1], y_vals[1], **kwargs)
+    ax.plot(x_vals[2], y_vals[2], ls='dotted', lw=1, **kwargs)
+
+
 def plot_traces_onefig_ax(ax, D, D_fit, times, wavelengths, mu=None, wls=(355, 400, 450, 500, 550), marker_size=10,
                           marker_linewidth=1, n_lin_bins=10, n_log_bins=10, t_axis_formatter=ScalarFormatter(),
-                          marker_facecolor='white', alpha=0.8, y_lim=(None, None),
+                          marker_facecolor='white', alpha=0.8, y_lim=(None, None), plot_tilts=True, wl_unit='nm',
                           linthresh=1, linscale=1, colors=None, D_mul_factor=1e3, legend_spacing=0.2, lw=1.5,
-                          legend_loc='lower right', y_label=dA_unit, x_label='Time / ps', symlog=True, t_lim=(None, None)):
-
+                          legend_loc='lower right', y_label=dA_unit, x_label='Time / ps', symlog=True,
+                          t_lim=(None, None),
+                          plot_zero_line=True):
     n = wls.__len__()
     t = times
-    mu = np.zeros_like(t) if mu is None else mu
-    norm = mpl.colors.SymLogNorm(vmin=t[0], vmax=t[-1], linscale=linscale, linthresh=linthresh, base=10, clip=True)
+    mu = np.zeros_like(wavelengths) if mu is None else mu
 
     t_lim = (times[0] if t_lim[0] is None else t_lim[0], times[-1] if t_lim[1] is None else t_lim[1])
+
     set_main_axis(ax, xlim=t_lim, ylim=y_lim, y_label=y_label, x_label=x_label,
                   y_minor_locator=None, x_minor_locator=None)
 
-    ax.plot(t - mu[0].mean(), np.zeros_like(t), ls='--', color='black', lw=1)
+    if plot_zero_line:
+        ax.plot(t - mu[0].mean(), np.zeros_like(t), ls='--', color='black', lw=1)
 
     colors = plt.rcParams['axes.prop_cycle'].by_key()['color'] if colors is None else colors
 
@@ -270,7 +294,7 @@ def plot_traces_onefig_ax(ax, D, D_fit, times, wavelengths, mu=None, wls=(355, 4
                    alpha=alpha, marker='o', s=marker_size, linewidths=marker_linewidth)
 
         ax.scatter([], [], edgecolor=color_points, facecolor=marker_facecolor,
-                   alpha=alpha, marker='o', label=f'{wls[i]} nm', s=marker_size * 2, linewidths=marker_linewidth)
+                   alpha=alpha, marker='o', label=f'{wls[i]} {wl_unit}', s=marker_size * 2, linewidths=marker_linewidth)
         ax.plot(tt, D_fit[:, idx] * D_mul_factor, lw=lw, color=color_line)
 
     ax.xaxis.set_ticks_position('both')
@@ -282,15 +306,10 @@ def plot_traces_onefig_ax(ax, D, D_fit, times, wavelengths, mu=None, wls=(355, 4
         ax.xaxis.set_major_locator(MajorSymLogLocator(base=10, linthresh=linthresh))
         ax.xaxis.set_minor_locator(MinorSymLogLocator(linthresh, n_lin_ints=n_lin_bins, n_log_ints=n_log_bins, base=10))
 
-        d = 0.015
-        tilt = 0.4
-        ax.set_ylim(ax.get_ylim())
-
-        sep = norm(linthresh)
-        kwargs = dict(transform=ax.transAxes, color='k', clip_on=False)
-        ax.plot([sep - d * tilt, sep + d * tilt], [-d * 0.8, +d * 0.8], **kwargs)
-        ax.plot([sep - d * tilt, sep + d * tilt], [1 - d * 0.8, 1 + d * 0.8], **kwargs)
-        ax.vlines(linthresh, ax.get_ylim()[0], ax.get_ylim()[1], ls='dotted', lw=1, color='k', zorder=10)
+        if plot_tilts:
+            norm = c.SymLogNorm(vmin=t_lim[0], vmax=t_lim[1], linscale=linscale, linthresh=linthresh, base=10,
+                                clip=True)
+            _plot_tilts(ax, norm, linthresh, 'x')
 
     if t_axis_formatter:
         ax.xaxis.set_major_formatter(t_axis_formatter)
@@ -300,6 +319,67 @@ def plot_traces_onefig_ax(ax, D, D_fit, times, wavelengths, mu=None, wls=(355, 4
         text.set_color(color)
 
     ax.set_axisbelow(False)
+
+
+# def plot_traces_onefig_ax(ax, D, D_fit, times, wavelengths, mu=None, wls=(355, 400, 450, 500, 550), marker_size=10,
+#                           marker_linewidth=1, n_lin_bins=10, n_log_bins=10, t_axis_formatter=ScalarFormatter(),
+#                           marker_facecolor='white', alpha=0.8, y_lim=(None, None),
+#                           linthresh=1, linscale=1, colors=None, D_mul_factor=1e3, legend_spacing=0.2, lw=1.5,
+#                           legend_loc='lower right', y_label=dA_unit, x_label='Time / ps', symlog=True, t_lim=(None, None)):
+#
+#     n = wls.__len__()
+#     t = times
+#     mu = np.zeros_like(t) if mu is None else mu
+#     norm = mpl.colors.SymLogNorm(vmin=t[0], vmax=t[-1], linscale=linscale, linthresh=linthresh, base=10, clip=True)
+#
+#     t_lim = (times[0] if t_lim[0] is None else t_lim[0], times[-1] if t_lim[1] is None else t_lim[1])
+#     set_main_axis(ax, xlim=t_lim, ylim=y_lim, y_label=y_label, x_label=x_label,
+#                   y_minor_locator=None, x_minor_locator=None)
+#
+#     ax.plot(t - mu[0].mean(), np.zeros_like(t), ls='--', color='black', lw=1)
+#
+#     colors = plt.rcParams['axes.prop_cycle'].by_key()['color'] if colors is None else colors
+#
+#     for i in range(n):
+#         color_points = c.to_rgb(colors[i])
+#         color_line = np.asarray(color_points) * 0.7
+#
+#         idx = find_nearest_idx(wavelengths, wls[i])
+#         tt = t - mu[idx]
+#         ax.scatter(tt, D[:, idx] * D_mul_factor, edgecolor=color_points, facecolor=marker_facecolor,
+#                    alpha=alpha, marker='o', s=marker_size, linewidths=marker_linewidth)
+#
+#         ax.scatter([], [], edgecolor=color_points, facecolor=marker_facecolor,
+#                    alpha=alpha, marker='o', label=f'{wls[i]} nm', s=marker_size * 2, linewidths=marker_linewidth)
+#         ax.plot(tt, D_fit[:, idx] * D_mul_factor, lw=lw, color=color_line)
+#
+#     ax.xaxis.set_ticks_position('both')
+#     ax.yaxis.set_ticks_position('both')
+#
+#     if symlog:
+#         ax.set_xscale('symlog', subs=[2, 3, 4, 5, 6, 7, 8, 9], linscale=linscale, linthresh=linthresh)
+#
+#         ax.xaxis.set_major_locator(MajorSymLogLocator(base=10, linthresh=linthresh))
+#         ax.xaxis.set_minor_locator(MinorSymLogLocator(linthresh, n_lin_ints=n_lin_bins, n_log_ints=n_log_bins, base=10))
+#
+#         d = 0.015
+#         tilt = 0.4
+#         ax.set_ylim(ax.get_ylim())
+#
+#         sep = norm(linthresh)
+#         kwargs = dict(transform=ax.transAxes, color='k', clip_on=False)
+#         ax.plot([sep - d * tilt, sep + d * tilt], [-d * 0.8, +d * 0.8], **kwargs)
+#         ax.plot([sep - d * tilt, sep + d * tilt], [1 - d * 0.8, 1 + d * 0.8], **kwargs)
+#         ax.vlines(linthresh, ax.get_ylim()[0], ax.get_ylim()[1], ls='dotted', lw=1, color='k', zorder=10)
+#
+#     if t_axis_formatter:
+#         ax.xaxis.set_major_formatter(t_axis_formatter)
+#
+#     l = ax.legend(loc=legend_loc, frameon=False, labelspacing=legend_spacing)
+#     for text, color in zip(l.get_texts(), colors):
+#         text.set_color(color)
+#
+#     ax.set_axisbelow(False)
 
 
 def plot_spectra_ax(ax, D, times, wavelengths, selected_times=(0, 100), zero_reg=None, z_unit=dA_unit, D_mul_factor=1,
@@ -344,11 +424,12 @@ def plot_spectra_ax(ax, D, times, wavelengths, selected_times=(0, 100), zero_reg
 def plot_data_ax(fig, ax, matrix, times, wavelengths, symlog=True, t_unit='ps',
                  z_unit=dA_unit, cmap='diverging', z_lim=(None, None),
                  t_lim=(None, None), w_lim=(None, None), linthresh=1, linscale=1, D_mul_factor=1e3,
-                 n_lin_bins=10, n_log_bins=10,
+                 n_lin_bins=10, n_log_bins=10, plot_tilts=True,
                  y_major_formatter=ScalarFormatter(),
-                 x_minor_locator=AutoMinorLocator(10), n_levels=30, plot_countours=True,
-                 colorbar_locator=MultipleLocator(50),
-                 diverging_white_cmap_tr=0.98, hatch='/////', colorbar_aspect=35, add_wn_axis=True, x_label="Wavelength / nm"):
+                 x_minor_locator=AutoMinorLocator(10), x_major_locator=None, n_levels=30, plot_countours=True,
+                 colorbar_locator=MultipleLocator(50), colorbarpad=0.04,
+                 diverging_white_cmap_tr=0.98, hatch='/////', colorbar_aspect=35, add_wn_axis=True,
+                 x_label="Wavelength / nm"):
     """data is individual dataset"""
 
     # assert type(data) == Data
@@ -376,7 +457,7 @@ def plot_data_ax(fig, ax, matrix, times, wavelengths, symlog=True, t_unit='ps',
     # plot data matrix D
 
     set_main_axis(ax, xlim=w_lim, ylim=t_lim, x_label=x_label, y_label=f'Time delay / {t_unit}',
-                  x_minor_locator=x_minor_locator, y_minor_locator=None)
+                  x_minor_locator=x_minor_locator, x_major_locator=x_major_locator, y_minor_locator=None)
     if add_wn_axis:
         w_ax = setup_wavenumber_axis(ax, x_major_locator=MultipleLocator(0.5))
         w_ax.tick_params(which='minor', direction='out')
@@ -397,17 +478,18 @@ def plot_data_ax(fig, ax, matrix, times, wavelengths, symlog=True, t_unit='ps',
         cmap_colors = cm.get_cmap(cmap)
         colors = cmap_colors(np.linspace(0, 1, n_levels + 1))
         colors *= 0.45  # plot contours as darkens colors of colormap, blue -> darkblue, white -> gray ...
-        ax.contour(x, y, D, colors=colors, levels=levels, antialiased=True, linewidths=0.2,
+        ax.contour(x, y, D, colors=colors, levels=levels, antialiased=True, linewidths=0.1,
                    alpha=1, linestyles='-')
 
     ax.invert_yaxis()
 
     ax.tick_params(which='major', direction='out')
     ax.tick_params(which='minor', direction='out')
+    ax.yaxis.set_ticks_position('both')
 
     ax.set_axisbelow(False)
 
-    fig.colorbar(mappable, ax=ax, label=z_unit, orientation='vertical', aspect=colorbar_aspect, pad=0.025,
+    fig.colorbar(mappable, ax=ax, label=z_unit, orientation='vertical', aspect=colorbar_aspect, pad=colorbarpad,
                  ticks=colorbar_locator)
 
     if symlog:
@@ -415,8 +497,91 @@ def plot_data_ax(fig, ax, matrix, times, wavelengths, symlog=True, t_unit='ps',
         ax.yaxis.set_major_locator(MajorSymLogLocator(base=10, linthresh=linthresh))
         ax.yaxis.set_minor_locator(MinorSymLogLocator(linthresh, n_lin_ints=n_lin_bins, n_log_ints=n_log_bins, base=10))
 
+        if plot_tilts:
+            norm = c.SymLogNorm(vmin=t_lim[0], vmax=t_lim[1], linscale=linscale, linthresh=linthresh, base=10,
+                                clip=True)
+            _plot_tilts(ax, norm, linthresh, 'y', inverted_axis=True)
+
     if y_major_formatter:
         ax.yaxis.set_major_formatter(y_major_formatter)
+
+#
+# def plot_data_ax(fig, ax, matrix, times, wavelengths, symlog=True, t_unit='ps',
+#                  z_unit=dA_unit, cmap='diverging', z_lim=(None, None),
+#                  t_lim=(None, None), w_lim=(None, None), linthresh=1, linscale=1, D_mul_factor=1e3,
+#                  n_lin_bins=10, n_log_bins=10,
+#                  y_major_formatter=ScalarFormatter(),
+#                  x_minor_locator=AutoMinorLocator(10), n_levels=30, plot_countours=True,
+#                  colorbar_locator=MultipleLocator(50),
+#                  diverging_white_cmap_tr=0.98, hatch='/////', colorbar_aspect=35, add_wn_axis=True, x_label="Wavelength / nm"):
+#     """data is individual dataset"""
+#
+#     # assert type(data) == Data
+#
+#     t_lim = (times[0] if t_lim[0] is None else t_lim[0], times[-1] if t_lim[1] is None else t_lim[1])
+#     w_lim = (
+#         wavelengths[0] if w_lim[0] is None else w_lim[0], wavelengths[-1] if w_lim[1] is None else w_lim[1])
+#
+#     D = matrix.copy() * D_mul_factor
+#
+#     zmin = np.min(D) if z_lim[0] is None else z_lim[0]
+#     zmax = np.max(D) if z_lim[1] is None else z_lim[1]
+#
+#     if z_lim[0] is not None:
+#         D[D < zmin] = zmin
+#
+#     if z_lim[1] is not None:
+#         D[D > zmax] = zmax
+#
+#     register_div_cmap(zmin, zmax)
+#     register_div_white_cmap(zmin, zmax, diverging_white_cmap_tr)
+#
+#     x, y = np.meshgrid(wavelengths, times)  # needed for pcolormesh to correctly scale the image
+#
+#     # plot data matrix D
+#
+#     set_main_axis(ax, xlim=w_lim, ylim=t_lim, x_label=x_label, y_label=f'Time delay / {t_unit}',
+#                   x_minor_locator=x_minor_locator, y_minor_locator=None)
+#     if add_wn_axis:
+#         w_ax = setup_wavenumber_axis(ax, x_major_locator=MultipleLocator(0.5))
+#         w_ax.tick_params(which='minor', direction='out')
+#         w_ax.tick_params(which='major', direction='out')
+#
+#     #     ax.set_facecolor((0.8, 0.8, 0.8, 1))
+#     if ma.is_masked(D):  # https://stackoverflow.com/questions/41664850/hatch-area-using-pcolormesh-in-basemap
+#         m_idxs = np.argwhere(D.mask[0] > 0).squeeze()
+#         wl_range = [wavelengths[m_idxs[0] - 1], wavelengths[m_idxs[-1] + 1]]
+#         ax.fill_between(wl_range, [t_lim[0], t_lim[0]], [t_lim[1], t_lim[1]], facecolor="none",
+#                         hatch=hatch, edgecolor="k", linewidth=0.0)
+#
+#     #     mappable = ax.pcolormesh(x, y, D, cmap=cmap, vmin=zmin, vmax=zmax)
+#     levels = get_sym_space(zmin, zmax, n_levels)
+#     mappable = ax.contourf(x, y, D, cmap=cmap, vmin=zmin, vmax=zmax, levels=levels, antialiased=True)
+#
+#     if plot_countours:
+#         cmap_colors = cm.get_cmap(cmap)
+#         colors = cmap_colors(np.linspace(0, 1, n_levels + 1))
+#         colors *= 0.45  # plot contours as darkens colors of colormap, blue -> darkblue, white -> gray ...
+#         ax.contour(x, y, D, colors=colors, levels=levels, antialiased=True, linewidths=0.2,
+#                    alpha=1, linestyles='-')
+#
+#     ax.invert_yaxis()
+#
+#     ax.tick_params(which='major', direction='out')
+#     ax.tick_params(which='minor', direction='out')
+#
+#     ax.set_axisbelow(False)
+#
+#     fig.colorbar(mappable, ax=ax, label=z_unit, orientation='vertical', aspect=colorbar_aspect, pad=0.025,
+#                  ticks=colorbar_locator)
+#
+#     if symlog:
+#         ax.set_yscale('symlog', subs=[2, 3, 4, 5, 6, 7, 8, 9], linscale=linscale, linthresh=linthresh)
+#         ax.yaxis.set_major_locator(MajorSymLogLocator(base=10, linthresh=linthresh))
+#         ax.yaxis.set_minor_locator(MinorSymLogLocator(linthresh, n_lin_ints=n_lin_bins, n_log_ints=n_log_bins, base=10))
+#
+#     if y_major_formatter:
+#         ax.yaxis.set_major_formatter(y_major_formatter)
 
 
 def plot_SADS_ax(ax, wls, SADS, labels=None, zero_reg=(None, None), z_unit=dA_unit, D_mul_factor=1e3,

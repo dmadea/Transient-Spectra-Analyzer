@@ -753,8 +753,8 @@ class LFP_matrix(object):
                        colorbar_locator=AutoLocator(), hatch='/////', colorbar_aspect=35, add_wn_axis=True,
                        wls_fit=(355, 400, 450, 500, 550), marker_size=10, marker_linewidth=1,
                        marker_facecolor='none', alpha_traces=1, legend_spacing=0.2, lw_traces=1.5, lw_spectra=1.5,
-                       legend_loc_traces='lower right', plot_chirp_corrected=True, offset_before_zero=0.3,
-                       draw_chirp=False, lw_chirp=1.5, ls_chirp='--',
+                       legend_loc_traces='best', plot_chirp_corrected=True, offset_before_zero=0.3,
+                       draw_chirp=False, lw_chirp=1.5, ls_chirp='--', plot_tilts=True,
                        fig_size=(15, 4.5), dpi=500, filepath=None, transparent=True, hatched_wls=(None, None),
                        plot_ST=True, x_label="Wavelength / nm"):
 
@@ -791,7 +791,7 @@ class LFP_matrix(object):
         fig, axes = plt.subplots(1, 3 if plot_ST else 2, figsize=fig_size)
 
         plot_data_ax(fig, axes[0], _D, times, wavelengths, D_mul_factor=D_mul_factor, symlog=True,
-                     plot_countours=plot_countours,
+                     plot_countours=plot_countours, plot_tilts=plot_tilts,
                      n_levels=n_levels, cmap=cmap, linthresh=linthresh, linscale=linscale,
                      t_unit=t_unit, z_unit=z_unit, n_lin_bins=n_lin_bins, n_log_bins=n_log_bins,
                      z_lim=z_lim, t_lim=t_lim, w_lim=w_lim, y_major_formatter=y_major_formatter,
@@ -813,7 +813,7 @@ class LFP_matrix(object):
                               marker_facecolor=marker_facecolor, n_lin_bins=n_lin_bins, n_log_bins=n_log_bins,
                               marker_linewidth=marker_linewidth, colors=COLORS, t_axis_formatter=y_major_formatter,
                               linscale=linscale, linthresh=linthresh, x_label=f'Time / {t_unit}',
-                              legend_spacing=legend_spacing, y_label=z_unit,
+                              legend_spacing=legend_spacing, y_label=z_unit, plot_tilts=plot_tilts,
                               lw=lw_traces, legend_loc=legend_loc_traces, D_mul_factor=D_mul_factor,
                               t_lim=t_lim)
 
