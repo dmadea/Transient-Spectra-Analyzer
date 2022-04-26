@@ -2125,12 +2125,103 @@ class Bridge_Splitting_Simple(_Model):
 
         return self.get_conc_matrix(C_out, self._connectivity)
 
-    # @staticmethod
-    # def fk_factor(x, c=np.log(10), tol=1e-2):
-    #     # exp(-xc) = 1 - xc + (xc)^2 / 2 - (xc)^3 / 6 ...
-    #     # (1 - exp(-xc)) / x  ~  c - xc^2 / 2 for low x
-    #     return np.where(x <= tol, c - x * c * c / 2 + x * x * c * c * c / 6, (1 - np.exp(-x * c)) / x)
 
+class HG_Equilibrium(_Model):
+    n = 2
+    name = '1:1 Equilibrium: G+H->HG'
+    _class = 'Equilibrium'
+
+    def __init__(self, times=None, ST=None, wavelengths=None):
+        super(HG_Equilibrium, self).__init__(times)
+
+        self.species_names = np.array(['G', 'HG'] + list('XXXXXXX'), dtype=np.str)
+        self.wavelengths = wavelengths
+        self.ST = ST
+
+        self.description = "asddddd"
+
+    def init_model_params(self):
+        params = Parameters()
+        # params.add('H0', value=2, min=0, max=np.inf, vary=False)
+        params.add('G0', value=1e-5, min=0, max=np.inf, vary=False)
+        params.add('K', value=1e5, min=0, max=np.inf, vary=True)
+
+        return params
+
+    def calc_C(self, params=None, C_out=None):
+        super(HG_Equilibrium, self).calc_C(params)
+
+        G0, K = [par[1].value for par in self.params.items()]
+
+        H0 = self.times * 1e-5  # factor used to convert the equivalents to initial concentration of the host
+        HG = 0.5 * (G0 + H0 + 1/K) - np.sqrt(0.25 * (G0 + H0 + 1/K) ** 2 - H0 * G0)
+        G = G0 - HG
+
+        self.C[:, 0] = G
+        self.C[:, 1] = HG
+
+        return self.get_conc_matrix(C_out, self._connectivity)
+
+
+class H2G_Equilibrium(_Model):
+    n = 3
+    name = '2:1 Equilibrium: G+H->HG, HG+H->H2G'
+    _class = 'Equilibrium'
+
+    def __init__(self, times=None, ST=None, wavelengths=None):
+        super(H2G_Equilibrium, self).__init__(times)
+
+        self.species_names = np.array(['G', 'HG', 'H2G'] + list('XXXXXXX'), dtype=np.str)
+        self.wavelengths = wavelengths
+        self.ST = ST
+
+        self.description = "asddddd"
+
+    def init_model_params(self):
+        params = Parameters()
+        # params.add('H0', value=2, min=0, max=np.inf, vary=False)
+        params.add('G0', value=1e-5, min=0, max=np.inf, vary=False)
+        params.add('K1', value=1e5, min=0, max=np.inf, vary=True)
+        params.add('K2', value=1e5, min=0, max=np.inf, vary=True)
+
+        return params
+
+    def calc_C(self, params=None, C_out=None):
+        super(H2G_Equilibrium, self).calc_C(params)
+
+        G0, K1, K2 = [par[1].value for par in self.params.items()]
+
+        H0 = self.times * 1e-5 # factor used to convert the equivalents to initial concentration of the host
+
+        H, G, HG, H2G = self.simulate(K1, K2, G0, H0)
+
+        self.C[:, 0] = G
+        self.C[:, 1] = HG
+        self.C[:, 2] = H2G
+
+        return self.get_conc_matrix(C_out, self._connectivity)
+
+    @staticmethod
+    def polys(K1, K2, G0, H0):
+        return [K1 * K2, K1 * (2 * K2 * G0 - K2 * H0 + 1), K1 * (G0 - H0) + 1, -H0]
+
+    @staticmethod
+    def simulate(K1, K2, G0, H0):
+        """H0 is array"""
+        H = np.empty_like(H0)
+
+        for i in range(H0.shape[0]):
+            roots = np.roots(H2G_Equilibrium.polys(K1, K2, G0, H0[i]))  # find roots of this polynomial
+
+            real_roots = roots[~np.iscomplex(roots)].astype(np.float64)
+            real_roots = real_roots[real_roots >= 0]
+            H[i] = real_roots[0]
+
+        G = G0 / (1 + K1 * H + K1 * K2 * H ** 2)
+        HG = K1 * H * G  # mf_hg[i]  = (g0*h*k1)/(h0*(1 + (k1*h) + (k2*k1*h*h)))
+        H2G = K1 * K2 * G * H ** 2  # (2*g0*k2*k1*h*h)/(h0*(1 + (k1*h) + (k2*k1*h*h)))
+
+        return H, G, HG, H2G
 
 class Half_Bilirubin_1st_Model(_Model):
     n = 4
