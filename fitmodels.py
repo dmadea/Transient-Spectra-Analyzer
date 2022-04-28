@@ -2126,10 +2126,53 @@ class Bridge_Splitting_Simple(_Model):
         return self.get_conc_matrix(C_out, self._connectivity)
 
 
+class Dimerization_Equilibrium(_Model):
+    n = 2
+    name = 'Dimerization: D<->2M dilution experiment'
+    _class = 'Equilibrium'
+    normalized = False
+
+    def __init__(self, times=None, ST=None, wavelengths=None):
+        super(Dimerization_Equilibrium, self).__init__(times)
+
+        self.species_names = np.array(['M', 'D'] + list('XXXXXXX'), dtype=np.str)
+        self.wavelengths = wavelengths
+        self.ST = ST
+
+        self.description = "asddddd"
+
+    def init_model_params(self):
+        params = Parameters()
+        # params.add('c0', value=1e-5, min=0, max=np.inf, vary=False)  # initial concentration
+        params.add('K', value=1e-5, min=0, max=np.inf, vary=True)
+
+        return params
+
+    def calc_C(self, params=None, C_out=None):
+        super(Dimerization_Equilibrium, self).calc_C(params)
+
+        K, = [par[1].value for par in self.params.items()]
+
+        G0 = self.times     # total initial concentration
+
+        G = - K / 4 + np.sqrt(K * K / 16 + K * G0 / 2)
+        D = G * G / K
+
+        if self.normalized:
+            G /= G0
+            D /= G0
+
+        self.C[:, 0] = G
+        self.C[:, 1] = D
+
+        return self.get_conc_matrix(C_out, self._connectivity)
+
+
 class HG_Equilibrium(_Model):
     n = 2
     name = '1:1 Equilibrium: G+H->HG'
     _class = 'Equilibrium'
+
 
     def __init__(self, times=None, ST=None, wavelengths=None):
         super(HG_Equilibrium, self).__init__(times)
@@ -2222,6 +2265,68 @@ class H2G_Equilibrium(_Model):
         H2G = K1 * K2 * G * H ** 2  # (2*g0*k2*k1*h*h)/(h0*(1 + (k1*h) + (k2*k1*h*h)))
 
         return H, G, HG, H2G
+
+
+
+class HDHG_Equilibrium(_Model):
+    n = 3
+    name = 'Equilibriums: D<->2G, G+H<->HG'
+    _class = 'Equilibrium'
+
+    def __init__(self, times=None, ST=None, wavelengths=None):
+        super(HDHG_Equilibrium, self).__init__(times)
+
+        self.species_names = np.array(['D', 'G', 'HG'] + list('XXXXXXX'), dtype=np.str)
+        self.wavelengths = wavelengths
+        self.ST = ST
+
+        self.description = "asddddd"
+
+    def init_model_params(self):
+        params = Parameters()
+        # params.add('H0', value=2, min=0, max=np.inf, vary=False)
+        params.add('G0', value=1e-5, min=0, max=np.inf, vary=False)
+        params.add('K1', value=1e5, min=0, max=np.inf, vary=True)  # dimerization
+        params.add('K2', value=1e5, min=0, max=np.inf, vary=True)  # host guest eq.
+
+        return params
+
+    def calc_C(self, params=None, C_out=None):
+        super(HDHG_Equilibrium, self).calc_C(params)
+
+        G0, K1, K2 = [par[1].value for par in self.params.items()]
+
+        H0 = self.times * 1e-5   # factor used to convert the equivalents to initial concentration of the host
+
+        G, HG, D = self.simulate(K1, K2, G0, H0)
+
+        self.C[:, 0] = D
+        self.C[:, 1] = G
+        self.C[:, 2] = HG
+
+        return self.get_conc_matrix(C_out, self._connectivity)
+
+    @staticmethod
+    def polys(K1, K2, G0, H0):
+        return [2 * K2 / K1, 2/K1 + K2, H0*K2 + 1 - G0*K2, -G0]
+
+    @staticmethod
+    def simulate(K1, K2, G0, H0):
+        """H0 is array"""
+        G = np.empty_like(H0)
+
+        for i in range(H0.shape[0]):
+            roots = np.roots(HDHG_Equilibrium.polys(K1, K2, G0, H0[i]))  # find roots of this polynomial
+
+            real_roots = roots[~np.iscomplex(roots)].astype(np.float64)
+            real_roots = real_roots[real_roots >= 0]
+            G[i] = real_roots[0]
+
+        HG = K2 * H0 * G / (1 + K2 * G)
+        D = G * G / K1
+
+        return G, HG, D
+
 
 class Half_Bilirubin_1st_Model(_Model):
     n = 4
