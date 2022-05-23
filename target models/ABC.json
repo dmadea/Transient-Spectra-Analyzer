@@ -1,0 +1,12 @@
+[
+    {
+        "from_comp": "A",
+        "to_comp": "C",
+        "rate": 1
+    },
+    {
+        "from_comp": "B",
+        "to_comp": "C",
+        "rate": 1
+    }
+]

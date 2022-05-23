@@ -1311,6 +1311,7 @@ class First_Order_Target_Model(_Model):
 
         self.target_model.set_rates(ks)
         K = self.target_model.build_K_matrix()
+        # print(K)
 
         if self.j is None or self.j.shape[0] != K.shape[0]:
             self.j = np.zeros(K.shape[0])
