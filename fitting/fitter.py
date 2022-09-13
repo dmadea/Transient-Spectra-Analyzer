@@ -562,7 +562,6 @@ class Fitter:
         idx_0, idx_1 = self.au._C_indiv_range(i, j=j)
         self.C_opt[idx_0:idx_1, :] = Ci
 
-
     # optimization of only C profiles according to kinetic model in HS-MCR-AR
     def _C_fit_opt(self):
         # C optimized by kinetic model

@@ -392,6 +392,8 @@ class FitWidget(QWidget, Ui_Form):
         wls = self._au[0, 0].wavelengths if self._au else self.matrix.wavelengths
         setattr(self.current_model, 'wavelengths', wls)
         setattr(self.current_model, 'ST', self._ST)
+        setattr(self.current_model, 'D', self.matrix.Y)  # provide reference to the original data
+
         if self._au:
             setattr(self.current_model, 'aug_matrix', self._au)
             self.current_model.update_n()

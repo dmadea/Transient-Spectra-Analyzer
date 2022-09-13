@@ -709,6 +709,8 @@ class _Photokinetic_Model(_Model):
         self.ST = ST
         self.interp_kind = 'quadratic'
 
+        self.D = None  # original data
+
         self.aug_matrix = aug_matrix
 
         self.T = np.zeros((self.n, self.n), dtype=np.float64) if rot_mat else None
@@ -2468,6 +2470,51 @@ class Half_Bilirubin_1st_Model(_Model):
         # self.C[:, 3] = np.heaviside(self.times, 1) * result[:, 3]
 
         return self.get_conc_matrix(C_out, self._connectivity)
+
+
+class SingletOxygenProduction(_Photokinetic_Model):
+    n = 1
+    name = 'Determination of singlet oxygen production quantum yield'
+    _class = 'Steady state photokinetics'
+
+    def __init__(self, times=None, ST=None, wavelengths=None):
+        super(SingletOxygenProduction, self).__init__(times)
+
+        self.species_names = ['DPBF'] + list('XXXXXXXXX')
+        self.wavelengths = wavelengths
+        self.ST = ST
+
+        # self.I_LED_norm = None
+
+    def init_model_params(self):
+        params = Parameters()
+        params.add('J', value=2.9309e-06, min=0, max=np.inf, vary=False)  # molar photon flux in mol s-1
+        params.add('k_r', value=2.83e9, min=0, max=np.inf, vary=False)  # irradiating wavelength
+        params.add('k_d', value=105263.15, min=0, max=np.inf, vary=False)  # decay rate constant of singlet ox. in MeOH
+        params.add('Phi_Delta', value=0.0025, min=0, max=np.inf, vary=False)  # quantum yield of singlet ox. production
+        params.add('c0', value=5.809e-05, min=0, max=np.inf, vary=False)  # total starting concentration of DPBF
+
+        return params
+
+    def calc_C(self, params=None, C_out=None):
+        super(SingletOxygenProduction, self).calc_C(params)
+
+        if self.ST is None:
+            raise ValueError("Spectra matrix must not be none.")
+
+        J, k_r, k_d, Phi_Delta, c0 = [par[1].value for par in self.params.items()]
+
+        irr_source = self.get_LED_source()
+
+        def dc_dt(c, t):
+            tidx = find_nearest_idx(self.times, t)
+            integral = np.trapz(irr_source * (1 - 10 ** (-self.D[tidx, :])), self.wavelengths)
+            return -Phi_Delta * J * k_r * c * integral / (k_d + k_r * c)
+
+        self.C[:, 0] = odeint(dc_dt, c0, self.times).squeeze()
+
+        return self.get_conc_matrix(C_out, self._connectivity)
+
 
 # class Half_Bilirubin_Multiset(_Model):
 #     n = 4
