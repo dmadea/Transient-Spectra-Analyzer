@@ -20,6 +20,7 @@ class Settings(object):
     # LED sources
 
     LED_sources_filepath = "LEDs_norm.txt"
+    Photodiode_responsivity_filepath = "Responsivity S120VC.txt"
     target_models_dir = 'target models'
 
     # files dialog last paths

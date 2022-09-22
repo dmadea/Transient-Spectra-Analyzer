@@ -23,6 +23,7 @@ from genericinputdialog import GenericInputDialog
 from PyQt5.QtWidgets import QPushButton, QCheckBox, QComboBox, QSpinBox, QDoubleSpinBox
 from target_model import TargetModel
 import glob, os
+import scipy.constants as sc
 
 
 # from concurrent.futures import ProcessPoolExecutor
@@ -168,9 +169,9 @@ class _Model(object):
 
     _err = 1e-8
 
-    def __init__(self, times=None, connectivity=(0, 1, 2)):
+    def __init__(self, times=None, connectivity=(0, 1, 2), C=None):
         self.times = times
-        self.C = None
+        self.C = C
         self._connectivity = connectivity
         self.method = 'MCR-ALS'
 
@@ -685,11 +686,11 @@ class _Femto(_Model):
         D_fit = np.nan_to_num(D_fit)
         return D_fit, C, ST
 
+
 class _Photokinetic_Model(_Model):
 
-
     def __init__(self, times=None, connectivity=(0, 1, 2), ST=None, wavelengths=None, aug_matrix=None, rot_mat=True,
-                 method='RFA'):
+                 C=None, method='RFA'):
 
         self.fit_methods = [
             {'name': 'Resolving Factor Analysis', 'abbr': 'RFA'},
@@ -700,7 +701,7 @@ class _Photokinetic_Model(_Model):
         self.method = self.fit_methods[0]['abbr']
 
         self.times = times
-        self.C = None
+        self.C = C
         self._connectivity = connectivity
         self.init_times(times)
         self.species_names = np.array(list('ABCDEFGHIJ'), dtype=np.str)
@@ -722,10 +723,19 @@ class _Photokinetic_Model(_Model):
 
         self.description = ""
 
-        _data_LEDs = np.genfromtxt(Settings.LED_sources_filepath, delimiter='\t')
-        self.LED_names = _data_LEDs[0, 1:].astype(int)
-        self.LEDs_wls = _data_LEDs[1:, 0]
-        self.LED_sources_norm = _data_LEDs[1:, 1:]
+        _data_LEDs = np.genfromtxt(Settings.LED_sources_filepath, delimiter='\t', names=True, replace_space=False, deletechars='')
+
+        self.LED_names = list(_data_LEDs.dtype.names[1:])
+        data_mat = _data_LEDs.copy()
+        data_mat.dtype = np.float64
+        dat_mat = np.reshape(data_mat, (_data_LEDs.shape[0], len(self.LED_names) + 1))
+        self.LEDs_wls = dat_mat[:, 0]
+        self.LED_sources_norm = dat_mat[:, 1:]
+
+        _data = np.genfromtxt(Settings.Photodiode_responsivity_filepath, delimiter='\t', skip_header=1)
+
+        self.R_photodiode_values = _data[:, 1]
+        self.R_photodiode_wls = _data[:, 0]
 
         self.selected_LED = 0
 
@@ -734,9 +744,17 @@ class _Photokinetic_Model(_Model):
         idx1, idx2 = find_nearest_idx(self.LEDs_wls, [self.wavelengths[0], self.wavelengths[-1]])
         return self.LED_sources_norm[idx1:idx2+1, index]
 
+    def get_Photodiode_resposivity(self):
+        idx1, idx2 = find_nearest_idx(self.R_photodiode_wls, [self.wavelengths[0], self.wavelengths[-1]])
+        return self.R_photodiode_values[idx1:idx2+1]
+
+    def get_q_rel(self):
+        # q_rel = lambda / (N_A * h * c * R)
+        return self.wavelengths * 1e-9 / (sc.N_A * sc.h * sc.c * self.get_Photodiode_resposivity())
+
     def plot_LED_source(self, index=None):
         index = self.selected_LED if index is None else index
-        plt.plot(self.LEDs_wls, self.LED_sources_norm[:, index], label=f'LED {self.LED_names[index]} nm')
+        plt.plot(self.LEDs_wls, self.LED_sources_norm[:, index], label=f'LED {self.LED_names[index]}')
         plt.xlabel("Wavelength / nm")
         plt.ylabel("PDF / nm$^{-1}$")
         plt.legend()
@@ -747,7 +765,7 @@ class _Photokinetic_Model(_Model):
             return
 
         led_comboBox = QComboBox()
-        led_comboBox.addItems([f"{n} nm" for n in self.LED_names])
+        led_comboBox.addItems(self.LED_names)
         led_comboBox.setCurrentIndex(self.selected_LED)
         btn_show_LED = QPushButton('Show Spectrum')
 
@@ -970,8 +988,8 @@ class _Photokinetic_Model(_Model):
     def calc_C(self, params=None, C_out=None):
         super(_Photokinetic_Model, self).calc_C(params)
 
-        if self.ST is None:
-            raise ValueError("Spectra matrix must not be None.")
+        # if self.ST is None:
+        #     raise ValueError("Spectra matrix must not be None.")
 
         return C_out
 
@@ -2474,7 +2492,7 @@ class Half_Bilirubin_1st_Model(_Model):
 
 class SingletOxygenProduction(_Photokinetic_Model):
     n = 1
-    name = 'Determination of singlet oxygen production quantum yield'
+    name = 'Determination of singlet oxygen production QY relative'
     _class = 'Steady state photokinetics'
 
     def __init__(self, times=None, ST=None, wavelengths=None):
@@ -2488,11 +2506,11 @@ class SingletOxygenProduction(_Photokinetic_Model):
 
     def init_model_params(self):
         params = Parameters()
-        params.add('J', value=2.9309e-06, min=0, max=np.inf, vary=False)  # molar photon flux in mol s-1
+        params.add('J', value=2.842e-06, min=0, max=np.inf, vary=False)  # molar photon flux in mol s-1
         params.add('k_r', value=2.83e9, min=0, max=np.inf, vary=False)  # irradiating wavelength
         params.add('k_d', value=105263.15, min=0, max=np.inf, vary=False)  # decay rate constant of singlet ox. in MeOH
-        params.add('Phi_Delta', value=0.0025, min=0, max=np.inf, vary=False)  # quantum yield of singlet ox. production
-        params.add('c0', value=5.809e-05, min=0, max=np.inf, vary=False)  # total starting concentration of DPBF
+        params.add('Phi_Delta', value=0.0025, min=0, max=np.inf, vary=True)  # quantum yield of singlet ox. production
+        params.add('c0', value=5.809e-05, min=0, max=np.inf, vary=True)  # total starting concentration of DPBF
 
         return params
 
@@ -2512,6 +2530,62 @@ class SingletOxygenProduction(_Photokinetic_Model):
             return -Phi_Delta * J * k_r * c * integral / (k_d + k_r * c)
 
         self.C[:, 0] = odeint(dc_dt, c0, self.times).squeeze()
+
+        return self.get_conc_matrix(C_out, self._connectivity)
+
+
+class SingletOxygenProductionAbs(_Photokinetic_Model):
+    n = 1
+    name = 'Determination of singlet oxygen production QY absolute'
+    _class = 'Steady state photokinetics'
+
+    def __init__(self, times=None, ST=None, wavelengths=None):
+        super(SingletOxygenProductionAbs, self).__init__(times)
+
+        self.species_names = ['DPBF'] + list('XXXXXXXXX')
+        self.wavelengths = wavelengths
+        self.ST = ST
+
+    def init_model_params(self):
+        params = Parameters()
+        params.add('I', value=1.105e-3, min=0, max=np.inf, vary=False)  # Current in ampere on the photodide, without any cuvette
+        params.add('V', value=0.00291, min=0, max=np.inf, vary=False)  # Volume of the solution
+        params.add('k_r', value=2.83e9, min=0, max=np.inf, vary=False)  # reaction of DPBF with singlet oxygen
+        params.add('k_d', value=105263.15, min=0, max=np.inf, vary=False)  # decay rate constant of singlet ox. in MeOH
+        params.add('Phi_Delta', value=0.0025, min=0, max=np.inf, vary=False)  # quantum yield of singlet ox. production
+        params.add('R', value=0.036, min=0, max=np.inf, vary=False)  # Cuvette reflectivity
+        params.add('c0_DPBF', value=63e-6, min=0, max=np.inf, vary=True)  # Concentration of DPBF
+
+        return params
+
+    def calc_C(self, params=None, C_out=None):
+        super(SingletOxygenProductionAbs, self).calc_C(params)
+
+        if self.ST is None:
+            raise ValueError("Spectra matrix must not be none.")
+
+        I, V, k_r, k_d, Phi_Delta, R, c0_DPBF = [par[1].value for par in self.params.items()]
+
+        irr_source = self.get_LED_source()
+        q_rel = self.get_q_rel()
+
+        # calculate incident spectral photon flux
+        spectral_flux = I * np.trapz(q_rel * irr_source) * irr_source / V  # I * integral(q_rel * PDF) * PDF
+
+        def dc_dt(c, t):
+            tidx = find_nearest_idx(self.times, t)
+            A = self.D[tidx, :]  # current absorbance
+            T = 10**(-A)  # calculate transmittance
+
+            effective_spectral_flux = spectral_flux * (1 - R) * (1 + R * T)
+
+            integral = np.trapz(effective_spectral_flux * (1 - T), self.wavelengths)  # integrate
+
+            return -Phi_Delta * k_r * c * integral / (k_d + k_r * c)
+
+        # c0 = 63e-6 if self.C[0, 0] == 0 else self.C[0, 0]
+
+        self.C[:, 0] = odeint(dc_dt, c0_DPBF, self.times).squeeze()
 
         return self.get_conc_matrix(C_out, self._connectivity)
 

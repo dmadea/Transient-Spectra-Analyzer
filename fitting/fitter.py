@@ -278,6 +278,19 @@ class Fitter:
         if self.st_fix:
             self.ST_opt[self.st_fix] = self.ST_est[self.st_fix]
 
+        # For DPBF only
+        # max_idx = find_nearest_idx(self.wls, 406)  # abs max of DPBF
+        # eps_406 = 23000
+        #
+        # # normalize DPBF so that at 406 nm it has epsilon 23000
+        # self.ST_opt[0] *= eps_406 / self.ST_opt[0, max_idx]
+        #
+        # idx = find_nearest_idx(self.wls, 500)  # abs max of DPBF
+        #
+        # chosen = self.ST_opt[0, idx:]
+        # chosen[chosen > 0] = 0
+        # self.ST_opt[0, idx:] = chosen
+
         if self.st_constraints is not None:
             # Apply st-constraints
             for i in range(self.n):
@@ -575,7 +588,9 @@ class Fitter:
             if self.c_fix:
                 _C_fit[:, self.c_fix] = self.C_est[:, self.c_fix]
 
-            R = _C_est - _C_fit
+            # use residuals as full matrix
+            R = _C_fit.dot(self.ST_opt) - self.D
+            # R = _C_est - _C_fit
 
             return np.nan_to_num(R)
 
