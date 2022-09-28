@@ -1,19 +1,20 @@
-from PyQt5 import QtCore, QtGui, QtWidgets
+from PyQt6 import QtCore, QtGui, QtWidgets
 import numpy as np
 import pyqtgraph as pg
 from pyqtgraph.exporters import SVGExporter, ImageExporter
 from pyqtgraph.dockarea import Dock, DockArea
-from PyQt5 import QtCore, QtGui
+from PyQt6 import QtCore, QtGui
 
-from PyQt5.QtGui import *
-# from PyQt5.QtWidgets import *
+from PyQt6.QtGui import *
+# from PyQt6.QtWidgets import *
 from misc import find_nearest_idx, str_is_integer, crop_data
 
-# from PyQt5.QtCore import *
+# from PyQt6.QtCore import *
 
-from Widgets.heatmap import HeatMapPlot
+from Widgets.heatmap import HeatMapWidget
+from Widgets.plotwidget import PlotWidget
 from Widgets.datapanel import DataPanel
-from Widgets.svd_widget import SVDWidget
+from Widgets.svddockarea import SVDDockArea
 
 from scipy.linalg import lstsq
 from scipy.integrate import cumtrapz
@@ -68,122 +69,67 @@ def fit_polynomial_coefs(x, y, n=3):
     parmu = lstsq(X, y)[0]
     return parmu
 
-class PlotWidget(DockArea):
+
+class MainDisplayDockArea(DockArea):
     instance = None
 
     n_spectra = 20
 
-    def __init__(self, set_coordinate_func=None, parent=None):
+    def __init__(self, parent=None):
         pg.setConfigOption('background', 'w')
         pg.setConfigOption('foreground', 'k')
         pg.setConfigOptions(antialias=True)
 
-        super(PlotWidget, self).__init__(parent)
+        super(MainDisplayDockArea, self).__init__(parent)
 
-        PlotWidget.instance = self
-
-        self.set_coordinate_func = set_coordinate_func
+        MainDisplayDockArea.instance = self
 
         self.change_range_lock = False
 
-        self.smooth_count = 0
+        # self.smooth_count = 0
 
         self.fit_matrix = None
+        self.matrices = []
+        self.same_dimensions = []  # axes of the equal dimensions of matrices, same length as self.matrices
 
-        self.matrix = None
-        self.matrix_min = None
-        self.matrix_max = None
-        self.trace_plot_item = None
-        self.spectrum_plot_item = None
+        self.plotted_spectra = []
+        self.plotted_traces = []
 
-        self.trace_plot_item_fit = None
-        self.spectrum_plot_item_fit = None
-
-        self.trace_orig_plot_item = None
-        self.spectrum_orig_plot_item = None
+        # self.trace_plot_item = None
+        # self.spectrum_plot_item = None
+        #
+        # self.trace_plot_item_fit = None
+        # self.spectrum_plot_item_fit = None
+        #
+        # self.trace_orig_plot_item = None
+        # self.spectrum_orig_plot_item = None
 
         self.heat_map_levels = None
         self.selected_range_idxs = None
 
         #  heat map
 
-        self.heat_map_dock = Dock("Heat Map", size=(50, 7))
-        self.heat_map_plot = HeatMapPlot(title="Heat Map")
-        self.heat_map_plot.range_changed.connect(self.heat_map_range_changed)
+        self.heat_map_widget = HeatMapWidget()
+        self.heat_map_dock = Dock("Heat Map", widget=self.heat_map_widget, size=(50, 7))
+
+        # self.heat_map_plot.range_changed.connect(self.heat_map_range_changed)
         # # updates the spectra when y range of heatmap was changed
         # self.heat_map_plot.Y_range_changed.connect(self.update_spectra)
-        self.heat_map_plot.levels_changed.connect(self.heat_map_levels_changed)
-        heatmap_w = pg.GraphicsLayoutWidget()
-        heatmap_w.ci.addItem(self.heat_map_plot)
-
-        self.heat_map_dock.addWidget(heatmap_w)
-
-        # self.ci.addItem(self.heat_map_plot)
-
-        self.heat_map_vline = pg.InfiniteLine(angle=90, movable=True, pen=pg.mkPen((0, 0, 0)))
-        self.heat_map_hline = pg.InfiniteLine(angle=0, movable=True, pen=pg.mkPen((0, 0, 0)))
-
-        self.heat_map_plot.heat_map_plot.addItem(self.heat_map_vline, ignoreBounds=True)
-        self.heat_map_plot.heat_map_plot.addItem(self.heat_map_hline, ignoreBounds=True)
-
-        # self.spectra_plot = self.ci.addPlot(title="Spectra")
+        # self.heat_map_plot.levels_changed.connect(self.heat_map_levels_changed)
 
         # Spectra plot
 
-        w_spectra = pg.PlotWidget(title="Spectra")
-        self.spectra_plot = w_spectra.plotItem
+        self.spectra_widget = PlotWidget()
+        self.spectra_dock = Dock("Spectra", widget=self.spectra_widget, size=(40, 7))
 
-        self.spectra_vline = pg.InfiniteLine(angle=90, movable=True, pen=pg.mkPen((0, 0, 0)))
-        self.spectra_plot.addItem(self.spectra_vline, ignoreBounds=True)
+        self.spectrum_widget = PlotWidget()
+        self.spectrum_dock = Dock("Spectrum", widget=self.spectrum_widget)
 
-        self.spectra_plot.showAxis('top', show=True)
-        self.spectra_plot.showAxis('right', show=True)
+        self.trace_widget = PlotWidget()
+        self.trace_dock = Dock("Trace", widget=self.trace_widget)
 
-        self.spectra_plot.setLabel('left', text='\u0394A')
-        self.spectra_plot.setLabel('bottom', text='Wavelength (nm)')
-        self.spectra_plot.showGrid(x=True, y=True, alpha=0.1)
-
-        self.spectra_dock = Dock("Spectra", widget=w_spectra, size=(40, 7))
-
-        # Spectrum plot
-
-        w_spectrum = pg.PlotWidget(title="Spectrum")
-        self.spectrum = w_spectrum.plotItem
-
-        self.spectrum_vline = pg.InfiniteLine(angle=90, movable=True, pen=pg.mkPen('b'))
-        self.spectrum.addItem(self.spectrum_vline, ignoreBounds=True)
-
-        self.spectrum.showAxis('top', show=True)
-        self.spectrum.showAxis('right', show=True)
-
-        self.spectrum.setLabel('left', text='\u0394A')
-        self.spectrum.setLabel('bottom', text='Wavelength (nm)')
-
-        self.spectrum_dock = Dock("Spectrum", widget=w_spectrum)
-        self.spectrum.getViewBox().sigRangeChanged.connect(self.trace_spectrum_range_changed)
-
-        # Trace plot
-
-        w_trace = pg.PlotWidget(title="Trace")
-        self.trace = w_trace.plotItem
-
-        # self.trace = self.ci.addPlot(title="Trace")
-
-        self.trace_vline = pg.InfiniteLine(angle=90, movable=True, pen=pg.mkPen('b'))
-        self.trace.addItem(self.trace_vline, ignoreBounds=True)
-
-        self.trace.showAxis('top', show=True)
-        self.trace.showAxis('right', show=True)
-
-        self.trace.setLabel('left', text='\u0394A')
-        self.trace.setLabel('bottom', text='Time (us)')
-
-        self.spectrum.showGrid(x=True, y=True, alpha=0.1)
-        self.trace.showGrid(x=True, y=True, alpha=0.1)
-
-        self.trace_dock = Dock("Trace", widget=w_trace)
-        self.trace.getViewBox().sigRangeChanged.connect(self.trace_spectrum_range_changed)
-
+        # self.spectrum.getViewBox().sigRangeChanged.connect(self.trace_spectrum_range_changed)
+        # self.trace.getViewBox().sigRangeChanged.connect(self.trace_spectrum_range_changed)
 
         # data panel
 
@@ -232,43 +178,47 @@ class PlotWidget(DockArea):
         self.addDock(self.trace_dock, 'right', self.spectrum_dock)
         self.addDock(self.settings_dock, 'left', self.heat_map_dock)
 
+
         def update_v_lines():
-            time_pos = self.heat_map_hline.pos()
-            wl_pos = self.heat_map_vline.pos()
-
-            new_pos = self.heat_map_plot.transform_wl_pos(wl_pos[0])
-
-            self.spectrum_vline.setPos(new_pos)
-            self.spectra_vline.setPos(new_pos)
-            self.trace_vline.setPos(self.heat_map_plot.transform_t_pos(time_pos[1]))
+            pass
+            # time_pos = self.heat_map_hline.pos()
+            # wl_pos = self.heat_map_vline.pos()
+            #
+            # new_pos = self.heat_map_plot.transform_wl_pos(wl_pos[0])
+            #
+            # self.spectrum_vline.setPos(new_pos)
+            # self.spectra_vline.setPos(new_pos)
+            # self.trace_vline.setPos(self.heat_map_plot.transform_t_pos(time_pos[1]))
 
         def update_heat_lines():
-            time_pos = self.trace_vline.pos()
-            wl_pos = self.spectrum_vline.pos()
-
-            self.heat_map_hline.setPos(self.heat_map_plot.inv_transform_t_pos(time_pos[0]))
-            # self.heat_map_vline.setPos(wl_pos[0])
-            self.heat_map_vline.setPos(self.heat_map_plot.inv_transform_wl_pos(wl_pos[0]))
+            pass
+            # time_pos = self.trace_vline.pos()
+            # wl_pos = self.spectrum_vline.pos()
+            #
+            # self.heat_map_hline.setPos(self.heat_map_plot.inv_transform_t_pos(time_pos[0]))
+            # # self.heat_map_vline.setPos(wl_pos[0])
+            # self.heat_map_vline.setPos(self.heat_map_plot.inv_transform_wl_pos(wl_pos[0]))
 
 
         def update_heat_lines_spectra():
-            wl_pos = self.spectra_vline.pos()
-            self.heat_map_vline.setPos(self.heat_map_plot.inv_transform_wl_pos(wl_pos[0]))
+            pass
+        #     wl_pos = self.spectra_vline.pos()
+        #     self.heat_map_vline.setPos(self.heat_map_plot.inv_transform_wl_pos(wl_pos[0]))
+        #
+        # self.heat_map_vline.sigPositionChanged.connect(update_v_lines)
+        # self.heat_map_hline.sigPositionChanged.connect(update_v_lines)
+        # self.spectrum_vline.sigPositionChanged.connect(update_heat_lines)
+        # self.spectra_vline.sigPositionChanged.connect(update_heat_lines_spectra)
+        # self.trace_vline.sigPositionChanged.connect(update_heat_lines)
 
-        self.heat_map_vline.sigPositionChanged.connect(update_v_lines)
-        self.heat_map_hline.sigPositionChanged.connect(update_v_lines)
-        self.spectrum_vline.sigPositionChanged.connect(update_heat_lines)
-        self.spectra_vline.sigPositionChanged.connect(update_heat_lines_spectra)
-        self.trace_vline.sigPositionChanged.connect(update_heat_lines)
+        # self.heat_map_vline.sigPositionChanged.connect(self.update_trace_and_spectrum)
+        # self.heat_map_hline.sigPositionChanged.connect(self.update_trace_and_spectrum)
+        # self.spectrum_vline.sigPositionChanged.connect(self.update_trace_and_spectrum)
+        # self.spectra_vline.sigPositionChanged.connect(self.update_trace_and_spectrum)
+        # self.trace_vline.sigPositionChanged.connect(self.update_trace_and_spectrum)
 
-        self.heat_map_vline.sigPositionChanged.connect(self.update_trace_and_spectrum)
-        self.heat_map_hline.sigPositionChanged.connect(self.update_trace_and_spectrum)
-        self.spectrum_vline.sigPositionChanged.connect(self.update_trace_and_spectrum)
-        self.spectra_vline.sigPositionChanged.connect(self.update_trace_and_spectrum)
-        self.trace_vline.sigPositionChanged.connect(self.update_trace_and_spectrum)
-
-        self.roi = None
-        self.chirp = self.heat_map_plot.heat_map_plot.plot([])
+        # self.roi = None
+        # self.chirp = self.heat_map_plot.heat_map_plot.heatmap_pi.plot([])
 
         # self.heat_map_vline.sigPositionChangeFinished.connect(self.update_trace_and_spectrum)
         # self.heat_map_hline.sigPositionChangeFinished.connect(self.update_trace_and_spectrum)
@@ -287,8 +237,8 @@ class PlotWidget(DockArea):
         for i, h in enumerate(self.roi.getHandles()):
             qPoint = self.roi.mapSceneToParent(h.scenePos())
 
-            positions[i, 0] = self.heat_map_plot.transform_wl_pos(qPoint.x())
-            positions[i, 1] = self.heat_map_plot.transform_t_pos(qPoint.y())
+            positions[i, 0] = self.heat_map_widget.transform_wl_pos(qPoint.x())
+            positions[i, 1] = self.heat_map_widget.transform_t_pos(qPoint.y())
 
         return positions
 
@@ -310,16 +260,16 @@ class PlotWidget(DockArea):
                            hoverPen=pg.mkPen(color=(0, 150, 0), width=2),
                            handleHoverPen=pg.mkPen(color=(0, 150, 0), width=3))
 
-            self.heat_map_plot.heat_map_plot.addItem(self.roi)
+            self.heat_map_widget.heat_map_plot.addItem(self.roi)
 
     def add_chirp(self, wls,  mu):  # plots the chirp
         pen = pg.mkPen(color=QColor('black'), width=2)
-        mu_tr = self.heat_map_plot.inv_transform_t_pos(mu)
-        wls_tr = self.heat_map_plot.inv_transform_wl_pos(wls)
+        mu_tr = self.heat_map_widget.inv_transform_t_pos(mu)
+        wls_tr = self.heat_map_widget.inv_transform_wl_pos(wls)
         self.chirp.setData(wls_tr, mu_tr, pen=pen)
 
     def fit_chirp_params(self):
-        from Widgets.fit_widget import FitWidget as _fw
+        from Widgets.fitwidget import FitWidget as _fw
 
         if _fw.instance is None:
             return
@@ -349,7 +299,7 @@ class PlotWidget(DockArea):
             return
 
         self.matrix.Mask = not self.matrix.Mask
-        self.plot_matrix(self.matrix, center_lines=False, keep_range=True, keep_fits=True)
+        self.plot_matrices(self.matrix, center_lines=False, keep_range=True, keep_fits=True)
 
     def cb_SVD_filter_toggled(self):
         if self.matrix is None:
@@ -360,7 +310,7 @@ class PlotWidget(DockArea):
         if self.data_panel.cb_SVD_filter.isChecked():
             self.txb_SVD_filter_changed()
         else:
-            self.plot_matrix(self.matrix, center_lines=False, keep_range=True, keep_fits=True)
+            self.plot_matrices(self.matrix, center_lines=False, keep_range=True, keep_fits=True)
 
     def cb_ICA_filter_toggled(self):
         if self.matrix is None:
@@ -370,7 +320,7 @@ class PlotWidget(DockArea):
         if self.data_panel.cb_ICA_filter.isChecked():
             self.txb_ICA_filter_changed()
         else:
-            self.plot_matrix(self.matrix, center_lines=False, keep_range=True, keep_fits=True)
+            self.plot_matrices(self.matrix, center_lines=False, keep_range=True, keep_fits=True)
 
     def txb_ICA_filter_changed(self):
         if self.matrix is None:
@@ -397,13 +347,13 @@ class PlotWidget(DockArea):
             except:
                 continue
 
-        n_comp = int(SVDWidget.instance.data_panel.sb_n_ICA.value())
+        n_comp = int(SVDDockArea.instance.data_panel.sb_n_ICA.value())
 
         result = sorted(list(filter(lambda item: 0 <= item < n_comp, int_vals)))
         self.matrix.set_ICA_filter(result, n_components=n_comp)
 
         if self.data_panel.cb_ICA_filter.isChecked():
-            self.plot_matrix(self.matrix, center_lines=False, keep_range=True, keep_fits=True)
+            self.plot_matrices(self.matrix, center_lines=False, keep_range=True, keep_fits=True)
 
     def txb_SVD_filter_changed(self):
 
@@ -447,7 +397,7 @@ class PlotWidget(DockArea):
             self.matrix.set_SVD_filter(result)
 
         if self.data_panel.cb_SVD_filter.isChecked():
-            self.plot_matrix(self.matrix, center_lines=False, keep_range=True, keep_fits=True)
+            self.plot_matrices(self.matrix, center_lines=False, keep_range=True, keep_fits=True)
 
     def txb_n_spectra_focus_lost(self):
         try:
@@ -467,16 +417,16 @@ class PlotWidget(DockArea):
         self.change_range_lock = True
 
         if vb == self.spectrum.getViewBox():
-            w0 = self.heat_map_plot.inv_transform_wl_pos(range[0][0])
-            w1 = self.heat_map_plot.inv_transform_wl_pos(range[0][1])
+            w0 = self.heat_map_widget.inv_transform_wl_pos(range[0][0])
+            w1 = self.heat_map_widget.inv_transform_wl_pos(range[0][1])
 
-            self.heat_map_plot.heat_map_plot.getViewBox().setXRange(w0, w1, padding=0)
+            self.heat_map_widget.heat_map_plot.getViewBox().setXRange(w0, w1, padding=0)
             self.set_txb_ranges(w0=range[0][0], w1=range[0][1])
         else:
-            t0 = self.heat_map_plot.inv_transform_t_pos(range[0][0])
-            t1 = self.heat_map_plot.inv_transform_t_pos(range[0][1])
+            t0 = self.heat_map_widget.inv_transform_t_pos(range[0][0])
+            t1 = self.heat_map_widget.inv_transform_t_pos(range[0][1])
 
-            self.heat_map_plot.heat_map_plot.getViewBox().setYRange(t0, t1, padding=0)
+            self.heat_map_widget.heat_map_plot.getViewBox().setYRange(t0, t1, padding=0)
             self.set_txb_ranges(t0=range[0][0], t1=range[0][1])
 
         self.change_range_lock = False
@@ -513,11 +463,11 @@ class PlotWidget(DockArea):
 
         w0, w1, t0, t1 = range[0][0], range[0][1], range[1][0], range[1][1]
 
-        t0 = self.heat_map_plot.transform_t_pos(t0)  # transform t positions
-        t1 = self.heat_map_plot.transform_t_pos(t1)
+        t0 = self.heat_map_widget.transform_t_pos(t0)  # transform t positions
+        t1 = self.heat_map_widget.transform_t_pos(t1)
 
-        w0 = self.heat_map_plot.transform_wl_pos(w0)  # transform t positions
-        w1 = self.heat_map_plot.transform_wl_pos(w1)
+        w0 = self.heat_map_widget.transform_wl_pos(w0)  # transform t positions
+        w1 = self.heat_map_widget.transform_wl_pos(w1)
 
         self.set_txb_ranges(w0, w1, t0, t1)
 
@@ -545,7 +495,7 @@ class PlotWidget(DockArea):
         self.change_range_lock = False
 
     def heat_map_levels_changed(self, hist):
-        z_levels = self.heat_map_plot.get_z_range()
+        z_levels = self.heat_map_widget.get_z_range()
         self.data_panel.txb_z0.setText(f'{z_levels[0]:.4g}')
         self.data_panel.txb_z1.setText(f'{z_levels[1]:.4g}')
 
@@ -558,7 +508,7 @@ class PlotWidget(DockArea):
             w0, w1 = float(self.data_panel.txb_w0.text()), float(self.data_panel.txb_w1.text())
 
             if t0 <= t1 and w0 <= w1:
-                self.heat_map_plot.set_xy_range(w0, w1, t0, t1, 0)
+                self.heat_map_widget.set_xy_range(w0, w1, t0, t1, 0)
         except ValueError:
             pass
         except AttributeError:
@@ -569,15 +519,15 @@ class PlotWidget(DockArea):
             z0, z1 = float(self.data_panel.txb_z0.text()), float(self.data_panel.txb_z1.text())
 
             if z0 <= z1:
-                self.heat_map_plot.hist.setLevels(z0, z1)
+                self.heat_map_widget.hist.setLevels(z0, z1)
 
         except ValueError:
             pass
 
     def btn_center_levels_clicked(self):
-        z0, z1 = self.heat_map_plot.get_z_range()
+        z0, z1 = self.heat_map_widget.get_z_range()
         diff = z1 - z0
-        self.heat_map_plot.hist.setLevels(-diff / 2, diff / 2)
+        self.heat_map_widget.hist.setLevels(-diff / 2, diff / 2)
 
     def btn_crop_matrix_clicked(self):
         if self.matrix is None:
@@ -587,7 +537,7 @@ class PlotWidget(DockArea):
 
         self.matrix.crop_data(t0, t1, w0, w1)
 
-        SVDWidget.instance.set_data(self.matrix)
+        SVDDockArea.instance.set_data(self.matrix)
         self.cb_SVD_filter_toggled()
 
         # self.plot_matrix(self.matrix, False)
@@ -598,7 +548,7 @@ class PlotWidget(DockArea):
 
         self.matrix.crop_data(t0, t1, w0, w1)
 
-        SVDWidget.instance.set_data(self.matrix)
+        SVDDockArea.instance.set_data(self.matrix)
         self.cb_SVD_filter_toggled()
 
     def baseline_correct(self, t0=0, t1=0.2):
@@ -607,7 +557,7 @@ class PlotWidget(DockArea):
 
         self.matrix.baseline_corr(t0, t1)
 
-        SVDWidget.instance.set_data(self.matrix)
+        SVDDockArea.instance.set_data(self.matrix)
         self.cb_SVD_filter_toggled()
 
     def dimension_mul(self, t_mul=1, w_mul=1):
@@ -617,14 +567,14 @@ class PlotWidget(DockArea):
         self.matrix.times *= t_mul
         self.matrix.wavelengths *= w_mul
 
-        SVDWidget.instance.set_data(self.matrix)
+        SVDDockArea.instance.set_data(self.matrix)
         self.cb_SVD_filter_toggled()
 
     def btn_restore_matrix_clicked(self):
         if self.matrix is None:
             return
         self.matrix.restore_original_data()
-        self.plot_matrix(self.matrix, False)
+        self.plot_matrices(self.matrix, False)
 
     def init_trace_and_spectrum(self):
 
@@ -640,28 +590,44 @@ class PlotWidget(DockArea):
 
     def update_trace_and_spectrum(self):
         # pass
-        if self.matrix is None:
+        if self.matrices is None:
             return
 
-        time_pos = self.heat_map_hline.pos()[1]
-        time_pos = self.heat_map_plot.transform_t_pos(time_pos)
-        wl_pos = self.heat_map_vline.pos()[0]
-        wl_pos = self.heat_map_plot.transform_wl_pos(wl_pos)
-
-        wavelengths = self.matrix.wavelengths
-        times = self.matrix.times
-
-        t_idx = find_nearest_idx(times, time_pos)
-        wl_idx = find_nearest_idx(wavelengths, wl_pos)
-
-        trace_y_data = self.matrix.D[:, wl_idx]
-        trace_y_datorig = self.matrix.Y[:, wl_idx]
+        x_positions, y_positions = self.heat_map_widget.get_positions()
 
         pen = pg.mkPen(color=QColor('black'), width=1)
-        pen_orig_data = pg.mkPen(color=QColor('blue'), width=1)
 
-        spectrum_y_data = self.matrix.D[t_idx, :]
-        spectrum_y_data_orig = self.matrix.Y[t_idx, :]
+        for i, m in enumerate(self.matrices):
+            x_idx = find_nearest_idx(m.wavelengths, x_positions[i])
+            y_idx = find_nearest_idx(m.times, y_positions[i])
+
+            try:
+                self.plotted_traces[i].setData(m.times, m.D[:, x_idx], pen=pen)
+                self.plotted_spectra[i].setData(m.wavelengths, m.D[y_idx], pen=pen)
+
+            except Exception as e:
+                print(x_idx, y_idx, e)
+
+
+        # time_pos = self.heat_map_hline.pos()[1]
+        # time_pos = self.heat_map_widget.transform_t_pos(time_pos)
+        # wl_pos = self.heat_map_vline.pos()[0]
+        # wl_pos = self.heat_map_widget.transform_wl_pos(wl_pos)
+
+        # wavelengths = self.matrix.wavelengths
+        # times = self.matrix.times
+
+        # t_idx = find_nearest_idx(times, time_pos)
+        # wl_idx = find_nearest_idx(wavelengths, wl_pos)
+        #
+        # trace_y_data = self.matrix.D[:, wl_idx]
+        # trace_y_datorig = self.matrix.Y[:, wl_idx]
+        #
+        # pen = pg.mkPen(color=QColor('black'), width=1)
+        # pen_orig_data = pg.mkPen(color=QColor('blue'), width=1)
+        #
+        # spectrum_y_data = self.matrix.D[t_idx, :]
+        # spectrum_y_data_orig = self.matrix.Y[t_idx, :]
 
         # if self.smooth_count == 0:
         #     spectrum_y_data = self.matrix.D[t_idx, :]
@@ -670,35 +636,30 @@ class PlotWidget(DockArea):
         #     avrg_slice_matrix = self.matrix.D[t_idx - self.smooth_count:t_idx + self.smooth_count, :]
         #     spectrum_y_data = np.average(avrg_slice_matrix, axis=0)
 
-        if self.trace_plot_item is not None:
-            self.trace_plot_item.setData(times, trace_y_data, pen=pen)
-            self.spectrum_plot_item.setData(wavelengths, spectrum_y_data, pen=pen)
-            if not np.allclose(trace_y_data, trace_y_datorig):
-                self.trace_orig_plot_item.setData(times, trace_y_datorig, pen=pen_orig_data)
-                self.spectrum_orig_plot_item.setData(wavelengths, spectrum_y_data_orig, pen=pen_orig_data)
-            else:
-                self.trace_orig_plot_item.setData([])
-                self.spectrum_orig_plot_item.setData([])
+        # if self.trace_plot_item is not None:
+        #     self.trace_plot_item.setData(times, trace_y_data, pen=pen)
+        #     self.spectrum_plot_item.setData(wavelengths, spectrum_y_data, pen=pen)
+        #     if not np.allclose(trace_y_data, trace_y_datorig):
+        #         self.trace_orig_plot_item.setData(times, trace_y_datorig, pen=pen_orig_data)
+        #         self.spectrum_orig_plot_item.setData(wavelengths, spectrum_y_data_orig, pen=pen_orig_data)
+        #     else:
+        #         self.trace_orig_plot_item.setData([])
+        #         self.spectrum_orig_plot_item.setData([])
 
         # plotting fit
-        if self.spectrum_plot_item_fit is not None and self.trace_plot_item_fit is not None and self.fit_matrix is not None:
-            trace_y_data_fit = self.fit_matrix.Y[:, wl_idx]
+        # if self.spectrum_plot_item_fit is not None and self.trace_plot_item_fit is not None and self.fit_matrix is not None:
+        #     trace_y_data_fit = self.fit_matrix.Y[:, wl_idx]
+        #
+        #     if self.smooth_count == 0:
+        #         spectrum_y_data_fit = self.fit_matrix.Y[t_idx, :]
+        #     else:
+        #         avrg_slice_matrix_fit = self.fit_matrix.Y[t_idx - self.smooth_count:t_idx + self.smooth_count, :]
+        #         spectrum_y_data_fit = np.average(avrg_slice_matrix_fit, axis=0)
+        #
+        #     pen_fit = pg.mkPen(color=QColor('red'), width=1)
+        #     self.trace_plot_item_fit.setData(times, trace_y_data_fit, pen=pen_fit)
+        #     self.spectrum_plot_item_fit.setData(wavelengths, spectrum_y_data_fit, pen=pen_fit)
 
-            if self.smooth_count == 0:
-                spectrum_y_data_fit = self.fit_matrix.Y[t_idx, :]
-            else:
-                avrg_slice_matrix_fit = self.fit_matrix.Y[t_idx - self.smooth_count:t_idx + self.smooth_count, :]
-                spectrum_y_data_fit = np.average(avrg_slice_matrix_fit, axis=0)
-
-            pen_fit = pg.mkPen(color=QColor('red'), width=1)
-            self.trace_plot_item_fit.setData(times, trace_y_data_fit, pen=pen_fit)
-            self.spectrum_plot_item_fit.setData(wavelengths, spectrum_y_data_fit, pen=pen_fit)
-
-        if self.set_coordinate_func is not None:
-            self.set_coordinate_func('w = {:.5g}, t = {:.5g}'.format(wavelengths[wl_idx], times[t_idx]))
-
-        # self.spectrum.setTitle("Spectrum, t = {:.3g} us".format(time_pos))
-        # self.trace.setTitle("Trace, \u03bb = {:.3g} nm".format(wl_pos))
 
     def set_fit_matrix(self, fit_matrix):
         self.fit_matrix = fit_matrix
@@ -734,69 +695,106 @@ class PlotWidget(DockArea):
             pen = pg.mkPen(color=color, width=1)
             self.spectra_plot.plot(wavelengths, sp, pen=pen)
 
-    def plot_matrix(self, matrix, center_lines=True, keep_range=False, keep_fits=False):
+    def plot_matrices(self, matrices, center_lines=True, keep_range=False, keep_fits=False):
 
-        w_range, t_range = self.heat_map_plot.heat_map_plot.getViewBox().viewRange()
-        z_range = self.heat_map_plot.get_z_range()
+        # w_range, t_range = self.heat_map_widget.heat_map_plot.getViewBox().viewRange()
+        # z_range = self.heat_map_widget.get_z_range()
 
-        self.spectrum.clearPlots()
-        self.trace.clearPlots()
+        # self.spectrum.clearPlots()
+        # self.trace.clearPlots()
         # self.spectra_plot.clearPlots()
 
-        self.matrix = matrix
+        self.matrices = matrices
 
-        self.matrix_min = np.min(matrix.D)
-        self.matrix_max = np.max(matrix.D)
+        n = len(self.matrices)
 
-        if self.matrix.original_data_matrix is not None:
-            self.data_panel.lbl_matrix_size.setText(f'{matrix.original_data_matrix.shape[0] - 1} x {matrix.original_data_matrix.shape[1] - 1}')
-        self.data_panel.lbl_cr_matrix_size.setText(f'{matrix.D.shape[0]} x {matrix.D.shape[1]}')
+        # TODO rewrite better
 
-        self.heat_map_plot.set_matrix(matrix.D, matrix.times, matrix.wavelengths, gradient=HeatMapPlot.sym_grad,
-                                      t_range=t_range if keep_range else None,
-                                      w_range=w_range if keep_range else None,
-                                      z_range=z_range if keep_range else None)
+        if n > 1:
+            self.same_dimensions = [0] * n
+            for i in range(n):
+                for j in range(1, n - 1):
+                    if np.allclose(self.matrices[i].times, self.matrices[j].times):  # times = axis 0, wavelengths = axis 1
+                        self.same_dimensions[i] = 0
+                        self.same_dimensions[j] = 0
+                    elif np.allclose(self.matrices[i].times, self.matrices[j].wavelengths):
+                        self.same_dimensions[i] = 0
+                        self.same_dimensions[j] = 1
+                    elif np.allclose(self.matrices[i].wavelengths, self.matrices[j].times):
+                        self.same_dimensions[i] = 1
+                        self.same_dimensions[j] = 0
+                    else:
+                        self.same_dimensions[i] = 1
+                        self.same_dimensions[j] = 1
+        else:
+            self.same_dimensions = [0]
 
-        self.spectrum.getViewBox().setLimits(xMin=matrix.wavelengths[0], xMax=matrix.wavelengths[-1],
-                                             yMin=self.matrix_min, yMax=self.matrix_max)
+        # if self.matrix.original_data_matrix is not None:
+        #     self.data_panel.lbl_matrix_size.setText(f'{matrix.original_data_matrix.shape[0] - 1} x {matrix.original_data_matrix.shape[1] - 1}')
+        #
+        # self.data_panel.lbl_cr_matrix_size.setText(f'{matrix.D.shape[0]} x {matrix.D.shape[1]}')
 
-        self.spectra_plot.getViewBox().setLimits(xMin=matrix.wavelengths[0], xMax=matrix.wavelengths[-1],
-                                             yMin=self.matrix_min, yMax=self.matrix_max)
+        self.heat_map_widget.set_heatmaps(self.matrices, center_lines=center_lines)
 
-        self.trace.getViewBox().setLimits(xMin=matrix.times[0], xMax=matrix.times[-1],
-                                          yMin=self.matrix_min, yMax=self.matrix_max)
+        self.spectrum_widget.set_data(self.matrices, axis=1, title_prefix='Spectrum [')
+        self.trace_widget.set_data(self.matrices, axis=0, title_prefix='Trace [')
 
-        self.spectrum_vline.setBounds([matrix.wavelengths[0], matrix.wavelengths[-1]])
-        self.spectra_vline.setBounds([matrix.wavelengths[0], matrix.wavelengths[-1]])
-        self.trace_vline.setBounds([matrix.times[0], matrix.times[-1]])
-        self.heat_map_vline.setBounds([matrix.wavelengths[0], matrix.wavelengths[-1]])
-        self.heat_map_hline.setBounds([matrix.times[0], matrix.times[-1]])
+        self.plotted_spectra = self.spectrum_widget.get_plots()
+        self.plotted_traces = self.trace_widget.get_plots()
 
-        # autoscale heatmap
-        # self.heat_map_plot.autoBtnClicked()
+        self.heat_map_widget.connect_v_lines_position_changed(self.update_trace_and_spectrum)
+        self.heat_map_widget.connect_h_lines_position_changed(self.update_trace_and_spectrum)
 
-        # setupline in the middle of matrix
-        if center_lines:
-            self.heat_map_vline.setPos((matrix.wavelengths[-1] + matrix.wavelengths[0]) / 2)
-            self.heat_map_hline.setPos((matrix.times[-1] + matrix.times[0]) / 2)
+        # self.plotted_spectra.connect_v_lines_position_changed(self.update_trace_and_spectrum)
+        # self.plotted_traces.connect_v_lines_position_changed(self.update_trace_and_spectrum)
 
-        # update their positions
-        self.heat_map_hline.sigPositionChanged.emit(object)
-
-        # self.hist.gradient.restoreState(self.sym_grad)
-
-        self.init_trace_and_spectrum()
-
-        if keep_fits:
-            self.init_fit_trace_sp()
-
-        # redraw trace and spectrum figures
         self.update_trace_and_spectrum()
 
-        self.update_spectra()
+        # self.heat_map_widget.set_matrix(matrix.D, matrix.times, matrix.wavelengths, gradient=HeatMapWidget.sym_grad,
+        #                                 t_range=t_range if keep_range else None,
+        #                                 w_range=w_range if keep_range else None,
+        #                                 z_range=z_range if keep_range else None)
 
-        self.plot_chirp_points()
-        self.cb_show_roi_checkstate_changed()
+        # self.spectrum.getViewBox().setLimits(xMin=matrix.wavelengths[0], xMax=matrix.wavelengths[-1],
+        #                                      yMin=self.matrix_min, yMax=self.matrix_max)
+        #
+        # self.spectra_plot.getViewBox().setLimits(xMin=matrix.wavelengths[0], xMax=matrix.wavelengths[-1],
+        #                                      yMin=self.matrix_min, yMax=self.matrix_max)
+        #
+        # self.trace.getViewBox().setLimits(xMin=matrix.times[0], xMax=matrix.times[-1],
+        #                                   yMin=self.matrix_min, yMax=self.matrix_max)
+        #
+        # self.spectrum_vline.setBounds([matrix.wavelengths[0], matrix.wavelengths[-1]])
+        # self.spectra_vline.setBounds([matrix.wavelengths[0], matrix.wavelengths[-1]])
+        # self.trace_vline.setBounds([matrix.times[0], matrix.times[-1]])
+        # self.heat_map_vline.setBounds([matrix.wavelengths[0], matrix.wavelengths[-1]])
+        # self.heat_map_hline.setBounds([matrix.times[0], matrix.times[-1]])
+        #
+        # # autoscale heatmap
+        # # self.heat_map_plot.autoBtnClicked()
+        #
+        # # setupline in the middle of matrix
+        # if center_lines:
+        #     self.heat_map_vline.setPos((matrix.wavelengths[-1] + matrix.wavelengths[0]) / 2)
+        #     self.heat_map_hline.setPos((matrix.times[-1] + matrix.times[0]) / 2)
+        #
+        # # update their positions
+        # self.heat_map_hline.sigPositionChanged.emit(object)
+        #
+        # # self.hist.gradient.restoreState(self.sym_grad)
+        #
+        # self.init_trace_and_spectrum()
+        #
+        # if keep_fits:
+        #     self.init_fit_trace_sp()
+        #
+        # # redraw trace and spectrum figures
+        # self.update_trace_and_spectrum()
+        #
+        # self.update_spectra()
+        #
+        # self.plot_chirp_points()
+        # self.cb_show_roi_checkstate_changed()
 
     def save_plot_to_clipboard_as_png(self, plot_item):
         self.img_exporter = ImageExporter(plot_item)
@@ -806,65 +804,3 @@ class PlotWidget(DockArea):
         self.svg_exporter = SVGExporter(plot_item)
         self.svg_exporter.export(copy=True)
 
-# class SurfacePlot(object):
-#
-#     def __init__(self, parent=None):
-#         self.traces = dict()
-#         self.w = gl.GLViewWidget()
-#         self.w.opts['distance'] = 40
-#         self.w.setWindowTitle('pyqtgraph example: GLLinePlotItem')
-#         self.w.setGeometry(0, 110, 1920, 1080)
-#         self.w.show()
-#
-#         self.phase = 0
-#         self.lines = 50
-#         self.points = 1000
-#         self.y = np.linspace(-10, 10, self.lines)
-#         self.x = np.linspace(-10, 10, self.points)
-#
-#         for i, line in enumerate(self.y):
-#             y = np.array([line] * self.points)
-#             d = np.sqrt(self.x ** 2 + y ** 2)
-#             sine = 10 * np.sin(d + self.phase)
-#             pts = np.vstack([self.x, y, sine]).transpose()
-#             self.traces[i] = gl.GLLinePlotItem(
-#                 pos=pts,
-#                 color=pg.glColor((i, self.lines * 1.3)),
-#                 width=(i + 1) / 10,
-#                 antialias=True
-#             )
-#             self.w.addItem(self.traces[i])
-#
-#     def start(self):
-#         if (sys.flags.interactive != 1) or not hasattr(QtCore, 'PYQT_VERSION'):
-#             QtGui.QApplication.instance().exec_()
-#
-#     def set_plotdata(self, name, points, color, width):
-#         self.traces[name].setData(pos=points, color=color, width=width)
-#
-#     def _update(self):
-#         stime = time.time()
-#         for i, line in enumerate(self.y):
-#             y = np.array([line] * self.points)
-#
-#             amp = 10 / (i + 1)
-#             phase = self.phase * (i + 1) - 10
-#             freq = self.x * (i + 1) / 10
-#
-#             sine = amp * np.sin(freq - phase)
-#             pts = np.vstack([self.x, y, sine]).transpose()
-#
-#             self.set_plotdata(
-#                 name=i, points=pts,
-#                 color=pg.glColor((i, self.lines * 1.3)),
-#                 width=3
-#             )
-#             self.phase -= .00002
-#
-#         print('{:.0f} FPS'.format(1 / (time.time() - stime)))
-#
-#     def animation(self):
-#         timer = QtCore.QTimer()
-#         timer.timeout.connect(self.update)
-#         timer.start(10)
-#         self.start()

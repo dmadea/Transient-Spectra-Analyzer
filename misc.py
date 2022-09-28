@@ -1,7 +1,7 @@
 import math
 import numpy as np
-from PyQt5.QtGui import QColor
-from PyQt5.QtWidgets import QWidget, QSizePolicy, QLabel, QCheckBox
+from PyQt6.QtGui import QColor
+from PyQt6.QtWidgets import QWidget, QSizePolicy, QLabel, QCheckBox
 
 import inspect
 

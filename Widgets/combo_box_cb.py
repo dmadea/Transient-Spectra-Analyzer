@@ -1,6 +1,6 @@
-from PyQt5.QtWidgets import QComboBox, QApplication
-from PyQt5.QtGui import QStandardItem, QStandardItemModel
-from PyQt5.QtCore import Qt
+from PyQt6.QtWidgets import QComboBox, QApplication
+from PyQt6.QtGui import QStandardItem, QStandardItemModel
+from PyQt6.QtCore import Qt
 
 import fitting.constraints
 import sys, inspect

@@ -96,7 +96,7 @@ class LFP_matrix(object):
         m.Y = value_matrix
         m.times = times
         m.wavelengths = wavelengths
-        m.filename = filename
+        m.filepath = filename
         m.name = name
         m.mask = mask
         m.SVD()
@@ -146,11 +146,11 @@ class LFP_matrix(object):
             self.Mask = False
 
         m = LFP_matrix.from_value_matrix(self.D.copy(), self.times.copy(), self.wavelengths.copy(),
-                                         filename=self.filename,
+                                         filename=self.filepath,
                                          name=self.name, mask=self.mask.copy())
         return m
 
-    def __init__(self, data=None, filename=None, name=None):
+    def __init__(self, data=None, filepath=None, name=None):
 
         self.wavelengths = None  # dim = w
         self.times = None  # dim = t
@@ -173,7 +173,7 @@ class LFP_matrix(object):
 
         self.D = self.Y
 
-        self.filename = filename
+        self.filepath = filepath
         self.name = name
 
         # svd matrices k = min(t, w)
@@ -224,6 +224,10 @@ class LFP_matrix(object):
         self.mask = []
 
         self.SVD()
+
+    def get_filename(self):
+        tail = os.path.split(self.filepath)[1]
+        return os.path.splitext(tail)[0]  # without extension
 
     def add_masked_area(self, t0=None, t1=None, w0=None, w1=None):
 
@@ -356,10 +360,10 @@ class LFP_matrix(object):
             f.write(buff_C)
 
     def save_factored_matrix(self, output_dir='.\\', delimiter='\t', encoding='utf8', t0=None, t1=None, w0=None, w1=None):
-        if self.filename is None:
+        if self.filepath is None:
             return
 
-        _, fname = os.path.split(self.filename)
+        _, fname = os.path.split(self.filepath)
         name, ext = os.path.splitext(fname)
 
         fpath = os.path.join(output_dir, f'{name}_factored{ext}')
@@ -367,10 +371,10 @@ class LFP_matrix(object):
         self._save_matrix(self.D, fname=fpath, delimiter=delimiter, encoding=encoding, t0=t0, t1=t1, w0=w0, w1=w1)
 
     def save_original_matrix(self, output_dir='.\\', delimiter='\t', encoding='utf8', t0=None, t1=None, w0=None, w1=None):
-        if self.filename is None:
+        if self.filepath is None:
             return
 
-        _, fname = os.path.split(self.filename)
+        _, fname = os.path.split(self.filepath)
         name, ext = os.path.splitext(fname)
 
         fpath = os.path.join(output_dir, f'{name}{ext}')
@@ -402,7 +406,7 @@ class LFP_matrix(object):
 
 
     def save_to_GTA(self, fname=None, delimiter='\t', encoding='utf8', t0=None, t1=None, w0=None, w1=None):
-        _dir, _fname = os.path.split(self.filename)   # get dir and filename
+        _dir, _fname = os.path.split(self.filepath)   # get dir and filename
         _fname, _ = os.path.splitext(_fname)  # get filename without extension
 
         if fname is None:
@@ -617,7 +621,7 @@ class LFP_matrix(object):
         times = self.wavelengths
         data = self.Y
 
-        self.__init__(name=self.name, filename=self.filename)
+        self.__init__(name=self.name, filepath=self.filepath)
 
         self.Y = data.T
         self.times = times

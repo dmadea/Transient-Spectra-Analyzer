@@ -7,10 +7,10 @@ from misc import crop_data, set_axes, int_default_color
 from LFP_matrix import LFP_matrix
 from sklearn.decomposition import FastICA
 
-# from PyQt5.QtCore import Qt
+# from PyQt6.QtCore import Qt
 
 
-class SVDWidget(DockArea):
+class SVDDockArea(DockArea):
     instance = None
     t_unit = 'ps'
     w_unit = 'nm'
@@ -20,9 +20,9 @@ class SVDWidget(DockArea):
         pg.setConfigOption('foreground', 'k')
         pg.setConfigOptions(antialias=True)
 
-        super(SVDWidget, self).__init__(parent)
+        super(SVDDockArea, self).__init__(parent)
 
-        SVDWidget.instance = self
+        SVDDockArea.instance = self
 
         self.matrix = None
         self.times = None
@@ -151,8 +151,8 @@ class SVDWidget(DockArea):
         if self.matrix is None:
             return
 
-        from plotwidget import PlotWidget
-        wwtt = PlotWidget.instance.get_selected_range() if self.data_panel.cb_SVD.isChecked() else None
+        from Widgets.maindisplaydockarea import MainDisplayDockArea
+        wwtt = MainDisplayDockArea.instance.get_selected_range() if self.data_panel.cb_SVD.isChecked() else None
         self.set_data(self.matrix, wwtt=wwtt)
 
     def redraw_plots(self):  # left and right singular values

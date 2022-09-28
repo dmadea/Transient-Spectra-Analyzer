@@ -33,6 +33,9 @@ class Settings(object):
     export_spectra_as_dialog_delimiter = '\t'
     export_spectra_as_dialog_decimal_sep = '.'
 
+    coordinates_sig_figures = 4
+    infinite_line_label_color = (100, 100, 100)
+
     # recent projects filepaths
 
     recent_project_filepaths = []

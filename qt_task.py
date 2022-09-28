@@ -1,4 +1,4 @@
-from PyQt5 import QtCore
+from PyQt6 import QtCore
 
 
 class Task(QtCore.QThread):  # https://doc.qt.io/qt-5/qthread.html

@@ -2,7 +2,7 @@
 from pyqtgraph.graphicsItems.LegendItem import LegendItem, ItemSample
 from pyqtgraphmodif.LabelItemModif import LabelItemModif
 
-from PyQt5 import QtGui, QtCore
+from PyQt6 import QtGui, QtCore
 from pyqtgraph import functions as fn
 from pyqtgraph.graphicsItems.ScatterPlotItem import ScatterPlotItem, drawSymbol
 from pyqtgraph.graphicsItems.PlotDataItem import PlotDataItem

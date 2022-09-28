@@ -20,7 +20,7 @@ import matplotlib.pyplot as plt
 from settings import Settings
 
 from genericinputdialog import GenericInputDialog
-from PyQt5.QtWidgets import QPushButton, QCheckBox, QComboBox, QSpinBox, QDoubleSpinBox
+from PyQt6.QtWidgets import QPushButton, QCheckBox, QComboBox, QSpinBox, QDoubleSpinBox
 from target_model import TargetModel
 import glob, os
 import scipy.constants as sc

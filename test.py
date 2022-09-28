@@ -548,7 +548,7 @@
 #     print(f"r1: {r1}, r2: {r2}, r3: {r3}")
 # import asyncio
 #
-# from PyQt5 import QtGui, QtWidgets
+# from PyQt6 import QtGui, QtWidgets
 # from quamash import QEventLoop
 #
 # app = QtWidgets.QApplication([])
@@ -598,9 +598,9 @@
 # print(threading.current_thread())
 
 import sys, time
-from PyQt5.QtCore import *
-from PyQt5.QtGui import *
-from PyQt5.QtWidgets import *
+from PyQt6.QtCore import *
+from PyQt6.QtGui import *
+from PyQt6.QtWidgets import *
 
 import multiprocessing as mp
 import numpy

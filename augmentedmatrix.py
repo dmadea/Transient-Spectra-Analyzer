@@ -2,11 +2,11 @@ from lfp_parser import parse_file
 import numpy as np
 from LFP_matrix import LFP_matrix, MinorSymLogLocator
 
-from Widgets.fit_widget import FitWidget
-from plotwidget import PlotWidget
-from Widgets.svd_widget import SVDWidget
+from Widgets.fitwidget import FitWidget
+from Widgets.maindisplaydockarea import MainDisplayDockArea
+from Widgets.svddockarea import SVDDockArea
 
-from misc import crop_data, find_nearest, find_nearest_idx
+from misc import find_nearest_idx
 from gui_console import Console
 import os
 
@@ -14,7 +14,7 @@ import pyqtgraph as pg
 from matplotlib import cm
 
 import matplotlib.pyplot as plt
-from mpl_toolkits.axes_grid1 import ImageGrid
+
 
 class AugmentedMatrix(object):
 
@@ -115,7 +115,7 @@ class AugmentedMatrix(object):
 
     def change_to_fitted_data(self):
         fw = FitWidget.instance
-        pw = PlotWidget.instance
+        pw = MainDisplayDockArea.instance
 
         for i in range(self.r):
             C = self._C_indiv(i)
@@ -124,7 +124,7 @@ class AugmentedMatrix(object):
         self.construct_aug_matrix(True)
         m = self.get_aug_LFP_matrix()
 
-        pw.plot_matrix(m)
+        pw.plot_matrices(m)
         fw.matrix = m
         fw._au = self
         Console.push_variables({'matrix': m})
@@ -392,7 +392,7 @@ class AugmentedMatrix(object):
 
 def setup(t0=0.15, w0=460, w1=700):
     fw = FitWidget.instance
-    pw = PlotWidget.instance
+    pw = MainDisplayDockArea.instance
 
     path = r"C:\Users\Dominik\Documents\MUNI\Organic Photochemistry\Projects\2018-19_Japan-C-C bond homolysis\LFP\2019-07-11 Xan + CP2"
 
@@ -423,7 +423,7 @@ def setup(t0=0.15, w0=460, w1=700):
 
     m = au.get_aug_LFP_matrix()
 
-    pw.plot_matrix(m)
+    pw.plot_matrices(m)
 
     fw.matrix = m
     return au
@@ -431,7 +431,7 @@ def setup(t0=0.15, w0=460, w1=700):
 
 def setup2(t1=1000):
     fw = FitWidget.instance
-    pw = PlotWidget.instance
+    pw = MainDisplayDockArea.instance
 
     path = r"C:\Users\Dominik\Documents\MUNI\Organic Photochemistry\Projects\2019-Bilirubin project\UV-VIS\Irradiation kinetics\for MCR\Kinetics Z"
     paths = []
@@ -458,7 +458,7 @@ def setup2(t1=1000):
 
     m = au.get_aug_LFP_matrix()
 
-    pw.plot_matrix(m)
+    pw.plot_matrices(m)
     fw.matrix = m
     fw._au = au
     Console.push_variables({'matrix': m})
@@ -468,7 +468,7 @@ def setup2(t1=1000):
 
 def setup3():
     fw = FitWidget.instance
-    pw = PlotWidget.instance
+    pw = MainDisplayDockArea.instance
 
     path = r"C:\Users\Dominik\Documents\MUNI\Organic Photochemistry\Projects\2019-Bilirubin project\UV-VIS\QY measurement\Photodiode\new setup"
     # path = r"C:\Users\dominik\Documents\Projects\Bilirubin\UV-Vis data"
@@ -531,7 +531,7 @@ def setup3():
 
     m.wavelengths += 230
 
-    pw.plot_matrix(m)
+    pw.plot_matrices(m)
     fw.matrix = m
     fw._au = au
     Console.push_variables({'matrix': m})
@@ -540,7 +540,7 @@ def setup3():
 
 def setup3_half():
     fw = FitWidget.instance
-    pw = PlotWidget.instance
+    pw = MainDisplayDockArea.instance
 
     path = r"C:\Users\Dominik\Documents\MUNI\Organic Photochemistry\Projects\2019-Bilirubin project\UV-VIS\QY measurement\Photodiode\new setup"
     # path = r"C:\Users\dominik\Documents\Projects\Bilirubin\new setup"
@@ -597,7 +597,7 @@ def setup3_half():
 
     m.wavelengths += 230
 
-    pw.plot_matrix(m)
+    pw.plot_matrices(m)
     fw.matrix = m
     fw._au = au
     Console.push_variables({'matrix': m})
@@ -608,7 +608,7 @@ def setup3_half():
 
 def setup4():
     fw = FitWidget.instance
-    pw = PlotWidget.instance
+    pw = MainDisplayDockArea.instance
 
     # path = r"C:\Users\Dominik\Documents\MUNI\Organic Photochemistry\Projects\2019-Bilirubin project\UV-VIS\QY measurement\Photodiode\new setup"
 
@@ -632,7 +632,7 @@ def setup4():
 
     m = au.get_aug_LFP_matrix()
 
-    pw.plot_matrix(m)
+    pw.plot_matrices(m)
     fw.matrix = m
     fw._au = au
     Console.push_variables({'matrix': m})
@@ -642,7 +642,7 @@ def setup4():
 
 def setup2nd():
     fw = FitWidget.instance
-    pw = PlotWidget.instance
+    pw = MainDisplayDockArea.instance
 
     _path = r"C:\Users\dominik\Documents\RealTimeSync\Projects\2020-Bilirubin - 2nd half\UV-VIS\QY\Test 2ZE"
     # _path = r"C:\Users\dominik\Documents\RealTimeSync\Projects\2020-Bilirubin - 2nd half\UV-VIS\QY\Test 2ZE"
@@ -668,8 +668,8 @@ def setup2nd():
 
     m = au.get_aug_LFP_matrix()
 
-    pw.plot_matrix(m)
-    SVDWidget.instance.set_data(m)
+    pw.plot_matrices(m)
+    SVDDockArea.instance.set_data(m)
     fw.matrix = m
     fw._au = au
     Console.push_variables({'matrix': m})
@@ -680,7 +680,7 @@ def setup2nd():
 
 def settup_baseline_test():
     fw = FitWidget.instance
-    pw = PlotWidget.instance
+    pw = MainDisplayDockArea.instance
 
     _path = r"C:\Users\dominik\Documents\GitHub Repositories\Jupyter-Tutorials\Photoreaction kinetics"
 
@@ -704,8 +704,8 @@ def settup_baseline_test():
 
     m = au.get_aug_LFP_matrix()
 
-    pw.plot_matrix(m)
-    SVDWidget.instance.set_data(m)
+    pw.plot_matrices(m)
+    SVDDockArea.instance.set_data(m)
     fw.matrix = m
     fw._au = au
     Console.push_variables({'matrix': m})
@@ -716,7 +716,7 @@ def settup_baseline_test():
 
 def setup2nd_385_test():
     fw = FitWidget.instance
-    pw = PlotWidget.instance
+    pw = MainDisplayDockArea.instance
 
     _path = r"C:\Users\dominik\Documents\RealTimeSync\Projects\2020-Bilirubin - 2nd half\UV-VIS\QY\new setup final\385 nm"
     # _path = r"C:\Users\Dominik\Documents\MUNI\Organic Photochemistry\RealTimeSync\Projects\2020-Bilirubin - 2nd half\UV-VIS\QY\Test 2ZE new setup\better one"
@@ -741,8 +741,8 @@ def setup2nd_385_test():
 
     m = au.get_aug_LFP_matrix()
 
-    pw.plot_matrix(m)
-    SVDWidget.instance.set_data(m)
+    pw.plot_matrices(m)
+    SVDDockArea.instance.set_data(m)
     fw.matrix = m
     fw._au = au
     Console.push_variables({'matrix': m})
@@ -753,7 +753,7 @@ def setup2nd_385_test():
 
 def setup_test():
     fw = FitWidget.instance
-    pw = PlotWidget.instance
+    pw = MainDisplayDockArea.instance
 
     paths = []
 
@@ -773,7 +773,7 @@ def setup_test():
 
     m = au.get_aug_LFP_matrix()
 
-    pw.plot_matrix(m)
+    pw.plot_matrices(m)
     fw.matrix = m
     fw._au = au
     Console.push_variables({'matrix': m})

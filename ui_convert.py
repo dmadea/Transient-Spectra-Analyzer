@@ -1,4 +1,4 @@
-from PyQt5 import uic
+from PyQt6 import uic
 import glob
 
 for fname in glob.glob("Widgets/*.ui", recursive=True):

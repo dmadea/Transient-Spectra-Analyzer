@@ -1,23 +1,24 @@
 from .Fit_gui import Ui_Form
-from .fit_layout import FitLayout
-from .heatmap import HeatMapPlot
+from .fitlayout import FitLayout
+from .heatmap import HeatMapWidget
 
-from PyQt5 import QtCore, QtGui, QtWidgets
+from PyQt6 import QtWidgets
 
-from PyQt5.QtCore import Qt
+from PyQt6.QtCore import Qt
 # from dialogs.gui_fit import Ui_Dialog
-from PyQt5.QtWidgets import *
+from PyQt6.QtWidgets import *
 
-# from PyQt5.QtGui import QColor
-from PyQt5.QtWidgets import QMessageBox, QLineEdit, QCheckBox, QLabel, QWidget
+# from PyQt6.QtGui import QColor
+from PyQt6.QtWidgets import QLineEdit, QCheckBox, QLabel, QWidget
 import numpy as np
 
 from logger import Logger
 from misc import int_default_color
+import sys
 
 # from user_namespace import global_fit
 
-from plotwidget import PlotWidget
+from Widgets.maindisplaydockarea import MainDisplayDockArea
 from LFP_matrix import LFP_matrix
 
 import fitmodels
@@ -25,17 +26,14 @@ from fitting.fitter import Fitter
 from .combo_box_cb import ComboBoxCB
 # from fitting.constraints import *
 import pyqtgraph as pg
-from .task_fit import TaskFit
+from .taskfit import TaskFit
 
-import sys, inspect
+import inspect
 
 from fitting.fitresult import FitResult
 
 from gui_console import Console
 from fitting.constraints import ConstraintClosure
-from scipy.linalg import lstsq
-
-from misc import setup_size_policy
 
 
 class FitWidget(QWidget, Ui_Form):
@@ -615,13 +613,13 @@ class FitWidget(QWidget, Ui_Form):
                                                   pen=pen_coh_spec, name=name)
 
         self.fit_plot_layout.heat_map_plot.set_matrix(R, self.matrix.times, self.matrix.wavelengths,
-                                                      gradient=HeatMapPlot.seismic)
+                                                      gradient=HeatMapWidget.seismic)
 
         mat = LFP_matrix.from_value_matrix(D_fit, self.matrix.times, self.matrix.wavelengths)
-        PlotWidget.instance.set_fit_matrix(mat)
+        MainDisplayDockArea.instance.set_fit_matrix(mat)
 
         if self.plot_chirp and self.current_model._class == 'Femto':
-            PlotWidget.instance.add_chirp(self.matrix.wavelengths, self.current_model.get_mu())
+            MainDisplayDockArea.instance.add_chirp(self.matrix.wavelengths, self.current_model.get_mu())
 
     # def set_Closure_constraint(self, set=True, value=1, hard_closure=True):
     #     if set:
@@ -736,7 +734,7 @@ if __name__ == "__main__":
         sys.exit(1)
 
 
-    from PyQt5.QtWidgets import QApplication
+    from PyQt6.QtWidgets import QApplication
 
     sys._excepthook = sys.excepthook
 

@@ -1,10 +1,11 @@
 
-from PyQt5.QtWidgets import QMenuBar, QAction, QMenu
+from PyQt6.QtWidgets import QMenuBar, QMenu
+from PyQt6.QtGui import QAction
 
 from user_namespace import copy_plot_to_clipboard, save_fit
-from PyQt5.QtWidgets import *
+from PyQt6.QtWidgets import *
 
-from Widgets.fit_widget import FitWidget
+from Widgets.fitwidget import FitWidget
 
 
 class MenuBar(QMenuBar):
@@ -134,7 +135,7 @@ class MenuBar(QMenuBar):
 
     def open_recent_file(self):
         if self.sender():
-            self.parent().open_file(filepath=self.sender().data())
+            self.parent().open_file(filepaths=[self.sender().data()])
 
     def show_about_window(self):
         self.parent().console.setVisible(True)

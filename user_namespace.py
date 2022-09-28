@@ -2,7 +2,7 @@
 
 from copy import deepcopy
 from misc import find_nearest_idx
-from PyQt5.QtWidgets import QApplication
+from PyQt6.QtWidgets import QApplication
 
 import numpy as np
 from gui_console import Console
@@ -12,7 +12,7 @@ from logger import Logger
 from scipy import fftpack
 
 from LFP_matrix import LFP_matrix
-from Widgets.svd_widget import SVDWidget
+from Widgets.svddockarea import SVDDockArea
 
 
 _matrices = []
@@ -71,7 +71,7 @@ def average_matrices(plot_matrix=True, use_mask=True):
 
     data_avrg = LFP_matrix.from_value_matrix(D_avrg, _matrices[0].times.copy(),
                                              _matrices[0].wavelengths.copy(),
-                                             filename=f'{_matrices[0].filename}-avrg.txt',
+                                             filename=f'{_matrices[0].filepath}-avrg.txt',
                                              name=_matrices[0].name)
 
     if plot_matrix:
@@ -137,14 +137,14 @@ def set_gradient(name='sym'):
     sym_grad = {'ticks': [(0.0, (0, 0, dark, 255)), (1.0, (dark, 0, 0, 255)), (0.25, (0, 0, 255, 255)),
                           (0.5, (255, 255, 255, 255)), (0.75, (255, 0, 0, 255))], 'mode': 'rgb'}
 
-    mw.plot_widget.hist.gradient.restoreState(positive_grad if name == 'positive' else sym_grad)
+    mw.main_display_widget.hist.gradient.restoreState(positive_grad if name == 'positive' else sym_grad)
 
 
 def correct_to_time_zero():
     mw = UserNamespace.instance.main_widget
     mw.matrix.times -= mw.matrix.times[0]
 
-    mw.plot_widget.plot_matrix(mw.matrix, center_lines=False)
+    mw.main_display_widget.plot_matrices(mw.matrix, center_lines=False)
 
 
 def setup_matrix(matrix: [LFP_matrix, str]):
@@ -163,7 +163,7 @@ def restore_original_data():
     mw = UserNamespace.instance.main_widget
 
     mw.matrix.restore_original_data()
-    mw.plot_widget.plot_matrix(mw.matrix)
+    mw.main_display_widget.plot_matrices(mw.matrix)
 
 
 #
@@ -184,14 +184,14 @@ def load_reconstructed_matrix(sing_values_num):
     mw = UserNamespace.instance.main_widget
     mat = mw.matrix.reconstruct_matrix(sing_values_num)
 
-    mw.plot_widget.plot_matrix(mat, center_lines=False)
+    mw.main_display_widget.plot_matrices(mat, center_lines=False)
 
 
 def load_sing_value_matrix(singular_value):
     mw = UserNamespace.instance.main_widget
     mat = mw.matrix.reconstruct_matrix_from_sing_value(singular_value)
 
-    mw.plot_widget.plot_matrix(mat, center_lines=False)
+    mw.main_display_widget.plot_matrices(mat, center_lines=False)
 
 
 def load_value_matrix(value_matrix):
@@ -200,14 +200,14 @@ def load_value_matrix(value_matrix):
 
     mw = UserNamespace.instance.main_widget
     new_matrix = LFP_matrix.from_value_matrix(value_matrix, mw.matrix.times, mw.matrix.wavelengths)
-    mw.plot_widget.plot_matrix(new_matrix, center_lines=False)
+    mw.main_display_widget.plot_matrices(new_matrix, center_lines=False)
 
 
 def center_heat_map_levels():
     if UserNamespace.instance is None:
         return
 
-    plot_widget = UserNamespace.instance.main_widget.plot_widget
+    plot_widget = UserNamespace.instance.main_widget.main_display_widget
 
     z0, z1 = plot_widget.hist.getLevels()
     diff = z1 - z0
@@ -225,14 +225,14 @@ def transpose_data():
 
     mw.matrix.transpose()
 
-    mw.plot_widget.plot_matrix(mw.matrix)
+    mw.main_display_widget.plot_matrices(mw.matrix)
 
 
 def copy_plot_to_clipboard(plot='heat_map', type='img'):
     if UserNamespace.instance is None:
         return
 
-    plot_widget = UserNamespace.instance.main_widget.plot_widget
+    plot_widget = UserNamespace.instance.main_widget.main_display_widget
 
     try:
         if type == 'img':
@@ -257,7 +257,7 @@ def set_spectrum_range(x0=None, x1=None, y0=None, y1=None, padding=None):
     if UserNamespace.instance is None:
         return
 
-    plot_widget = UserNamespace.instance.main_widget.plot_widget
+    plot_widget = UserNamespace.instance.main_widget.main_display_widget
 
     x_range, y_range = plot_widget.spectrum.getViewBox().viewRange()
 
@@ -274,7 +274,7 @@ def set_trace_range(x0=None, x1=None, y0=None, y1=None, padding=None):
     if UserNamespace.instance is None:
         return
 
-    plot_widget = UserNamespace.instance.main_widget.plot_widget
+    plot_widget = UserNamespace.instance.main_widget.main_display_widget
 
     x_range, y_range = plot_widget.trace.getViewBox().viewRange()
 
@@ -291,16 +291,16 @@ def set_heat_map_range(x0=None, x1=None, y0=None, y1=None, padding=None):
     if UserNamespace.instance is None:
         return
 
-    plot_widget = UserNamespace.instance.main_widget.plot_widget
-    x_range, y_range = plot_widget.heat_map_plot.getViewBox().viewRange()
+    plot_widget = UserNamespace.instance.main_widget.main_display_widget
+    x_range, y_range = plot_widget.heatmap_pi.getViewBox().viewRange()
 
-    plot_widget.heat_map_plot.getViewBox().setXRange(x_range[0] if x0 is None else x0,
-                                                     x_range[1] if x1 is None else x1,
-                                                     padding=padding)
+    plot_widget.heatmap_pi.getViewBox().setXRange(x_range[0] if x0 is None else x0,
+                                                  x_range[1] if x1 is None else x1,
+                                                  padding=padding)
 
-    plot_widget.heat_map_plot.getViewBox().setYRange(y_range[0] if y0 is None else y0,
-                                                     y_range[1] if y1 is None else y1,
-                                                     padding=padding)
+    plot_widget.heatmap_pi.getViewBox().setYRange(y_range[0] if y0 is None else y0,
+                                                  y_range[1] if y1 is None else y1,
+                                                  padding=padding)
 
 
 # def set_range(x0=None, x1=None, y0=None, y1=None, padding=None):
@@ -323,7 +323,7 @@ def set_heat_map_z_range(z0, z1):
     if not z0 < z1:
         raise ValueError("z1 cannot be higher than z0.")
 
-    mw.plot_widget.hist.setLevels(z0, z1)
+    mw.main_display_widget.hist.setLevels(z0, z1)
 
 
 def set_grid(x=True, y=True, alpha=0.1):
@@ -333,8 +333,8 @@ def set_grid(x=True, y=True, alpha=0.1):
         return
 
     mw = UserNamespace.instance.main_widget
-    mw.plot_widget.spectrum.showGrid(x=x, y=y, alpha=alpha)
-    mw.plot_widget.trace.showGrid(x=x, y=y, alpha=alpha)
+    mw.main_display_widget.spectrum.showGrid(x=x, y=y, alpha=alpha)
+    mw.main_display_widget.trace.showGrid(x=x, y=y, alpha=alpha)
 
 
 def reduce_time_dim(factor=2):
@@ -362,7 +362,7 @@ def cut_time_dim(t_start, t_end):
     mw.matrix.Y = mw.matrix.Y[t_idx_start:t_idx_end, :]
     mw.matrix.times = mw.matrix.times[t_idx_start:t_idx_end]
 
-    mw.plot_widget.plot_matrix(mw.matrix)
+    mw.main_display_widget.plot_matrices(mw.matrix)
 
 
 def cut_wavelength_dim(wl_start, wl_end):
@@ -379,7 +379,7 @@ def cut_wavelength_dim(wl_start, wl_end):
     mw.matrix.Y = mw.matrix.Y[:, wl_idx_start:wl_idx_end]
     mw.matrix.wavelengths = mw.matrix.wavelengths[wl_idx_start:wl_idx_end]
 
-    mw.plot_widget.plot_matrix(mw.matrix)
+    mw.main_display_widget.plot_matrices(mw.matrix)
 
 
 def set_spectrum_average_count(num=20):
@@ -390,8 +390,8 @@ def set_spectrum_average_count(num=20):
         return
     mw = UserNamespace.instance.main_widget
 
-    mw.plot_widget.smooth_count = int(num / 2)
-    mw.plot_widget.update_trace_and_spectrum()
+    mw.main_display_widget.smooth_count = int(num / 2)
+    mw.main_display_widget.update_trace_and_spectrum()
 
 
 def SVD():

@@ -1,8 +1,8 @@
-#!python3
+#!python3.8
 
 
-from PyQt5.QtWidgets import QApplication
-from PyQt5.QtCore import QCoreApplication
+from PyQt6.QtWidgets import QApplication
+from PyQt6.QtCore import QCoreApplication
 from main import fMain
 
 import sys, os

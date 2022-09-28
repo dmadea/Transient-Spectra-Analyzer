@@ -1,6 +1,6 @@
-from PyQt5.QtGui import *
-from PyQt5.QtCore import Qt
-from PyQt5.QtWidgets import QWidget, QSizePolicy, QLabel, QPushButton, QGridLayout, QVBoxLayout, QHBoxLayout, QCheckBox, QSpacerItem
+from PyQt6.QtGui import *
+from PyQt6.QtCore import Qt
+from PyQt6.QtWidgets import QWidget, QSizePolicy, QLabel, QPushButton, QGridLayout, QVBoxLayout, QHBoxLayout, QCheckBox, QSpacerItem
 from .mylineedit import MyLineEdit
 
 from misc import setup_size_policy

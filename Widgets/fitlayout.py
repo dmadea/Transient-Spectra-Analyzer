@@ -2,7 +2,7 @@ import pyqtgraph as pg
 
 from pyqtgraphmodif.LegendItemModif import LegendItemModif
 # from pyqtgraph.graphicsItems.LegendItem import LegendItem
-from .heatmap import HeatMapPlot
+from Widgets.heatmap import Heatmap
 
 
 class FitLayout(pg.GraphicsLayoutWidget):
@@ -39,8 +39,8 @@ class FitLayout(pg.GraphicsLayoutWidget):
         self.ST_plot.showGrid(x=True, y=True, alpha=0.1)
         self.C_plot.showGrid(x=True, y=True, alpha=0.1)
 
-        self.heat_map_plot = HeatMapPlot()
-        self.ci.addItem(self.heat_map_plot)
+        self.heat_map_plot = Heatmap()
+        self.addItem(self.heat_map_plot)
 
         self.C_legend = None
         self.ST_legend = None

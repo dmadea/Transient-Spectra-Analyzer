@@ -1,31 +1,27 @@
-import sys, os
-from PyQt5 import QtCore, QtGui, QtWidgets
-from PyQt5.QtWidgets import *
-from PyQt5.QtCore import Qt
-from PyQt5.QtGui import *
+import os
 
-from PyQt5.QtGui import QColor
-import pyqtgraph as pg
+import numpy as np
+from PyQt6 import QtWidgets
+from PyQt6.QtWidgets import *
+from PyQt6.QtCore import Qt
 
 from settings import Settings
 
 from logger import Logger, Transcript
 
 # from dialogs.settingsdialog import SettingsDialog
-from plotwidget import PlotWidget
+from Widgets.maindisplaydockarea import MainDisplayDockArea
 
 # import code
 
 from user_namespace import UserNamespace
-from Widgets.fit_widget import FitWidget
-from Widgets.svd_widget import SVDWidget
+from Widgets.fitwidget import FitWidget
+from Widgets.svddockarea import SVDDockArea
 
 from menubar import MenuBar
 from gui_console import Console
 
 # from dialogs.fitdialog import FitDialog
-from pyqtgraph.dockarea import *
-import Widgets.Fit_gui
 
 import lfp_parser
 from LFP_matrix import LFP_matrix
@@ -42,7 +38,8 @@ class fMain(QMainWindow):
         self.resize(1800, 1000)
 
         self.console = Console(self)
-        self.matrix = None  # object of LFP matrix
+        # self.matrix = None  # object of LFP matrix
+        self.matrices = []  # loaded matrices of type LFP matrix
 
         self.addDockWidget(Qt.RightDockWidgetArea, self.console)
         # fixing the resize bug https://stackoverflow.com/questions/48119969/qdockwidget-splitter-jumps-when-qmainwindow-resized
@@ -50,14 +47,12 @@ class fMain(QMainWindow):
         self.resizeDocks([self.console], [200], Qt.Horizontal)
         # self.setCorner(Qt.BottomLeftCorner, Qt.LeftDockWidgetArea)
 
-        self.coor_label = QLabel()  # coordinates
-
-        self.plot_widget = PlotWidget(set_coordinate_func=self.coor_label.setText, parent=self)
-        self.SVD_widget = SVDWidget(self)
+        self.main_display_widget = MainDisplayDockArea(parent=self)
+        self.SVD_widget = SVDDockArea(self)
         self.fit_widget = FitWidget(None, self)
 
         self.tabWidget = QtWidgets.QTabWidget(self)
-        self.tabWidget.addTab(self.plot_widget, "Data")
+        self.tabWidget.addTab(self.main_display_widget, "Data")
         self.tabWidget.addTab(self.SVD_widget, "SVD + EFA")
         self.tabWidget.addTab(self.fit_widget, "Fit")
 
@@ -82,7 +77,7 @@ class fMain(QMainWindow):
                                 "import matplotlib.pyplot as plt\nfrom Widgets.fit_widget import FitWidget\n"
                                 "import augmentedmatrix")
 
-        Console.push_variables({'pw': self.plot_widget})
+        Console.push_variables({'pw': self.main_display_widget})
         Console.push_variables({'fw': self.fit_widget})
         Console.push_variables({'sw': self.SVD_widget})
 
@@ -98,7 +93,7 @@ class fMain(QMainWindow):
         console_button.setFlat(True)
         console_button.setCheckable(True)
         console_button.toggled.connect(self.console.setVisible)
-        statusBar.addPermanentWidget(self.coor_label)
+        # statusBar.addPermanentWidget(self.coor_label)
         statusBar.addPermanentWidget(console_button)
 
     def update_recent_files(self):
@@ -127,57 +122,62 @@ class fMain(QMainWindow):
     def test(self):
 
         # try:
-        self.plot_widget.save_plot_to_clipboard_as_png()
+        self.main_display_widget.save_plot_to_clipboard_as_png()
         # except Exception as ex:
         #     print(ex.__str__(), ex)
 
     def actioncopy_to_svg_clicked(self):
 
-        self.plot_widget.save_plot_to_clipboard_as_svg()
+        self.main_display_widget.save_plot_to_clipboard_as_svg()
 
-    def open_file(self, filepath=False):
+    def open_file(self, filepaths=False):
         ## strange bug, qt passes False as an argument when called from menubar
 
         # filter = "Data Files (*.txt, *.csv, *.dx)|*.txt;*.csv;*.dx|All Files (*.*)|*.*"
         filter = "Data Files (*.txt, *.csv, *.a*);;All Files (*.*)"
         initial_filter = "All Files (*.*)"
 
-        if filepath is False:
-            filepath = QFileDialog.getOpenFileName(caption="Import files",
+        if filepaths is False:
+            filepaths = QFileDialog.getOpenFileNames(caption="Import files",
                                                    directory=Settings.import_files_dialog_path,
                                                    filter=filter, initialFilter=initial_filter)[0]
 
-            if len(filepath) == 0:
+            if len(filepaths) == 0:
                 return
 
-        Settings.import_files_dialog_path = os.path.split(filepath)[0]
+        Settings.import_files_dialog_path = os.path.split(filepaths[0])[0]
 
-        matrix = lfp_parser.parse_file(filepath)
+        self.matrices = [lfp_parser.parse_file(filepath) for filepath in filepaths]
 
-        self.setup_matrix(matrix)
-        self.add_recent_file(filepath)
+        self.plot_matrices(self.matrices)
+        self.add_recent_file(filepaths[0])
 
-    def setup_matrix(self, matrix, *args, **kwargs):
+    def plot_matrices(self, matrices=None):
 
-        if matrix is None or not isinstance(matrix, (LFP_matrix, str)):
-            raise ValueError(f"matrix cannot be None or have to be type of {type(LFP_matrix)}")
+        # if matrix is None or not isinstance(matrix, (LFP_matrix, str)):
+        #     raise ValueError(f"matrix cannot be None or have to be type of {type(LFP_matrix)}")
+        mats_to_plot = self.matrices if matrices is None else matrices
 
-        if isinstance(matrix, str):
-            matrix = lfp_parser.parse_file(matrix)
+        if len(mats_to_plot) > 2:
+            mats_to_plot = mats_to_plot[:2]
 
-        self.matrix = matrix
+        # test if matrices has common dimensions
+        # if len(mats_to_plot) > 1 and not (np.allclose(mats_to_plot[0].times, mats_to_plot[1].times) or
+        #         np.allclose(mats_to_plot[0].times, mats_to_plot[1].wavelengths) or
+        #         np.allclose(mats_to_plot[0].wavelengths, mats_to_plot[1].times) or
+        #         np.allclose(mats_to_plot[0].wavelengths, mats_to_plot[1].wavelengths)):
+        #     QMessageBox.warning(self, 'Loading error', "Selected matrices does not have common dimensions",
+        #                         QMessageBox.StandardButton.Ok)
+        #     return
 
-        self.plot_widget.plot_matrix(self.matrix, **kwargs)
-        self.SVD_widget.set_data(self.matrix)
+        self.main_display_widget.plot_matrices(mats_to_plot)
+        self.SVD_widget.set_data(mats_to_plot[0])
 
-        Console.push_variables({'matrix': self.matrix})
-        self.fit_widget.matrix = self.matrix
+        Console.push_variables({'matrix': mats_to_plot})
+        self.fit_widget.matrix = mats_to_plot[0]
         self.fit_widget.init_matrices()
 
-        tail = os.path.split(matrix.filename)[1]
-        name_of_file = os.path.splitext(tail)[0]  # without extension
-
-        self.setWindowTitle(name_of_file + ' - Transient Spectra Analyzer')
+        self.setWindowTitle(mats_to_plot[0].get_filename() + ' - Transient Spectra Analyzer')
 
 
 def my_exception_hook(exctype, value, traceback):
