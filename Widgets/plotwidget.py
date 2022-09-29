@@ -14,11 +14,6 @@ class PlotWidget(pg.GraphicsLayoutWidget):
         self.plots = [PlotLayout(self)]
         self.addItem(self.plots[0], 0, 0)
         self.plots[0].connect_signals()
-        # self.plots = [PlotLayout(self) for i in range(2)]
-
-        # for i, plot in enumerate(self.plots):
-        #     self.addItem(plot, 0, i)
-        #     plot.connect_signals()
 
     def set_data(self, matrices, axis=0, title_prefix='Spectrum [', title_postfix=']'):
 
@@ -38,16 +33,20 @@ class PlotWidget(pg.GraphicsLayoutWidget):
         for h, m in zip(self.plots, matrices):
             min_val, max_val = (m.times[0], m.times[-1]) if axis == 0 else (m.wavelengths[0], m.wavelengths[-1])
             h.set_limits(min_val, max_val, m.D.min(), m.D.max())
-            h.plot_item.setTitle(f"{title_prefix}{m.get_filename()}{title_postfix}")
+            h.plot_item.setTitle(f"{title_prefix}{m.get_filename()}{title_postfix}", size=Settings.plot_title_font_size)
 
     def get_positions(self):
         return [plot.vline.pos()[0] for plot in self.plots]
 
     def connect_v_lines_position_changed(self, fn: Callable):
         for plot in self.plots:
-            plot.vline.sigPositionChanged.connect(fn)
+            plot.connect_v_line_position_changed(fn)
 
-    def get_plots(self):
+    def connect_ranges_changed(self, fn: Callable):
+        for plot in self.plots:
+            plot.connect_range_changed(fn)
+
+    def get_plotted_data(self):
         return [p.plotted_data for p in self.plots]
 
 
@@ -82,8 +81,23 @@ class PlotLayout(pg.GraphicsLayout):
         self.plot_item.getViewBox().setLimits(xMin=xmin, xMax=xmax, yMin=ymin, yMax=ymax)
         self.vline.setBounds((xmin, xmax))
 
+    def get_xpos(self):
+        return self.vline.pos()[0]
+
+    def set_xpos(self, value):
+        self.vline.setPos(value)
+
+    def set_x_range(self, x0, x1):
+        self.plot_item.getViewBox().setXRange(x0, x1, padding=0)
+
     def connect_signals(self):
         self.proxy = pg.SignalProxy(self.plot_item.scene().sigMouseMoved, rateLimit=60, slot=self.mouse_moved)
+
+    def connect_range_changed(self, fn: Callable):
+        self.plot_item.getViewBox().sigRangeChanged.connect(lambda *args: fn(self, *args))
+
+    def connect_v_line_position_changed(self, fn: Callable):
+        self.vline.sigPositionChanged.connect(lambda: fn(self))
 
     def mouse_moved(self, ev):
         pos = ev[0]

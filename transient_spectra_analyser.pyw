@@ -1,4 +1,4 @@
-#!python3.8
+#!python3.10
 
 
 from PyQt6.QtWidgets import QApplication

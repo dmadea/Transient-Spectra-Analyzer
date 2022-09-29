@@ -84,13 +84,17 @@ class MainDisplayDockArea(DockArea):
 
         MainDisplayDockArea.instance = self
 
-        self.change_range_lock = False
+        self.heatmap_range_lock = False
+        self.heatmap_line_lock = False
 
         # self.smooth_count = 0
 
         self.fit_matrix = None
         self.matrices = []
-        self.same_dimensions = []  # axes of the equal dimensions of matrices, same length as self.matrices
+
+        # axes of the equal dimensions (same start and end points) of all matrices
+        # 0 for first dimensions, 1 for second, 2 for both
+        self.same_dimension = None
 
         self.plotted_spectra = []
         self.plotted_traces = []
@@ -178,32 +182,31 @@ class MainDisplayDockArea(DockArea):
         self.addDock(self.trace_dock, 'right', self.spectrum_dock)
         self.addDock(self.settings_dock, 'left', self.heat_map_dock)
 
-
-        def update_v_lines():
-            pass
-            # time_pos = self.heat_map_hline.pos()
-            # wl_pos = self.heat_map_vline.pos()
-            #
-            # new_pos = self.heat_map_plot.transform_wl_pos(wl_pos[0])
-            #
-            # self.spectrum_vline.setPos(new_pos)
-            # self.spectra_vline.setPos(new_pos)
-            # self.trace_vline.setPos(self.heat_map_plot.transform_t_pos(time_pos[1]))
-
-        def update_heat_lines():
-            pass
-            # time_pos = self.trace_vline.pos()
-            # wl_pos = self.spectrum_vline.pos()
-            #
-            # self.heat_map_hline.setPos(self.heat_map_plot.inv_transform_t_pos(time_pos[0]))
-            # # self.heat_map_vline.setPos(wl_pos[0])
-            # self.heat_map_vline.setPos(self.heat_map_plot.inv_transform_wl_pos(wl_pos[0]))
-
-
-        def update_heat_lines_spectra():
-            pass
-        #     wl_pos = self.spectra_vline.pos()
-        #     self.heat_map_vline.setPos(self.heat_map_plot.inv_transform_wl_pos(wl_pos[0]))
+        # def update_v_lines():
+        #     pass
+        #     # time_pos = self.heat_map_hline.pos()
+        #     # wl_pos = self.heat_map_vline.pos()
+        #     #
+        #     # new_pos = self.heat_map_plot.transform_wl_pos(wl_pos[0])
+        #     #
+        #     # self.spectrum_vline.setPos(new_pos)
+        #     # self.spectra_vline.setPos(new_pos)
+        #     # self.trace_vline.setPos(self.heat_map_plot.transform_t_pos(time_pos[1]))
+        #
+        # def update_heat_lines():
+        #     pass
+        #     # time_pos = self.trace_vline.pos()
+        #     # wl_pos = self.spectrum_vline.pos()
+        #     #
+        #     # self.heat_map_hline.setPos(self.heat_map_plot.inv_transform_t_pos(time_pos[0]))
+        #     # # self.heat_map_vline.setPos(wl_pos[0])
+        #     # self.heat_map_vline.setPos(self.heat_map_plot.inv_transform_wl_pos(wl_pos[0]))
+        #
+        #
+        # def update_heat_lines_spectra():
+        #     pass
+        # #     wl_pos = self.spectra_vline.pos()
+        # #     self.heat_map_vline.setPos(self.heat_map_plot.inv_transform_wl_pos(wl_pos[0]))
         #
         # self.heat_map_vline.sigPositionChanged.connect(update_v_lines)
         # self.heat_map_hline.sigPositionChanged.connect(update_v_lines)
@@ -412,9 +415,9 @@ class MainDisplayDockArea(DockArea):
             pass
 
     def trace_spectrum_range_changed(self, vb, range):
-        if self.change_range_lock:
+        if self.heatmap_range_lock:
             return
-        self.change_range_lock = True
+        self.heatmap_range_lock = True
 
         if vb == self.spectrum.getViewBox():
             w0 = self.heat_map_widget.inv_transform_wl_pos(range[0][0])
@@ -429,7 +432,7 @@ class MainDisplayDockArea(DockArea):
             self.heat_map_widget.heat_map_plot.getViewBox().setYRange(t0, t1, padding=0)
             self.set_txb_ranges(t0=range[0][0], t1=range[0][1])
 
-        self.change_range_lock = False
+        self.heatmap_range_lock = False
 
     def get_selected_range(self):
         if self.matrix is None:
@@ -457,9 +460,9 @@ class MainDisplayDockArea(DockArea):
             self.data_panel.txb_t1.setText(f'{t1:.4g}')
 
     def heat_map_range_changed(self, vb, range):
-        if self.change_range_lock or self.matrix is None:
+        if self.heatmap_range_lock or self.matrix is None:
             return
-        self.change_range_lock = True
+        self.heatmap_range_lock = True
 
         w0, w1, t0, t1 = range[0][0], range[0][1], range[1][0], range[1][1]
 
@@ -492,7 +495,7 @@ class MainDisplayDockArea(DockArea):
 
         self.data_panel.lbl_visible_area_msize.setText(f'{it1 - it0} x {iw1 - iw0}')
 
-        self.change_range_lock = False
+        self.heatmap_range_lock = False
 
     def heat_map_levels_changed(self, hist):
         z_levels = self.heat_map_widget.get_z_range()
@@ -500,7 +503,7 @@ class MainDisplayDockArea(DockArea):
         self.data_panel.txb_z1.setText(f'{z_levels[1]:.4g}')
 
     def update_range(self):
-        if self.change_range_lock or self.matrix is None:
+        if self.heatmap_range_lock or self.matrix is None:
             return
 
         try:
@@ -588,9 +591,8 @@ class MainDisplayDockArea(DockArea):
         self.trace_plot_item_fit = self.trace.plot([])
         self.spectrum_plot_item_fit = self.spectrum.plot([])
 
-    def update_trace_and_spectrum(self):
-        # pass
-        if self.matrices is None:
+    def update_trace_and_spectrum(self, sender=None):
+        if self.matrices is None or self.heatmap_line_lock or self.heatmap_range_lock:
             return
 
         x_positions, y_positions = self.heat_map_widget.get_positions()
@@ -607,7 +609,6 @@ class MainDisplayDockArea(DockArea):
 
             except Exception as e:
                 print(x_idx, y_idx, e)
-
 
         # time_pos = self.heat_map_hline.pos()[1]
         # time_pos = self.heat_map_widget.transform_t_pos(time_pos)
@@ -660,7 +661,6 @@ class MainDisplayDockArea(DockArea):
         #     self.trace_plot_item_fit.setData(times, trace_y_data_fit, pen=pen_fit)
         #     self.spectrum_plot_item_fit.setData(wavelengths, spectrum_y_data_fit, pen=pen_fit)
 
-
     def set_fit_matrix(self, fit_matrix):
         self.fit_matrix = fit_matrix
 
@@ -687,13 +687,128 @@ class MainDisplayDockArea(DockArea):
         w0, w1, t0, t1 = tup
 
         D_crop, times, wavelengths = crop_data(self.matrix.D, self.matrix.times, self.matrix.wavelengths, t0,
-                                                         t1, w0, w1)
+                                               t1, w0, w1)
 
         for i in range(self.n_spectra):
             sp = D_crop[int(i * D_crop.shape[0] / self.n_spectra)]
             color = pg.intColor(i, hues=self.n_spectra, values=1, maxHue=360, minHue=0)
             pen = pg.mkPen(color=color, width=1)
             self.spectra_plot.plot(wavelengths, sp, pen=pen)
+
+    def heatmap_v_line_changed(self, sender_heatmap):
+
+        if self.heatmap_line_lock:
+            return
+
+        self.heatmap_line_lock = True
+
+        x_pos_orig = sender_heatmap.get_xpos()
+        x_pos = sender_heatmap.transform_wl_pos(x_pos_orig)
+
+        i = self.heat_map_widget.heatmaps.index(sender_heatmap)
+        self.spectrum_widget.plots[i].set_xpos(x_pos)
+
+        if self.same_dimension in (1, 2):
+            for h, spectrum in zip(self.heat_map_widget.heatmaps, self.spectrum_widget.plots):
+                h.set_xpos(x_pos_orig)  # set the original value without transformation
+                spectrum.set_xpos(x_pos)
+
+        self.heatmap_line_lock = False
+
+    def heatmap_h_line_changed(self, sender_heatmap):
+
+        if self.heatmap_line_lock:
+            return
+
+        self.heatmap_line_lock = True
+
+        y_pos_orig = sender_heatmap.get_ypos()
+        y_pos = sender_heatmap.transform_t_pos(y_pos_orig)
+
+        i = self.heat_map_widget.heatmaps.index(sender_heatmap)
+        self.trace_widget.plots[i].set_xpos(y_pos)
+
+        if self.same_dimension in (0, 2):
+            for h, trace in zip(self.heat_map_widget.heatmaps, self.trace_widget.plots):
+                h.set_ypos(y_pos_orig)  # set the original value without transformation
+                trace.set_xpos(y_pos)
+
+        self.heatmap_line_lock = False
+
+    def heatmap_range_changed(self, sender_heatmap, sender_vb, ranges, changes):
+        """ params: sender heatmap, sender viewbox, [[x0, x1], [y0, y1]], [change in x, change in y]"""
+
+        if self.heatmap_range_lock or self.matrices is None:
+            return
+
+        self.heatmap_range_lock = True
+
+        x0, x1, y0, y1 = ranges[0][0], ranges[0][1], ranges[1][0], ranges[1][1]
+        change_x, change_y = changes
+
+        # self.set_txb_ranges(w0, w1, t0, t1)
+
+        i = self.heat_map_widget.heatmaps.index(sender_heatmap)
+
+        if change_x:
+            x0_tr = sender_heatmap.transform_wl_pos(x0)
+            x1_tr = sender_heatmap.transform_wl_pos(x1)
+
+            self.spectrum_widget.plots[i].set_x_range(x0_tr, x1_tr)
+
+            if self.same_dimension in (1, 2):
+                for h, spectrum in zip(self.heat_map_widget.heatmaps, self.spectrum_widget.plots):
+                    h.set_x_range(x0, x1)
+                    spectrum.set_x_range(x0_tr, x1_tr)
+
+        if change_y:
+            y0_tr = sender_heatmap.transform_t_pos(y0)
+            y1_tr = sender_heatmap.transform_t_pos(y1)
+
+            self.trace_widget.plots[i].set_x_range(y0_tr, y1_tr)
+
+            if self.same_dimension in (0, 2):
+                for h, trace in zip(self.heat_map_widget.heatmaps, self.trace_widget.plots):
+                    h.set_y_range(y0, y1)
+                    trace.set_x_range(y0_tr, y1_tr)
+
+        # # keep all the v and h lines inside the visible area
+        #
+        # v_pos = self.heat_map_vline.pos()[0]
+        # h_pos = self.heat_map_hline.pos()[1]
+        #
+        # if not range[0][0] <= v_pos <= range[0][1]:
+        #     self.heat_map_vline.setPos(range[0][0] if np.abs(v_pos - range[0][0]) < np.abs(v_pos - range[0][1]) else range[0][1])
+        #
+        # if not range[1][0] <= h_pos <= range[1][1]:
+        #     self.heat_map_hline.setPos(range[1][0] if np.abs(h_pos - range[1][0]) < np.abs(h_pos - range[1][1]) else range[1][1])
+        #
+        # it0, it1 = find_nearest_idx(self.matrix.times, t0), find_nearest_idx(self.matrix.times, t1) + 1
+        # iw0, iw1 = find_nearest_idx(self.matrix.wavelengths, w0), find_nearest_idx(self.matrix.wavelengths, w1) + 1
+        #
+        # self.selected_range_idxs = (it0, it1, iw0, iw1)
+        #
+        # self.data_panel.lbl_visible_area_msize.setText(f'{it1 - it0} x {iw1 - iw0}')
+        #
+        self.heatmap_range_lock = False
+
+    def trace_range_changed(self, sender_trace, sender_vb, ranges, changes):
+        pass
+
+    def spectrum_range_changed(self, sender_spectrum, sender_vb, ranges, changes):
+        pass
+
+    def trace_v_line_changed(self, sender_trace):
+        y_pos = sender_trace.get_xpos()
+        i = self.trace_widget.plots.index(sender_trace)
+        h = self.heat_map_widget.heatmaps[i]
+        h.set_ypos(h.inv_transform_t_pos(y_pos))
+
+    def spectrum_v_line_changed(self, sender_spectrum):
+        x_pos = sender_spectrum.get_xpos()
+        i = self.spectrum_widget.plots.index(sender_spectrum)
+        h = self.heat_map_widget.heatmaps[i]
+        h.set_xpos(h.inv_transform_wl_pos(x_pos))
 
     def plot_matrices(self, matrices, center_lines=True, keep_range=False, keep_fits=False):
 
@@ -708,26 +823,38 @@ class MainDisplayDockArea(DockArea):
 
         n = len(self.matrices)
 
-        # TODO rewrite better
+        atol = 0.1
+        rtol = 0.1
 
+        # determine the same dimension of the loaded matrices
         if n > 1:
-            self.same_dimensions = [0] * n
-            for i in range(n):
-                for j in range(1, n - 1):
-                    if np.allclose(self.matrices[i].times, self.matrices[j].times):  # times = axis 0, wavelengths = axis 1
-                        self.same_dimensions[i] = 0
-                        self.same_dimensions[j] = 0
-                    elif np.allclose(self.matrices[i].times, self.matrices[j].wavelengths):
-                        self.same_dimensions[i] = 0
-                        self.same_dimensions[j] = 1
-                    elif np.allclose(self.matrices[i].wavelengths, self.matrices[j].times):
-                        self.same_dimensions[i] = 1
-                        self.same_dimensions[j] = 0
-                    else:
-                        self.same_dimensions[i] = 1
-                        self.same_dimensions[j] = 1
-        else:
-            self.same_dimensions = [0]
+            # ax0_shapes = [m.D.shape[0] for m in self.matrices]
+            # ax1_shapes = [m.D.shape[1] for m in self.matrices]
+
+            ax_0_starts = np.asarray([m.times[0] for m in self.matrices])
+            ax_0_ends = np.asarray([m.times[-1] for m in self.matrices])
+
+            ax_1_starts = np.asarray([m.wavelengths[0] for m in self.matrices])
+            ax_1_ends = np.asarray([m.wavelengths[-1] for m in self.matrices])
+
+            if np.allclose(ax_0_starts, ax_0_starts[0], rtol, atol) and \
+               np.allclose(ax_0_ends, ax_0_ends[0], rtol, atol):
+                self.same_dimension = 0
+
+            if np.allclose(ax_1_starts, ax_1_starts[0], rtol, atol) and \
+               np.allclose(ax_1_ends, ax_1_ends[0], rtol, atol):
+                self.same_dimension = 1 if self.same_dimension is None else 2  # both are the same
+
+            # # test if matrices has common dimensions
+            # if np.all(ax0_shapes == ax0_shapes[0]):
+            #     ax0_all_close = [np.allclose(m.times, self.matrices[0].times) for m in self.matrices[1:]]
+            #     if np.all(ax0_all_close == ax0_all_close[0]):
+            #         self.same_dimension = 0
+            #
+            # if np.all(ax1_shapes == ax1_shapes[0]):
+            #     ax1_all_close = [np.allclose(m.wavelengths, self.matrices[0].wavelengths) for m in self.matrices[1:]]
+            #     if np.all(ax1_all_close == ax1_all_close[0]):
+            #         self.same_dimension = 1
 
         # if self.matrix.original_data_matrix is not None:
         #     self.data_panel.lbl_matrix_size.setText(f'{matrix.original_data_matrix.shape[0] - 1} x {matrix.original_data_matrix.shape[1] - 1}')
@@ -739,14 +866,37 @@ class MainDisplayDockArea(DockArea):
         self.spectrum_widget.set_data(self.matrices, axis=1, title_prefix='Spectrum [')
         self.trace_widget.set_data(self.matrices, axis=0, title_prefix='Trace [')
 
-        self.plotted_spectra = self.spectrum_widget.get_plots()
-        self.plotted_traces = self.trace_widget.get_plots()
+        self.plotted_spectra = self.spectrum_widget.get_plotted_data()
+        self.plotted_traces = self.trace_widget.get_plotted_data()
+
+        self.heat_map_widget.connect_v_lines_position_changed(self.heatmap_v_line_changed)
+        self.heat_map_widget.connect_h_lines_position_changed(self.heatmap_h_line_changed)
 
         self.heat_map_widget.connect_v_lines_position_changed(self.update_trace_and_spectrum)
         self.heat_map_widget.connect_h_lines_position_changed(self.update_trace_and_spectrum)
 
+        # not necessary because the positions are taken from heatmap lines
+        # self.trace_widget.connect_v_lines_position_changed(self.update_trace_and_spectrum)
+        # self.spectrum_widget.connect_v_lines_position_changed(self.update_trace_and_spectrum)
+
+        self.trace_widget.connect_v_lines_position_changed(self.trace_v_line_changed)
+        self.spectrum_widget.connect_v_lines_position_changed(self.spectrum_v_line_changed)
+
+        self.heat_map_widget.connect_ranges_changed(self.heatmap_range_changed)
+        self.trace_widget.connect_ranges_changed(self.trace_range_changed)
+        self.spectrum_widget.connect_ranges_changed(self.spectrum_range_changed)
+
+
+        # self.spectra_vline.sigPositionChanged.connect(update_heat_lines_spectra)
+
+
         # self.plotted_spectra.connect_v_lines_position_changed(self.update_trace_and_spectrum)
         # self.plotted_traces.connect_v_lines_position_changed(self.update_trace_and_spectrum)
+
+        # update lines
+        for h in self.heat_map_widget.heatmaps:
+            self.heatmap_v_line_changed(h)
+            self.heatmap_h_line_changed(h)
 
         self.update_trace_and_spectrum()
 

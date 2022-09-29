@@ -47,15 +47,15 @@ class HeatMapWidget(pg.GraphicsLayoutWidget):
 
         for h, m in zip(self.heatmaps, matrices):
             h.set_matrix(m.D, m.times, m.wavelengths, center_lines=center_lines)
-            h.heatmap_pi.setTitle(m.get_filename())
+            h.heatmap_pi.setTitle(m.get_filename(), size=Settings.plot_title_font_size)
 
     def get_positions(self):
         y_positions = []
         x_positions = []
 
         for h in self.heatmaps:
-            y_pos = h.hline.pos()[1]
-            x_pos = h.vline.pos()[0]
+            y_pos = h.get_ypos()
+            x_pos = h.get_xpos()
             y_positions.append(h.transform_t_pos(y_pos))
             x_positions.append(h.transform_wl_pos(x_pos))
 
@@ -63,11 +63,42 @@ class HeatMapWidget(pg.GraphicsLayoutWidget):
 
     def connect_v_lines_position_changed(self, fn: Callable):
         for h in self.heatmaps:
-            h.vline.sigPositionChanged.connect(fn)
+            h.connect_v_line_position_changed(fn)
 
     def connect_h_lines_position_changed(self, fn: Callable):
         for h in self.heatmaps:
-            h.hline.sigPositionChanged.connect(fn)
+            h.connect_h_line_position_changed(fn)
+
+    def connect_ranges_changed(self, fn: Callable):
+        for h in self.heatmaps:
+            h.connect_range_changed(fn)
+
+
+def inv_transform_value_pos(value, arr=None):
+    """works for scalar and arrays"""
+    if arr is None:
+        return value
+
+    t_min, t_max = arr.min(), arr.max()
+    t_idx = find_nearest_idx(arr,  value)
+    inv_t = t_min + t_idx * (t_max - t_min) / (arr.shape[0] - 1)  # inverse transform
+    return inv_t
+
+
+def transform_value_pos(value, arr=None):
+    """works for scalar and arrays"""
+    if arr is None:
+        return value
+
+    t_min, t_max = arr.min(), arr.max()
+    idx = (value - t_min) / (t_max - t_min) * (arr.shape[0] - 1)  # map the linear scale to data time scale
+    idx = np.round(idx, 0).astype(int)
+    if isinstance(idx, np.ndarray):
+        idx[idx >= arr.shape[0]] = arr.shape[0] - 1
+    else:
+        idx = arr.shape[0] - 1 if idx >= arr.shape[0] else idx
+    return arr[idx]
+
 
 class Heatmap(pg.GraphicsLayout):
 
@@ -141,14 +172,29 @@ class Heatmap(pg.GraphicsLayout):
                                              labelOpts=dict(color=Settings.infinite_line_label_color))
 
         # signals
-        self.range_changed = self.heatmap_pi.getViewBox().sigRangeChanged
-        self.Y_range_changed = self.heatmap_pi.getViewBox().sigYRangeChanged
-        self.levels_changed = self.hist.sigLevelsChanged
+        # self.range_changed = self.heatmap_pi.getViewBox().sigRangeChanged
+        # # self.Y_range_changed = self.heatmap_pi.getViewBox().sigYRangeChanged
+        # # self.levels_changed = self.hist.sigLevelsChanged
 
         self.proxy = None
 
     def connect_signals(self):
         self.proxy = pg.SignalProxy(self.heatmap_pi.scene().sigMouseMoved, rateLimit=60, slot=self.mouse_moved)
+
+    def connect_range_changed(self, fn: Callable):
+        self.heatmap_pi.getViewBox().sigRangeChanged.connect(lambda *args: fn(self, *args))
+
+    def connect_v_line_position_changed(self, fn: Callable):
+        self.vline.sigPositionChanged.connect(lambda: fn(self))
+
+    def connect_h_line_position_changed(self, fn: Callable):
+        self.hline.sigPositionChanged.connect(lambda: fn(self))
+
+    def set_x_range(self, x0, x1):
+        self.heatmap_pi.getViewBox().setXRange(x0, x1, padding=0)
+
+    def set_y_range(self, y0, y1):
+        self.heatmap_pi.getViewBox().setYRange(y0, y1, padding=0)
 
     def get_z_range(self):
         return self.hist.getLevels()
@@ -225,41 +271,29 @@ class Heatmap(pg.GraphicsLayout):
             self.vline.setPos((x0 + x_max) / 2)
             self.hline.setPos((y0 + y_max) / 2)
 
+    def get_xpos(self):
+        return self.vline.pos()[0]
+
+    def set_xpos(self, value):
+        self.vline.setPos(value)
+
+    def get_ypos(self):
+        return self.hline.pos()[1]
+
+    def set_ypos(self, value):
+        self.hline.setPos(value)
+
     def transform_t_pos(self, value):
-        return self.transform_value_pos(value, self.arr_ax0)
+        return transform_value_pos(value, self.arr_ax0)
 
     def inv_transform_t_pos(self, value):
-        return self.inv_transform_value_pos(value, self.arr_ax0)
+        return inv_transform_value_pos(value, self.arr_ax0)
 
     def transform_wl_pos(self, value):
-        return self.transform_value_pos(value, self.arr_ax1)
+        return transform_value_pos(value, self.arr_ax1)
 
     def inv_transform_wl_pos(self, value):
-        return self.inv_transform_value_pos(value, self.arr_ax1)
-
-    def transform_value_pos(self, value, arr=None):
-        """works for scalar and arrays"""
-        if arr is None:
-            return value
-
-        t_min, t_max = arr.min(), arr.max()
-        idx = (value - t_min) / (t_max - t_min) * (arr.shape[0] - 1)  # map the linear scale to data time scale
-        idx = np.round(idx, 0).astype(int)
-        if isinstance(idx, np.ndarray):
-            idx[idx >= arr.shape[0]] = arr.shape[0] - 1
-        else:
-            idx = arr.shape[0] - 1 if idx >= arr.shape[0] else idx
-        return arr[idx]
-
-    def inv_transform_value_pos(self, value, arr=None):
-        """works for scalar and arrays"""
-        if arr is None:
-            return value
-
-        t_min, t_max = arr.min(), arr.max()
-        t_idx = find_nearest_idx(arr,  value)
-        inv_t = t_min + t_idx * (t_max - t_min) / (arr.shape[0] - 1)  # inverse transform
-        return inv_t
+        return inv_transform_value_pos(value, self.arr_ax1)
 
     def set_xy_range(self, x0, x1, y0, y1, padding=0):
         y0, y1 = self.inv_transform_t_pos(y0), self.inv_transform_t_pos(y1)
@@ -276,17 +310,6 @@ class Heatmap(pg.GraphicsLayout):
                    self.hist.regions[0].lines[1].sceneBoundingRect().contains(pos)
 
         on_hist_lut = self.hist.vb.sceneBoundingRect().contains(pos)
-
-        #     try:
-        # if in_scene:
-        #         mouse_point = self.plotItem.vb.mapSceneToView(pos)
-        #         n = Settings.coordinates_sig_figures
-        #         # double format with n being the number of significant figures of a number
-        #         self.probe_label.setText(f"x={{:.{n}g}}, y={{:.{n}g}}".format(mouse_point.x(), mouse_point.y()))
-        #     except:
-        #         pass
-        # else:
-        #     self.probe_label.setText("<span style='color: #808080'>No data at cursor</span>")
 
         # set the corresponding cursor
         if in_scene:

@@ -158,10 +158,18 @@ class fMain(QMainWindow):
         #     raise ValueError(f"matrix cannot be None or have to be type of {type(LFP_matrix)}")
         mats_to_plot = self.matrices if matrices is None else matrices
 
-        if len(mats_to_plot) > 2:
-            mats_to_plot = mats_to_plot[:2]
+        # if len(mats_to_plot) > 2:
+        #     mats_to_plot = mats_to_plot[:2]
 
-        # test if matrices has common dimensions
+        # ax0_shapes = [m.shape[0] for m in mats_to_plot]
+        # ax1_shapes = [m.shape[1] for m in mats_to_plot]
+        #
+        # # test if matrices has common dimensions
+        # if len(mats_to_plot) > 1 and (np.all(ax0_shapes == ax0_shapes[0]) or np.all(ax1_shapes == ax1_shapes[0])):
+        #     QMessageBox.warning(self, 'Loading error', "Selected matrices does not have common dimensions",
+        #                         QMessageBox.StandardButton.Ok)
+        #     return
+
         # if len(mats_to_plot) > 1 and not (np.allclose(mats_to_plot[0].times, mats_to_plot[1].times) or
         #         np.allclose(mats_to_plot[0].times, mats_to_plot[1].wavelengths) or
         #         np.allclose(mats_to_plot[0].wavelengths, mats_to_plot[1].times) or
