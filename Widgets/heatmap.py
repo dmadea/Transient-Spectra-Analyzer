@@ -19,14 +19,17 @@ class HeatMapWidget(pg.GraphicsLayoutWidget):
 
         super(HeatMapWidget, self).__init__(parent, border)
 
+        self.heatmaps = []
+        self.initialize()
+
+    def initialize(self):
         self.heatmaps = [Heatmap(self, title='')]
-        # self.heatmaps = [Heatmap(self) for i in range(4)]
         self.addItem(self.heatmaps[0], 0, 0)
         self.heatmaps[0].connect_signals()
 
     def set_heatmaps(self, matrices, center_lines=True):
 
-        # TODO delete previous heatmaps
+        self.clear_plots()
 
         n = len(matrices)
 
@@ -72,6 +75,14 @@ class HeatMapWidget(pg.GraphicsLayoutWidget):
     def connect_ranges_changed(self, fn: Callable):
         for h in self.heatmaps:
             h.connect_range_changed(fn)
+
+    def clear_plots(self):
+        for h in self.heatmaps:
+            h.clear()
+        self.ci.clear()
+        # map(self.removeItem, self.heatmaps)
+        self.heatmaps = []
+        self.initialize()
 
 
 def inv_transform_value_pos(value, arr=None):
@@ -119,11 +130,14 @@ class Heatmap(pg.GraphicsLayout):
                 'mode': 'rgb'}
 
     def __init__(self, parent=None, border=None, title="Residuals (CS<sup>T</sup> - D)", xlabel='\u2190 Time (ps)',
-                 ylabel='Wavelength (nm) \u2192', z_label='\u0394A'):
+                 ylabel='Wavelength (nm) \u2192', z_label='\u0394A', keep_levels_centered=True):
         super(Heatmap, self).__init__(None, border)
+        self.keep_levels_centered = keep_levels_centered
         self.parentWidget = parent
         self.arr_ax0 = None
         self.arr_ax1 = None
+
+        self.levels_changing = False
 
         self.image = pg.ImageItem()
 
@@ -171,15 +185,25 @@ class Heatmap(pg.GraphicsLayout):
         self.hline = self.heatmap_pi.addLine(0, 0, 100, angle=0, movable=True, pen=pg.mkPen((0, 0, 0)), label=label_format,
                                              labelOpts=dict(color=Settings.infinite_line_label_color))
 
-        # signals
-        # self.range_changed = self.heatmap_pi.getViewBox().sigRangeChanged
-        # # self.Y_range_changed = self.heatmap_pi.getViewBox().sigYRangeChanged
-        # # self.levels_changed = self.hist.sigLevelsChanged
-
+        # # signals
+        # self.levels_changed = self.hist.sigLevelsChanged
         self.proxy = None
 
     def connect_signals(self):
         self.proxy = pg.SignalProxy(self.heatmap_pi.scene().sigMouseMoved, rateLimit=60, slot=self.mouse_moved)
+        self.hist.sigLevelsChanged.connect(self.levels_changed)
+
+    def levels_changed(self, lut_item):
+        if self.levels_changing:
+            return
+
+        self.levels_changing = True
+
+        if self.keep_levels_centered:
+            z0, z1 = self.hist.getLevels()
+            self.hist.setLevels(-np.abs(z1), z1) # only take care of the second level
+
+        self.levels_changing = False
 
     def connect_range_changed(self, fn: Callable):
         self.heatmap_pi.getViewBox().sigRangeChanged.connect(lambda *args: fn(self, *args))

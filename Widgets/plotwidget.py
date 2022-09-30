@@ -11,13 +11,17 @@ class PlotWidget(pg.GraphicsLayoutWidget):
 
         super(PlotWidget, self).__init__(parent, border)
 
+        self.plots = []
+        self.initialize()
+
+    def initialize(self):
         self.plots = [PlotLayout(self)]
         self.addItem(self.plots[0], 0, 0)
         self.plots[0].connect_signals()
 
     def set_data(self, matrices, axis=0, title_prefix='Spectrum [', title_postfix=']'):
 
-        # TODO delete previous data
+        self.clear_plots()
 
         n = len(matrices)
 
@@ -48,6 +52,15 @@ class PlotWidget(pg.GraphicsLayoutWidget):
 
     def get_plotted_data(self):
         return [p.plotted_data for p in self.plots]
+
+    def clear_plots(self):
+        for plot in self.plots:
+            plot.clear()
+
+        self.ci.clear()
+        # map(self.removeItem, self.plots)
+        self.plots = []
+        self.initialize()
 
 
 class PlotLayout(pg.GraphicsLayout):
