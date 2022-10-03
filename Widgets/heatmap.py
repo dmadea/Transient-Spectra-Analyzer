@@ -27,11 +27,23 @@ class HeatMapWidget(pg.GraphicsLayoutWidget):
         self.addItem(self.heatmaps[0], 0, 0)
         self.heatmaps[0].connect_signals()
 
-    def set_heatmaps(self, matrices, center_lines=True):
-
-        self.clear_plots()
+    def set_heatmaps(self, matrices, center_lines=True, keep_ranges=False):
 
         n = len(matrices)
+
+        if keep_ranges:
+            assert len(self.heatmaps) == n
+
+            x_ranges = []
+            y_ranges = []
+            z_ranges = []
+
+            for h in self.heatmaps:
+                x_ranges.append(h.get_x_range())
+                y_ranges.append(h.get_y_range())
+                z_ranges.append(h.get_z_range())
+
+        self.clear_plots()
 
         if n > 1:
             self.heatmaps += [Heatmap(self) for i in range(n - 1)]
@@ -48,8 +60,14 @@ class HeatMapWidget(pg.GraphicsLayoutWidget):
                 self.addItem(h, r, c)
                 h.connect_signals()
 
-        for h, m in zip(self.heatmaps, matrices):
-            h.set_matrix(m.D, m.times, m.wavelengths, center_lines=center_lines)
+        for i, (h, m) in enumerate(zip(self.heatmaps, matrices)):
+
+            x_rng = x_ranges[i] if keep_ranges else None
+            y_rng = y_ranges[i] if keep_ranges else None
+            z_rng = y_ranges[i] if keep_ranges else None
+
+            h.set_matrix(m.D, m.times, m.wavelengths, center_lines=center_lines, x_range=x_rng,
+                         y_range=y_rng, z_range=z_rng)
             h.heatmap_pi.setTitle(m.get_filename(), size=Settings.plot_title_font_size)
 
     def get_positions(self):
@@ -84,6 +102,9 @@ class HeatMapWidget(pg.GraphicsLayoutWidget):
         self.heatmaps = []
         self.initialize()
 
+    def autoscale(self):
+        for h in self.heatmaps:
+            h.heatmap_pi.autoBtnClicked()
 
 def inv_transform_value_pos(value, arr=None):
     """works for scalar and arrays"""
@@ -181,9 +202,10 @@ class Heatmap(pg.GraphicsLayout):
         label_format = f'{{value:.{Settings.coordinates_sig_figures}g}}'
 
         self.vline = self.heatmap_pi.addLine(0, 0, 100, angle=90, movable=True, pen=pg.mkPen((0, 0, 0)), label=label_format,
-                                             labelOpts=dict(rotateAxis=(1, 0), color=Settings.infinite_line_label_color))
+                                             labelOpts=dict(rotateAxis=(1, 0), position=Settings.heatmap_line_label_position,
+                                                    color=Settings.infinite_line_label_color))
         self.hline = self.heatmap_pi.addLine(0, 0, 100, angle=0, movable=True, pen=pg.mkPen((0, 0, 0)), label=label_format,
-                                             labelOpts=dict(color=Settings.infinite_line_label_color))
+                                             labelOpts=dict(color=Settings.infinite_line_label_color, position=Settings.heatmap_line_label_position))
 
         # # signals
         # self.levels_changed = self.hist.sigLevelsChanged
@@ -220,10 +242,16 @@ class Heatmap(pg.GraphicsLayout):
     def set_y_range(self, y0, y1):
         self.heatmap_pi.getViewBox().setYRange(y0, y1, padding=0)
 
+    def get_x_range(self):
+        return self.heatmap_pi.getViewBox().getXRange()
+
+    def get_y_range(self):
+        return self.heatmap_pi.getViewBox().getYRange()
+
     def get_z_range(self):
         return self.hist.getLevels()
 
-    def set_matrix(self, matrix, arr_ax0, arr_ax1, gradient=None, t_range=None, w_range=None, z_range=None,
+    def set_matrix(self, matrix, arr_ax0, arr_ax1, gradient=None, y_range=None, x_range=None, z_range=None,
                    center_lines=True):
         """
 
@@ -231,8 +259,8 @@ class Heatmap(pg.GraphicsLayout):
         :param arr_ax0:
         :param arr_ax1:
         :param gradient:
-        :param t_range:  tuple '[min, max]' or None
-        :param w_range:  tuple '[min, max]' or None
+        :param y_range:  tuple '[min, max]' or None
+        :param x_range:  tuple '[min, max]' or None
         :param z_range:  tuple '[min, max]' or None
         :return:
         """
@@ -272,8 +300,8 @@ class Heatmap(pg.GraphicsLayout):
         self.heatmap_pi.getViewBox().setLimits(xMin=arr_ax1[0], xMax=arr_ax1[-1],
                                                yMin=arr_ax0[0], yMax=arr_ax0[-1])
 
-        self.set_xy_range(w_range[0] if w_range else arr_ax1[0], w_range[1] if w_range else arr_ax1[-1],
-                          t_range[0] if t_range else arr_ax0[0], t_range[1] if t_range else arr_ax0[-1])
+        self.set_xy_range(x_range[0] if x_range else arr_ax1[0], x_range[1] if x_range else arr_ax1[-1],
+                          y_range[0] if y_range else arr_ax0[0], y_range[1] if y_range else arr_ax0[-1])
 
         arr_ax0_diff = np.abs(arr_ax0[1:] - arr_ax0[:-1])
         arr_ax1_diff = np.abs(arr_ax1[1:] - arr_ax1[:-1])

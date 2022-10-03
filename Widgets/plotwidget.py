@@ -75,7 +75,8 @@ class PlotLayout(pg.GraphicsLayout):
         label_format = f'{{value:.{Settings.coordinates_sig_figures}g}}'
 
         self.vline = self.plot_item.addLine(angle=90, movable=True, pen=pg.mkPen((0, 0, 0)), label=label_format,
-                                            labelOpts=dict(rotateAxis=(1, 0), color=Settings.infinite_line_label_color))
+                                            labelOpts=dict(rotateAxis=(1, 0), color=Settings.infinite_line_label_color,
+                                                           position=Settings.heatmap_line_label_position))
         self.plot_item.addItem(self.vline, ignoreBounds=True)
 
         self.plot_item.showAxis('top', show=True)

@@ -140,39 +140,39 @@ class MainDisplayDockArea(DockArea):
         self.data_panel = DataPanel()
         self.settings_dock = Dock("Properties", widget=self.data_panel, size=(1, 1))
 
-        self.data_panel.txb_t0.focus_lost.connect(self.update_range)
-        self.data_panel.txb_t0.returnPressed.connect(self.update_range)
-        self.data_panel.txb_t1.focus_lost.connect(self.update_range)
-        self.data_panel.txb_t1.returnPressed.connect(self.update_range)
-        self.data_panel.txb_w0.focus_lost.connect(self.update_range)
-        self.data_panel.txb_w0.returnPressed.connect(self.update_range)
-        self.data_panel.txb_w1.focus_lost.connect(self.update_range)
-        self.data_panel.txb_w1.returnPressed.connect(self.update_range)
-        self.data_panel.txb_z0.focus_lost.connect(self.update_levels)
-        self.data_panel.txb_z0.returnPressed.connect(self.update_levels)
-        self.data_panel.txb_z1.focus_lost.connect(self.update_levels)
-        self.data_panel.txb_z1.returnPressed.connect(self.update_levels)
-
-        self.data_panel.txb_n_spectra.setText(str(self.n_spectra))
-
-        # self.data_panel.btn_crop_matrix.clicked.connect(self.btn_crop_matrix_clicked)
-        # self.data_panel.btn_restore_matrix.clicked.connect(self.btn_restore_matrix_clicked)
-        self.data_panel.txb_n_spectra.focus_lost.connect(self.txb_n_spectra_focus_lost)
-        self.data_panel.txb_n_spectra.returnPressed.connect(self.txb_n_spectra_focus_lost)
-        self.data_panel.btn_redraw_spectra.clicked.connect(self.update_spectra)
-
-        self.data_panel.txb_SVD_filter.focus_lost.connect(self.txb_SVD_filter_changed)
-        self.data_panel.txb_SVD_filter.returnPressed.connect(self.txb_SVD_filter_changed)
-        self.data_panel.cb_SVD_filter.toggled.connect(self.cb_SVD_filter_toggled)
-
-        self.data_panel.txb_ICA_filter.focus_lost.connect(self.txb_ICA_filter_changed)
-        self.data_panel.txb_ICA_filter.returnPressed.connect(self.txb_ICA_filter_changed)
-        self.data_panel.cb_ICA_filter.toggled.connect(self.cb_ICA_filter_toggled)
-
-        # self.data_panel.btn_center_levels.clicked.connect(self.btn_center_levels_clicked)
-        self.data_panel.txb_SVD_filter.setText("1-5")
-        self.data_panel.btn_fit_chirp_params.clicked.connect(self.fit_chirp_params)
-        self.data_panel.cb_show_chirp_points.toggled.connect(self.cb_show_roi_checkstate_changed)
+        # self.data_panel.txb_t0.focus_lost.connect(self.update_range)
+        # self.data_panel.txb_t0.returnPressed.connect(self.update_range)
+        # self.data_panel.txb_t1.focus_lost.connect(self.update_range)
+        # self.data_panel.txb_t1.returnPressed.connect(self.update_range)
+        # self.data_panel.txb_w0.focus_lost.connect(self.update_range)
+        # self.data_panel.txb_w0.returnPressed.connect(self.update_range)
+        # self.data_panel.txb_w1.focus_lost.connect(self.update_range)
+        # self.data_panel.txb_w1.returnPressed.connect(self.update_range)
+        # self.data_panel.txb_z0.focus_lost.connect(self.update_levels)
+        # self.data_panel.txb_z0.returnPressed.connect(self.update_levels)
+        # self.data_panel.txb_z1.focus_lost.connect(self.update_levels)
+        # self.data_panel.txb_z1.returnPressed.connect(self.update_levels)
+        #
+        # self.data_panel.txb_n_spectra.setText(str(self.n_spectra))
+        #
+        # # self.data_panel.btn_crop_matrix.clicked.connect(self.btn_crop_matrix_clicked)
+        # # self.data_panel.btn_restore_matrix.clicked.connect(self.btn_restore_matrix_clicked)
+        # self.data_panel.txb_n_spectra.focus_lost.connect(self.txb_n_spectra_focus_lost)
+        # self.data_panel.txb_n_spectra.returnPressed.connect(self.txb_n_spectra_focus_lost)
+        # self.data_panel.btn_redraw_spectra.clicked.connect(self.update_spectra)
+        #
+        # self.data_panel.txb_SVD_filter.focus_lost.connect(self.txb_SVD_filter_changed)
+        # self.data_panel.txb_SVD_filter.returnPressed.connect(self.txb_SVD_filter_changed)
+        # self.data_panel.cb_SVD_filter.toggled.connect(self.cb_SVD_filter_toggled)
+        #
+        # self.data_panel.txb_ICA_filter.focus_lost.connect(self.txb_ICA_filter_changed)
+        # self.data_panel.txb_ICA_filter.returnPressed.connect(self.txb_ICA_filter_changed)
+        # self.data_panel.cb_ICA_filter.toggled.connect(self.cb_ICA_filter_toggled)
+        #
+        # # self.data_panel.btn_center_levels.clicked.connect(self.btn_center_levels_clicked)
+        # self.data_panel.txb_SVD_filter.setText("1-5")
+        # self.data_panel.btn_fit_chirp_params.clicked.connect(self.fit_chirp_params)
+        # self.data_panel.cb_show_chirp_points.toggled.connect(self.cb_show_roi_checkstate_changed)
 
         # addition of docs
 
@@ -182,46 +182,8 @@ class MainDisplayDockArea(DockArea):
         self.addDock(self.trace_dock, 'right', self.spectrum_dock)
         self.addDock(self.settings_dock, 'left', self.heat_map_dock)
 
-        # def update_v_lines():
-        #     pass
-        #     # time_pos = self.heat_map_hline.pos()
-        #     # wl_pos = self.heat_map_vline.pos()
-        #     #
-        #     # new_pos = self.heat_map_plot.transform_wl_pos(wl_pos[0])
-        #     #
-        #     # self.spectrum_vline.setPos(new_pos)
-        #     # self.spectra_vline.setPos(new_pos)
-        #     # self.trace_vline.setPos(self.heat_map_plot.transform_t_pos(time_pos[1]))
-        #
-        # def update_heat_lines():
-        #     pass
-        #     # time_pos = self.trace_vline.pos()
-        #     # wl_pos = self.spectrum_vline.pos()
-        #     #
-        #     # self.heat_map_hline.setPos(self.heat_map_plot.inv_transform_t_pos(time_pos[0]))
-        #     # # self.heat_map_vline.setPos(wl_pos[0])
-        #     # self.heat_map_vline.setPos(self.heat_map_plot.inv_transform_wl_pos(wl_pos[0]))
-        #
-        #
-        # def update_heat_lines_spectra():
-        #     pass
-        # #     wl_pos = self.spectra_vline.pos()
-        # #     self.heat_map_vline.setPos(self.heat_map_plot.inv_transform_wl_pos(wl_pos[0]))
-        #
-        # self.heat_map_vline.sigPositionChanged.connect(update_v_lines)
-        # self.heat_map_hline.sigPositionChanged.connect(update_v_lines)
-        # self.spectrum_vline.sigPositionChanged.connect(update_heat_lines)
-        # self.spectra_vline.sigPositionChanged.connect(update_heat_lines_spectra)
-        # self.trace_vline.sigPositionChanged.connect(update_heat_lines)
-
-        # self.heat_map_vline.sigPositionChanged.connect(self.update_trace_and_spectrum)
-        # self.heat_map_hline.sigPositionChanged.connect(self.update_trace_and_spectrum)
-        # self.spectrum_vline.sigPositionChanged.connect(self.update_trace_and_spectrum)
-        # self.spectra_vline.sigPositionChanged.connect(self.update_trace_and_spectrum)
-        # self.trace_vline.sigPositionChanged.connect(self.update_trace_and_spectrum)
-
         # self.roi = None
-        # self.chirp = self.heat_map_plot.heat_map_plot.heatmap_pi.plot([])
+        # self.chirp = self.heat_map_widget.heat_map_plot.heatmap_pi.plot([])
 
         # self.heat_map_vline.sigPositionChangeFinished.connect(self.update_trace_and_spectrum)
         # self.heat_map_hline.sigPositionChangeFinished.connect(self.update_trace_and_spectrum)
@@ -254,16 +216,19 @@ class MainDisplayDockArea(DockArea):
 
     def plot_chirp_points(self):
         if self.roi is None:
-            t_mid = (self.matrix.times[-1] - self.matrix.times[0]) / 2
-            n_w = self.matrix.wavelengths.shape[0] - 1
-            wls = self.matrix.wavelengths[int(n_w / 5)], self.matrix.wavelengths[int(2 * n_w / 5)], \
-                  self.matrix.wavelengths[int(3 * n_w / 5)], self.matrix.wavelengths[int(4 * n_w / 5)]
+
+            matrix = self.matrices[0]
+
+            t_mid = (matrix.times[-1] - matrix.times[0]) / 2
+            n_w = matrix.wavelengths.shape[0] - 1
+            wls = matrix.wavelengths[int(n_w / 5)], matrix.wavelengths[int(2 * n_w / 5)], \
+                  matrix.wavelengths[int(3 * n_w / 5)], matrix.wavelengths[int(4 * n_w / 5)]
             self.roi = pg.PolyLineROI([[wls[0], t_mid], [wls[1], t_mid], [wls[2], t_mid], [wls[3], t_mid]], closed=False,
                            handlePen=pg.mkPen(color=(0, 255, 0), width=5),
                            hoverPen=pg.mkPen(color=(0, 150, 0), width=2),
                            handleHoverPen=pg.mkPen(color=(0, 150, 0), width=3))
 
-            self.heat_map_widget.heat_map_plot.addItem(self.roi)
+            self.heat_map_widget.heatmaps[0].addItem(self.roi)
 
     def add_chirp(self, wls,  mu):  # plots the chirp
         pen = pg.mkPen(color=QColor('black'), width=2)
@@ -735,6 +700,16 @@ class MainDisplayDockArea(DockArea):
 
         self.heatmap_line_lock = False
 
+    # def set_txb_ranges(self, index, w0=None, w1=None, t0=None, t1=None):
+    #     if w0 is not None:
+    #         self.data_panel.txb_w0.setText(f'{w0:.4g}')
+    #     if w1 is not None:
+    #         self.data_panel.txb_w1.setText(f'{w1:.4g}')
+    #     if t0 is not None:
+    #         self.data_panel.txb_t0.setText(f'{t0:.4g}')
+    #     if t1 is not None:
+    #         self.data_panel.txb_t1.setText(f'{t1:.4g}')
+
     def heatmap_range_changed(self, sender_heatmap, sender_vb, ranges, changes):
         """ params: sender heatmap, sender viewbox, [[x0, x1], [y0, y1]], [change in x, change in y]"""
 
@@ -746,8 +721,6 @@ class MainDisplayDockArea(DockArea):
         x0, x1, y0, y1 = ranges[0][0], ranges[0][1], ranges[1][0], ranges[1][1]
         change_x, change_y = changes
 
-        # self.set_txb_ranges(w0, w1, t0, t1)
-
         i = self.heat_map_widget.heatmaps.index(sender_heatmap)
 
         if change_x:
@@ -755,22 +728,26 @@ class MainDisplayDockArea(DockArea):
             x1_tr = sender_heatmap.transform_wl_pos(x1)
 
             self.spectrum_widget.plots[i].set_x_range(x0_tr, x1_tr)
+            self.data_panel.set_range(i, x0=x0_tr, x1=x1_tr)
 
             if self.same_dimension in (1, 2):
-                for h, spectrum in zip(self.heat_map_widget.heatmaps, self.spectrum_widget.plots):
+                for i, h in enumerate(self.heat_map_widget.heatmaps):
                     h.set_x_range(x0, x1)
-                    spectrum.set_x_range(x0_tr, x1_tr)
+                    self.spectrum_widget.plots[i].set_x_range(x0_tr, x1_tr)
+                    self.data_panel.set_range(i, x0=x0_tr, x1=x1_tr)
 
         if change_y:
             y0_tr = sender_heatmap.transform_t_pos(y0)
             y1_tr = sender_heatmap.transform_t_pos(y1)
 
             self.trace_widget.plots[i].set_x_range(y0_tr, y1_tr)
+            self.data_panel.set_range(i, y0=y0_tr, y1=y1_tr)
 
             if self.same_dimension in (0, 2):
-                for h, trace in zip(self.heat_map_widget.heatmaps, self.trace_widget.plots):
+                for i, h in enumerate(self.heat_map_widget.heatmaps):
                     h.set_y_range(y0, y1)
-                    trace.set_x_range(y0_tr, y1_tr)
+                    self.trace_widget.plots[i].set_x_range(y0_tr, y1_tr)
+                    self.data_panel.set_range(i, y0=y0_tr, y1=y1_tr)
 
         # # keep all the v and h lines inside the visible area
         # untransformed positions
@@ -823,7 +800,7 @@ class MainDisplayDockArea(DockArea):
         h = self.heat_map_widget.heatmaps[i]
         h.set_xpos(h.inv_transform_wl_pos(x_pos))
 
-    def plot_matrices(self, matrices, center_lines=True, keep_range=False, keep_fits=False):
+    def plot_matrices(self, matrices, center_lines=True, keep_ranges=False, keep_fits=False):
 
         # w_range, t_range = self.heat_map_widget.heat_map_plot.getViewBox().viewRange()
         # z_range = self.heat_map_widget.get_z_range()
@@ -882,7 +859,7 @@ class MainDisplayDockArea(DockArea):
         #
         # self.data_panel.lbl_cr_matrix_size.setText(f'{matrix.D.shape[0]} x {matrix.D.shape[1]}')
 
-        self.heat_map_widget.set_heatmaps(self.matrices, center_lines=center_lines)
+        self.heat_map_widget.set_heatmaps(self.matrices, center_lines=center_lines, keep_ranges=keep_ranges)
 
         self.spectrum_widget.set_data(self.matrices, axis=1, title_prefix='Spectrum [')
         self.trace_widget.set_data(self.matrices, axis=0, title_prefix='Trace [')
@@ -916,43 +893,11 @@ class MainDisplayDockArea(DockArea):
             self.heatmap_v_line_changed(h)
             self.heatmap_h_line_changed(h)
 
+        self.data_panel.initialize(self.matrices)
+
+        self.heat_map_widget.autoscale()
         self.update_trace_and_spectrum()
 
-        # self.heat_map_widget.set_matrix(matrix.D, matrix.times, matrix.wavelengths, gradient=HeatMapWidget.sym_grad,
-        #                                 t_range=t_range if keep_range else None,
-        #                                 w_range=w_range if keep_range else None,
-        #                                 z_range=z_range if keep_range else None)
-
-        # self.spectrum.getViewBox().setLimits(xMin=matrix.wavelengths[0], xMax=matrix.wavelengths[-1],
-        #                                      yMin=self.matrix_min, yMax=self.matrix_max)
-        #
-        # self.spectra_plot.getViewBox().setLimits(xMin=matrix.wavelengths[0], xMax=matrix.wavelengths[-1],
-        #                                      yMin=self.matrix_min, yMax=self.matrix_max)
-        #
-        # self.trace.getViewBox().setLimits(xMin=matrix.times[0], xMax=matrix.times[-1],
-        #                                   yMin=self.matrix_min, yMax=self.matrix_max)
-        #
-        # self.spectrum_vline.setBounds([matrix.wavelengths[0], matrix.wavelengths[-1]])
-        # self.spectra_vline.setBounds([matrix.wavelengths[0], matrix.wavelengths[-1]])
-        # self.trace_vline.setBounds([matrix.times[0], matrix.times[-1]])
-        # self.heat_map_vline.setBounds([matrix.wavelengths[0], matrix.wavelengths[-1]])
-        # self.heat_map_hline.setBounds([matrix.times[0], matrix.times[-1]])
-        #
-        # # autoscale heatmap
-        # # self.heat_map_plot.autoBtnClicked()
-        #
-        # # setupline in the middle of matrix
-        # if center_lines:
-        #     self.heat_map_vline.setPos((matrix.wavelengths[-1] + matrix.wavelengths[0]) / 2)
-        #     self.heat_map_hline.setPos((matrix.times[-1] + matrix.times[0]) / 2)
-        #
-        # # update their positions
-        # self.heat_map_hline.sigPositionChanged.emit(object)
-        #
-        # # self.hist.gradient.restoreState(self.sym_grad)
-        #
-        # self.init_trace_and_spectrum()
-        #
         # if keep_fits:
         #     self.init_fit_trace_sp()
         #

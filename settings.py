@@ -36,6 +36,7 @@ class Settings(object):
     coordinates_sig_figures = 4
     infinite_line_label_color = (100, 100, 100)
     plot_title_font_size = '8pt'
+    heatmap_line_label_position = 0.1
 
     # recent projects filepaths
 
