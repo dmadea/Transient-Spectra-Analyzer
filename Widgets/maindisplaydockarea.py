@@ -424,43 +424,43 @@ class MainDisplayDockArea(DockArea):
         if t1 is not None:
             self.data_panel.txb_t1.setText(f'{t1:.4g}')
 
-    def heat_map_range_changed(self, vb, range):
-        if self.heatmap_range_lock or self.matrix is None:
-            return
-        self.heatmap_range_lock = True
-
-        w0, w1, t0, t1 = range[0][0], range[0][1], range[1][0], range[1][1]
-
-        t0 = self.heat_map_widget.transform_t_pos(t0)  # transform t positions
-        t1 = self.heat_map_widget.transform_t_pos(t1)
-
-        w0 = self.heat_map_widget.transform_wl_pos(w0)  # transform t positions
-        w1 = self.heat_map_widget.transform_wl_pos(w1)
-
-        self.set_txb_ranges(w0, w1, t0, t1)
-
-        self.spectrum.getViewBox().setXRange(w0, w1, padding=0)
-        self.trace.getViewBox().setXRange(t0, t1, padding=0)
-
-        # keep all the v and h lines inside the visible area
-
-        v_pos = self.heat_map_vline.pos()[0]
-        h_pos = self.heat_map_hline.pos()[1]
-
-        if not range[0][0] <= v_pos <= range[0][1]:
-            self.heat_map_vline.setPos(range[0][0] if np.abs(v_pos - range[0][0]) < np.abs(v_pos - range[0][1]) else range[0][1])
-
-        if not range[1][0] <= h_pos <= range[1][1]:
-            self.heat_map_hline.setPos(range[1][0] if np.abs(h_pos - range[1][0]) < np.abs(h_pos - range[1][1]) else range[1][1])
-
-        it0, it1 = find_nearest_idx(self.matrix.times, t0), find_nearest_idx(self.matrix.times, t1) + 1
-        iw0, iw1 = find_nearest_idx(self.matrix.wavelengths, w0), find_nearest_idx(self.matrix.wavelengths, w1) + 1
-
-        self.selected_range_idxs = (it0, it1, iw0, iw1)
-
-        self.data_panel.lbl_visible_area_msize.setText(f'{it1 - it0} x {iw1 - iw0}')
-
-        self.heatmap_range_lock = False
+    # def heat_map_range_changed(self, vb, range):
+    #     if self.heatmap_range_lock or self.matrix is None:
+    #         return
+    #     self.heatmap_range_lock = True
+    #
+    #     w0, w1, t0, t1 = range[0][0], range[0][1], range[1][0], range[1][1]
+    #
+    #     t0 = self.heat_map_widget.transform_t_pos(t0)  # transform t positions
+    #     t1 = self.heat_map_widget.transform_t_pos(t1)
+    #
+    #     w0 = self.heat_map_widget.transform_wl_pos(w0)  # transform t positions
+    #     w1 = self.heat_map_widget.transform_wl_pos(w1)
+    #
+    #     self.set_txb_ranges(w0, w1, t0, t1)
+    #
+    #     self.spectrum.getViewBox().setXRange(w0, w1, padding=0)
+    #     self.trace.getViewBox().setXRange(t0, t1, padding=0)
+    #
+    #     # keep all the v and h lines inside the visible area
+    #
+    #     v_pos = self.heat_map_vline.pos()[0]
+    #     h_pos = self.heat_map_hline.pos()[1]
+    #
+    #     if not range[0][0] <= v_pos <= range[0][1]:
+    #         self.heat_map_vline.setPos(range[0][0] if np.abs(v_pos - range[0][0]) < np.abs(v_pos - range[0][1]) else range[0][1])
+    #
+    #     if not range[1][0] <= h_pos <= range[1][1]:
+    #         self.heat_map_hline.setPos(range[1][0] if np.abs(h_pos - range[1][0]) < np.abs(h_pos - range[1][1]) else range[1][1])
+    #
+    #     it0, it1 = find_nearest_idx(self.matrix.times, t0), find_nearest_idx(self.matrix.times, t1) + 1
+    #     iw0, iw1 = find_nearest_idx(self.matrix.wavelengths, w0), find_nearest_idx(self.matrix.wavelengths, w1) + 1
+    #
+    #     self.selected_range_idxs = (it0, it1, iw0, iw1)
+    #
+    #     self.data_panel.lbl_visible_area_msize.setText(f'{it1 - it0} x {iw1 - iw0}')
+    #
+    #     self.heatmap_range_lock = False
 
     def heat_map_levels_changed(self, hist):
         z_levels = self.heat_map_widget.get_z_range()
@@ -897,6 +897,10 @@ class MainDisplayDockArea(DockArea):
 
         self.heat_map_widget.autoscale()
         self.update_trace_and_spectrum()
+
+        self.heat_map_widget.set_lines_color()
+        self.spectrum_widget.set_lines_color()
+        self.trace_widget.set_lines_color()
 
         # if keep_fits:
         #     self.init_fit_trace_sp()

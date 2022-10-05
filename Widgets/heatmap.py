@@ -12,6 +12,8 @@ from settings import Settings
 
 from typing import Callable
 
+from pyqtgraph.functions import mkBrush, mkColor
+
 
 class HeatMapWidget(pg.GraphicsLayoutWidget):
 
@@ -96,6 +98,7 @@ class HeatMapWidget(pg.GraphicsLayoutWidget):
 
     def clear_plots(self):
         for h in self.heatmaps:
+            h.disconnect_signals()
             h.clear()
         self.ci.clear()
         # map(self.removeItem, self.heatmaps)
@@ -105,6 +108,14 @@ class HeatMapWidget(pg.GraphicsLayoutWidget):
     def autoscale(self):
         for h in self.heatmaps:
             h.heatmap_pi.autoBtnClicked()
+
+    def set_lines_color(self):
+        for h in self.heatmaps:
+            h.vline.label.setColor(Settings.infinite_line_label_color)
+            h.hline.label.setColor(Settings.infinite_line_label_color)
+
+            h.vline.label.color = mkColor(Settings.infinite_line_label_color)
+            h.hline.label.color = mkColor(Settings.infinite_line_label_color)
 
 def inv_transform_value_pos(value, arr=None):
     """works for scalar and arrays"""
@@ -203,17 +214,29 @@ class Heatmap(pg.GraphicsLayout):
 
         self.vline = self.heatmap_pi.addLine(0, 0, 100, angle=90, movable=True, pen=pg.mkPen((0, 0, 0)), label=label_format,
                                              labelOpts=dict(rotateAxis=(1, 0), position=Settings.heatmap_line_label_position,
-                                                    color=Settings.infinite_line_label_color))
+                                                            color=mkColor(Settings.infinite_line_label_color)))
         self.hline = self.heatmap_pi.addLine(0, 0, 100, angle=0, movable=True, pen=pg.mkPen((0, 0, 0)), label=label_format,
-                                             labelOpts=dict(color=Settings.infinite_line_label_color, position=Settings.heatmap_line_label_position))
+                                             labelOpts=dict(position=Settings.heatmap_line_label_position,
+                                                            color=mkColor(Settings.infinite_line_label_color)))
 
-        # # signals
-        # self.levels_changed = self.hist.sigLevelsChanged
-        self.proxy = None
+        brush = mkBrush(color=(0, 0, 0, Settings.infinite_line_label_brush_alpha))
+
+        # self.vline.label.fill = brush
+        # self.hline.label.fill = brush
+
+        self.vline.label.setColor(Settings.infinite_line_label_color)
+        self.hline.label.setColor(Settings.infinite_line_label_color)
+
 
     def connect_signals(self):
-        self.proxy = pg.SignalProxy(self.heatmap_pi.scene().sigMouseMoved, rateLimit=60, slot=self.mouse_moved)
+        self.heatmap_pi.scene().sigMouseMoved.connect(self.mouse_moved)
         self.hist.sigLevelsChanged.connect(self.levels_changed)
+        self.heatmap_pi.scene().sigMouseClicked.connect(self.mouse_clicked)
+
+    def disconnect_signals(self):
+        self.heatmap_pi.scene().sigMouseMoved.disconnect(self.mouse_moved)
+        self.heatmap_pi.scene().sigMouseClicked.disconnect(self.mouse_clicked)
+        self.hist.sigLevelsChanged.disconnect(self.levels_changed)
 
     def levels_changed(self, lut_item):
         if self.levels_changing:
@@ -223,7 +246,7 @@ class Heatmap(pg.GraphicsLayout):
 
         if self.keep_levels_centered:
             z0, z1 = self.hist.getLevels()
-            self.hist.setLevels(-np.abs(z1), z1) # only take care of the second level
+            self.hist.setLevels(-np.abs(z1), z1)  # only take care of the second level
 
         self.levels_changing = False
 
@@ -353,8 +376,7 @@ class Heatmap(pg.GraphicsLayout):
 
         self.heatmap_pi.getViewBox().setRange(xRange=[x0, x1], yRange=[y0, y1], padding=padding)
 
-    def mouse_moved(self, ev):
-        pos = ev[0]
+    def mouse_moved(self, pos):
         in_scene = self.heatmap_pi.sceneBoundingRect().contains(pos)
         on_vline = self.vline.sceneBoundingRect().contains(pos)
         on_hline = self.hline.sceneBoundingRect().contains(pos) or \
@@ -373,6 +395,13 @@ class Heatmap(pg.GraphicsLayout):
                 self.parentWidget.viewport().setCursor(Qt.CursorShape.OpenHandCursor)
             else:
                 self.parentWidget.viewport().setCursor(Qt.CursorShape.CrossCursor)
+
+    def mouse_clicked(self, ev):
+        if ev.button() == Qt.MouseButton.LeftButton and ev.modifiers() == Qt.KeyboardModifier.ControlModifier:
+            pos = self.heatmap_pi.getViewBox().mapToView(ev.pos())
+
+            self.set_xpos(pos.x())
+            self.set_ypos(pos.y())
 
 
 

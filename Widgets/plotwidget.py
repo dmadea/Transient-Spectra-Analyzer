@@ -4,6 +4,7 @@ from PyQt6.QtCore import Qt
 from settings import Settings
 from typing import Callable
 
+from pyqtgraph.functions import mkBrush, mkColor
 
 class PlotWidget(pg.GraphicsLayoutWidget):
 
@@ -55,12 +56,16 @@ class PlotWidget(pg.GraphicsLayoutWidget):
 
     def clear_plots(self):
         for plot in self.plots:
+            plot.disconnect_signals()
             plot.clear()
 
         self.ci.clear()
-        # map(self.removeItem, self.plots)
         self.plots = []
         self.initialize()
+
+    def set_lines_color(self):
+        for plot in self.plots:
+            plot.vline.label.setColor(mkColor(Settings.infinite_line_label_color))
 
 
 class PlotLayout(pg.GraphicsLayout):
@@ -75,8 +80,12 @@ class PlotLayout(pg.GraphicsLayout):
         label_format = f'{{value:.{Settings.coordinates_sig_figures}g}}'
 
         self.vline = self.plot_item.addLine(angle=90, movable=True, pen=pg.mkPen((0, 0, 0)), label=label_format,
-                                            labelOpts=dict(rotateAxis=(1, 0), color=Settings.infinite_line_label_color,
-                                                           position=Settings.heatmap_line_label_position))
+                                            labelOpts=dict(rotateAxis=(1, 0),
+                                                           position=Settings.heatmap_line_label_position,
+                                                           color=Settings.infinite_line_label_color))
+
+        brush = mkBrush(color=(0, 0, 0, Settings.infinite_line_label_brush_alpha))
+
         self.plot_item.addItem(self.vline, ignoreBounds=True)
 
         self.plot_item.showAxis('top', show=True)
@@ -86,10 +95,8 @@ class PlotLayout(pg.GraphicsLayout):
         self.plot_item.setLabel('bottom', text=xlabel)
         self.plot_item.showGrid(x=True, y=True, alpha=0.1)
 
-        self.proxy = None
-
-        # signals
-        # self.range_changed = self.heatmap_pi.getViewBox().sigRangeChanged
+        # self.vline.label.fill = brush
+        self.vline.label.setColor(Settings.infinite_line_label_color)
 
     def set_limits(self, xmin, xmax, ymin, ymax):
         self.plot_item.getViewBox().setLimits(xMin=xmin, xMax=xmax, yMin=ymin, yMax=ymax)
@@ -105,7 +112,12 @@ class PlotLayout(pg.GraphicsLayout):
         self.plot_item.getViewBox().setXRange(x0, x1, padding=0)
 
     def connect_signals(self):
-        self.proxy = pg.SignalProxy(self.plot_item.scene().sigMouseMoved, rateLimit=60, slot=self.mouse_moved)
+        self.plot_item.scene().sigMouseMoved.connect(self.mouse_moved)
+        self.plot_item.scene().sigMouseClicked.connect(self.mouse_clicked)
+
+    def disconnect_signals(self):
+        self.plot_item.scene().sigMouseMoved.disconnect(self.mouse_moved)
+        self.plot_item.scene().sigMouseClicked.disconnect(self.mouse_clicked)
 
     def connect_range_changed(self, fn: Callable):
         self.plot_item.getViewBox().sigRangeChanged.connect(lambda *args: fn(self, *args))
@@ -113,8 +125,7 @@ class PlotLayout(pg.GraphicsLayout):
     def connect_v_line_position_changed(self, fn: Callable):
         self.vline.sigPositionChanged.connect(lambda: fn(self))
 
-    def mouse_moved(self, ev):
-        pos = ev[0]
+    def mouse_moved(self, pos):
         in_scene = self.plot_item.sceneBoundingRect().contains(pos)
         on_vline = self.vline.sceneBoundingRect().contains(pos)
 
@@ -124,5 +135,11 @@ class PlotLayout(pg.GraphicsLayout):
                 self.parentWidget.viewport().setCursor(Qt.CursorShape.SizeHorCursor)
             else:
                 self.parentWidget.viewport().setCursor(Qt.CursorShape.CrossCursor)
+
+    def mouse_clicked(self, ev):
+        if ev.button() == Qt.MouseButton.LeftButton and ev.modifiers() == Qt.KeyboardModifier.ControlModifier:
+            pos = self.plot_item.getViewBox().mapToView(ev.pos())
+
+            self.set_xpos(pos.x())
 
 
