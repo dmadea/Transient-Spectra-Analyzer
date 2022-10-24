@@ -359,6 +359,18 @@ class LFP_matrix(object):
         with open(filepath + '-C.csv', 'w') as f:
             f.write(buff_C)
 
+    def get_TWC(self, axis=1):
+        return np.trapz(self.D, self.wavelengths, axis=axis)
+
+    def plot_TWC(self):
+        twc = self.get_TWC()
+
+        plt.plot(self.times, twc)
+        plt.xlabel("Times / min")
+        plt.title('Total Wavelength Chromatogram')
+        plt.tight_layout()
+        plt.show()
+
     def save_factored_matrix(self, output_dir='.\\', delimiter='\t', encoding='utf8', t0=None, t1=None, w0=None, w1=None):
         if self.filepath is None:
             return

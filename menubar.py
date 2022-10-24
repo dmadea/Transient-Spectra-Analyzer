@@ -1,23 +1,28 @@
 
-from PyQt6.QtWidgets import QMenuBar, QMenu
-from PyQt6.QtGui import QAction
+from PyQt6.QtWidgets import QMenu
+from PyQt6.QtGui import QAction, QActionGroup
+
 
 from user_namespace import copy_plot_to_clipboard, save_fit
 from PyQt6.QtWidgets import *
 
 from Widgets.fitwidget import FitWidget
 
+from Widgets.maindisplaydockarea import CommonDimension
+
 
 class MenuBar(QMenuBar):
 
     MAX_RECENT_FILES = 30
 
-    def __init__(self, parent=None):
+    def __init__(self, parent=None, common_dimension_triggered=None):
         super(MenuBar, self).__init__(parent=parent)
 
         # ---File Menu---
 
         self.file_menu = self.addMenu("&File")
+
+        self.common_dimension_triggered = common_dimension_triggered  # argument is the common dimension
 
         # self.open_project_act = QAction("&Open Project", self)
         # self.open_project_act.setShortcut("Ctrl+O")
@@ -77,17 +82,40 @@ class MenuBar(QMenuBar):
         self.exit_act.triggered.connect(self.parent().close)
         self.file_menu.addAction(self.exit_act)
 
-        # ---Calculations Menu---
-        #
-        # self.calc_menu = self.addMenu("&Calculations")
-        #
-        # self.SVD_act = QAction('&Singular Value Decomposition')
-        # self.SVD_act.triggered.connect(self.parent().perform_SVD)
-        # self.calc_menu.addAction(self.SVD_act)
-        #
-        # self.global_fit_act = QAction('&Global Fit')
-        # self.global_fit_act.triggered.connect(self.parent().open_fit_dialog)
-        # self.calc_menu.addAction(self.global_fit_act)
+        # ---Settings Menu---
+
+        self.dim_menu = self.addMenu("Common Dimension")
+        self.group = QActionGroup(self)
+
+        self.none_act = QAction("None")
+        self.first_act = QAction("First Dimension")
+        self.second_act = QAction("Second Dimension")
+        self.both_act = QAction("Both Dimensions")
+
+        self.dim_menu.addAction(self.none_act)
+        self.dim_menu.addAction(self.first_act)
+        self.dim_menu.addAction(self.second_act)
+        self.dim_menu.addAction(self.both_act)
+
+        self.none_act.triggered.connect(lambda: self.common_dimension_triggered(CommonDimension.Not))
+        self.first_act.triggered.connect(lambda: self.common_dimension_triggered(CommonDimension.First))
+        self.second_act.triggered.connect(lambda: self.common_dimension_triggered(CommonDimension.Second))
+        self.both_act.triggered.connect(lambda: self.common_dimension_triggered(CommonDimension.Both))
+
+        self.none_act.setCheckable(True)
+        self.first_act.setCheckable(True)
+        self.second_act.setCheckable(True)
+        self.both_act.setCheckable(True)
+
+        self.none_act.setChecked(True)
+        # row.setChecked(self.mode == DockDisplayMode.Row)
+        # column.setChecked(self.mode == DockDisplayMode.Column)
+        # second_act.setChecked(self.mode == DockDisplayMode.Matrix)
+
+        self.none_act.setActionGroup(self.group)
+        self.first_act.setActionGroup(self.group)
+        self.second_act.setActionGroup(self.group)
+        self.both_act.setActionGroup(self.group)
 
         # ---About Menu---
 
@@ -99,39 +127,49 @@ class MenuBar(QMenuBar):
 
         # ---- Heat Map Menu
 
-        self.heat_map_menu = self.addMenu("&Heat Map")
-
-        self.heat_map_copy_image = QAction("&Copy to clipboard as image", self)
-        self.heat_map_copy_image.triggered.connect(lambda: copy_plot_to_clipboard('heat_map', 'img'))
-        self.heat_map_menu.addAction(self.heat_map_copy_image)
-
-        self.heat_map_copy_svg = QAction("&Copy to clipboard as SVG", self)
-        self.heat_map_copy_svg.triggered.connect(lambda: copy_plot_to_clipboard('heat_map', 'svg'))
-        self.heat_map_menu.addAction(self.heat_map_copy_svg)
+        # self.heat_map_menu = self.addMenu("&Heat Map")
+        #
+        # self.heat_map_copy_image = QAction("&Copy to clipboard as image", self)
+        # self.heat_map_copy_image.triggered.connect(lambda: copy_plot_to_clipboard('heat_map', 'img'))
+        # self.heat_map_menu.addAction(self.heat_map_copy_image)
+        #
+        # self.heat_map_copy_svg = QAction("&Copy to clipboard as SVG", self)
+        # self.heat_map_copy_svg.triggered.connect(lambda: copy_plot_to_clipboard('heat_map', 'svg'))
+        # self.heat_map_menu.addAction(self.heat_map_copy_svg)
 
         # ---- Trace Menu
 
-        self.trace_menu = self.addMenu("&Trace")
-
-        self.trace_copy_image = QAction("&Copy to clipboard as image", self)
-        self.trace_copy_image.triggered.connect(lambda: copy_plot_to_clipboard('trace', 'img'))
-        self.trace_menu.addAction(self.trace_copy_image)
-
-        self.trace_copy_svg = QAction("&Copy to clipboard as SVG", self)
-        self.trace_copy_svg.triggered.connect(lambda: copy_plot_to_clipboard('trace', 'svg'))
-        self.trace_menu.addAction(self.trace_copy_svg)
+        # self.trace_menu = self.addMenu("&Trace")
+        #
+        # self.trace_copy_image = QAction("&Copy to clipboard as image", self)
+        # self.trace_copy_image.triggered.connect(lambda: copy_plot_to_clipboard('trace', 'img'))
+        # self.trace_menu.addAction(self.trace_copy_image)
+        #
+        # self.trace_copy_svg = QAction("&Copy to clipboard as SVG", self)
+        # self.trace_copy_svg.triggered.connect(lambda: copy_plot_to_clipboard('trace', 'svg'))
+        # self.trace_menu.addAction(self.trace_copy_svg)
 
         # ---- Spectrum Menu
 
-        self.spectrum_menu = self.addMenu("&Spectrum")
+        # self.spectrum_menu = self.addMenu("&Spectrum")
+        #
+        # self.spectrum_copy_image = QAction("&Copy to clipboard as image", self)
+        # self.spectrum_copy_image.triggered.connect(lambda: copy_plot_to_clipboard('spectrum', 'img'))
+        # self.spectrum_menu.addAction(self.spectrum_copy_image)
+        #
+        # self.spectrum_copy_svg = QAction("&Copy to clipboard as SVG", self)
+        # self.spectrum_copy_svg.triggered.connect(lambda: copy_plot_to_clipboard('spectrum', 'svg'))
+        # self.spectrum_menu.addAction(self.spectrum_copy_svg)
 
-        self.spectrum_copy_image = QAction("&Copy to clipboard as image", self)
-        self.spectrum_copy_image.triggered.connect(lambda: copy_plot_to_clipboard('spectrum', 'img'))
-        self.spectrum_menu.addAction(self.spectrum_copy_image)
-
-        self.spectrum_copy_svg = QAction("&Copy to clipboard as SVG", self)
-        self.spectrum_copy_svg.triggered.connect(lambda: copy_plot_to_clipboard('spectrum', 'svg'))
-        self.spectrum_menu.addAction(self.spectrum_copy_svg)
+    def set_common_dimension(self, dim: CommonDimension):
+        if dim == CommonDimension.Not:
+            self.none_act.setChecked(True)
+        elif dim == CommonDimension.First:
+            self.first_act.setChecked(True)
+        elif dim == CommonDimension.Second:
+            self.second_act.setChecked(True)
+        else:
+            self.both_act.setChecked(True)
 
     def open_recent_file(self):
         if self.sender():

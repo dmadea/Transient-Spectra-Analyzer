@@ -5,8 +5,7 @@ from pyqtgraphmodif.StringAxis import StringAxis
 from misc import find_nearest_idx
 from PyQt6.QtCore import Qt
 
-from functools import reduce
-import operator
+
 
 from settings import Settings
 
@@ -14,33 +13,29 @@ from typing import Callable
 
 from pyqtgraph.functions import mkBrush, mkColor
 
+from pyqtgraphmodif.infinite_line_modif import InfiniteLine
+from Widgets.genericplotwidget import GenericPlotWidget
 
-class HeatMapWidget(pg.GraphicsLayoutWidget):
 
-    def __init__(self, parent=None, border=None):
-
-        super(HeatMapWidget, self).__init__(parent, border)
-
-        self.heatmaps = []
-        self.initialize()
+class HeatMapWidget(GenericPlotWidget):
 
     def initialize(self):
-        self.heatmaps = [Heatmap(self, title='')]
-        self.addItem(self.heatmaps[0], 0, 0)
-        self.heatmaps[0].connect_signals()
+        self.plots = [Heatmap(self, title='')]
+        self.addItem(self.plots[0], 0, 0)
+        self.plots[0].connect_signals()
 
     def set_heatmaps(self, matrices, center_lines=True, keep_ranges=False):
 
         n = len(matrices)
 
         if keep_ranges:
-            assert len(self.heatmaps) == n
+            assert len(self.plots) == n
 
             x_ranges = []
             y_ranges = []
             z_ranges = []
 
-            for h in self.heatmaps:
+            for h in self.plots:
                 x_ranges.append(h.get_x_range())
                 y_ranges.append(h.get_y_range())
                 z_ranges.append(h.get_z_range())
@@ -48,21 +43,16 @@ class HeatMapWidget(pg.GraphicsLayoutWidget):
         self.clear_plots()
 
         if n > 1:
-            self.heatmaps += [Heatmap(self) for i in range(n - 1)]
+            self.plots += [Heatmap(self) for i in range(n - 1)]
 
-            # rows = n // 2
-            # half = list(range(rows))
-            # row_idxs = reduce(operator.add, [[i] * rows for i in range(rows)])
-            # cols_idxs = half * rows
-            # idxs = list(zip(row_idxs, cols_idxs))
 
-            idxs = list(zip([0] * n, list(range(n))))
+            idxs = self.get_mode_idxs(self.default_mode, n)
 
-            for h, (r, c) in zip(self.heatmaps[1:], idxs[1:]):
+            for h, (r, c) in zip(self.plots[1:], idxs[1:]):
                 self.addItem(h, r, c)
                 h.connect_signals()
 
-        for i, (h, m) in enumerate(zip(self.heatmaps, matrices)):
+        for i, (h, m) in enumerate(zip(self.plots, matrices)):
 
             x_rng = x_ranges[i] if keep_ranges else None
             y_rng = y_ranges[i] if keep_ranges else None
@@ -76,7 +66,7 @@ class HeatMapWidget(pg.GraphicsLayoutWidget):
         y_positions = []
         x_positions = []
 
-        for h in self.heatmaps:
+        for h in self.plots:
             y_pos = h.get_ypos()
             x_pos = h.get_xpos()
             y_positions.append(h.transform_t_pos(y_pos))
@@ -85,45 +75,45 @@ class HeatMapWidget(pg.GraphicsLayoutWidget):
         return x_positions, y_positions
 
     def connect_v_lines_position_changed(self, fn: Callable):
-        for h in self.heatmaps:
+        for h in self.plots:
             h.connect_v_line_position_changed(fn)
 
     def connect_h_lines_position_changed(self, fn: Callable):
-        for h in self.heatmaps:
+        for h in self.plots:
             h.connect_h_line_position_changed(fn)
 
     def connect_ranges_changed(self, fn: Callable):
-        for h in self.heatmaps:
+        for h in self.plots:
             h.connect_range_changed(fn)
 
     def clear_plots(self):
-        for h in self.heatmaps:
+        for h in self.plots:
             h.disconnect_signals()
             h.clear()
         self.ci.clear()
-        # map(self.removeItem, self.heatmaps)
-        self.heatmaps = []
+        self.plots = []
         self.initialize()
 
     def autoscale(self):
-        for h in self.heatmaps:
+        for h in self.plots:
             h.heatmap_pi.autoBtnClicked()
 
     def set_lines_color(self):
-        for h in self.heatmaps:
+        for h in self.plots:
             h.vline.label.setColor(Settings.infinite_line_label_color)
             h.hline.label.setColor(Settings.infinite_line_label_color)
 
             h.vline.label.color = mkColor(Settings.infinite_line_label_color)
             h.hline.label.color = mkColor(Settings.infinite_line_label_color)
 
+
 def inv_transform_value_pos(value, arr=None):
     """works for scalar and arrays"""
     if arr is None:
         return value
 
-    t_min, t_max = arr.min(), arr.max()
-    t_idx = find_nearest_idx(arr,  value)
+    t_min, t_max = arr[0], arr[-1]
+    t_idx = find_nearest_idx(arr, value)
     inv_t = t_min + t_idx * (t_max - t_min) / (arr.shape[0] - 1)  # inverse transform
     return inv_t
 
@@ -133,7 +123,7 @@ def transform_value_pos(value, arr=None):
     if arr is None:
         return value
 
-    t_min, t_max = arr.min(), arr.max()
+    t_min, t_max = arr[0], arr[-1]
     idx = (value - t_min) / (t_max - t_min) * (arr.shape[0] - 1)  # map the linear scale to data time scale
     idx = np.round(idx, 0).astype(int)
     if isinstance(idx, np.ndarray):
@@ -169,15 +159,18 @@ class Heatmap(pg.GraphicsLayout):
         self.arr_ax0 = None
         self.arr_ax1 = None
 
+        self.x_arr_nonlinear = False
+        self.y_arr_nonlinear = False
+
         self.levels_changing = False
 
         self.image = pg.ImageItem()
 
-        self.string_axis_left = StringAxis(None, orientation='left')
-        self.string_axis_right = StringAxis(None, orientation='right')
+        self.string_axis_left = StringAxis(orientation='left')
+        self.string_axis_right = StringAxis(orientation='right')
 
-        self.string_axis_bottom = StringAxis(None, orientation='bottom')
-        self.string_axis_top = StringAxis(None, orientation='top')
+        self.string_axis_bottom = StringAxis(orientation='bottom')
+        self.string_axis_top = StringAxis(orientation='top')
 
         # heat map plot item
         self.heatmap_pi = self.addPlot(title=title, axisItems={'left': self.string_axis_left,
@@ -210,23 +203,55 @@ class Heatmap(pg.GraphicsLayout):
 
         self.addItem(self.hist, 0, 1)
 
+        self.probe_label = pg.LabelItem("<span style='color: #808080'>No data at cursor</span>", justify='left')
+        self.addItem(self.probe_label, 1, 0)
+
         label_format = f'{{value:.{Settings.coordinates_sig_figures}g}}'
 
-        self.vline = self.heatmap_pi.addLine(0, 0, 100, angle=90, movable=True, pen=pg.mkPen((0, 0, 0)), label=label_format,
-                                             labelOpts=dict(rotateAxis=(1, 0), position=Settings.heatmap_line_label_position,
-                                                            color=mkColor(Settings.infinite_line_label_color)))
-        self.hline = self.heatmap_pi.addLine(0, 0, 100, angle=0, movable=True, pen=pg.mkPen((0, 0, 0)), label=label_format,
-                                             labelOpts=dict(position=Settings.heatmap_line_label_position,
-                                                            color=mkColor(Settings.infinite_line_label_color)))
+        self.vline = InfiniteLine(self.arr_ax1, angle=90, movable=True, label=label_format,
+                                  labelOpts=dict(rotateAxis=(1, 0), position=Settings.heatmap_line_label_position))
+        self.vline.setZValue(10000)
+        self.heatmap_pi.addItem(self.vline)
 
-        brush = mkBrush(color=(0, 0, 0, Settings.infinite_line_label_brush_alpha))
+        self.hline = InfiniteLine(self.arr_ax0, angle=0, movable=True, label=label_format,
+                                  labelOpts=dict(position=Settings.heatmap_line_label_position))
+        self.hline.setZValue(10000)
+        self.heatmap_pi.addItem(self.hline)
 
-        # self.vline.label.fill = brush
-        # self.hline.label.fill = brush
+        self.vline.sigPositionChanged.connect(self.vline_moved)
+        self.hline.sigPositionChanged.connect(self.hline_moved)
+
+        # self.vline = self.heatmap_pi.addLine(0, 0, 10000, angle=90, movable=True, pen=pg.mkPen((0, 0, 0)), label=label_format,
+        #                                      labelOpts=dict(rotateAxis=(1, 0), position=Settings.heatmap_line_label_position,
+        #                                                     color=mkColor(Settings.infinite_line_label_color)))
+        # self.hline = self.heatmap_pi.addLine(0, 0, 10000, angle=0, movable=True, pen=pg.mkPen((0, 0, 0)), label=label_format,
+        #                                      labelOpts=dict(position=Settings.heatmap_line_label_position,
+        #                                                     color=mkColor(Settings.infinite_line_label_color)))
+
+        brush = mkBrush(color=(255, 255, 255, Settings.infinite_line_label_brush_alpha))
+
+        self.vline.label.fill = brush
+        self.hline.label.fill = brush
 
         self.vline.label.setColor(Settings.infinite_line_label_color)
         self.hline.label.setColor(Settings.infinite_line_label_color)
 
+        self.layout.setSpacing(0)
+        self.setContentsMargins(0, 0, 0, 0)
+
+    def vline_moved(self, line):
+        if self.arr_ax1 is None:
+            return
+
+        xpos = self.transform_wl_pos(self.get_xpos())
+        self.set_xpos(inv_transform_value_pos(xpos, self.arr_ax1))
+
+    def hline_moved(self, line):
+        if self.arr_ax0 is None:
+            return
+
+        ypos = self.transform_t_pos(self.get_ypos())
+        self.set_ypos(inv_transform_value_pos(ypos, self.arr_ax0))
 
     def connect_signals(self):
         self.heatmap_pi.scene().sigMouseMoved.connect(self.mouse_moved)
@@ -294,11 +319,7 @@ class Heatmap(pg.GraphicsLayout):
 
         x0, y0, x_max, y_max = arr_ax1[0], arr_ax0[0], arr_ax1[-1], arr_ax0[-1]
         self.image.setImage(matrix.T, rect=(x0, y0, x_max - x0, y_max - y0))   # [x, y, w, h]
-        # self.image.resetTransform()
-        # self.image.translate(x0, y0)
-        # self.image.scale((x_max - x0) / self.image.width(), (y_max - y0) / self.image.height())
         self.image.render()
-        # self.image.update()
 
         self.hist.setLevels(z_range[0] if z_range else matrix_min,
                             z_range[1] if z_range else matrix_max)
@@ -329,15 +350,17 @@ class Heatmap(pg.GraphicsLayout):
         arr_ax0_diff = np.abs(arr_ax0[1:] - arr_ax0[:-1])
         arr_ax1_diff = np.abs(arr_ax1[1:] - arr_ax1[:-1])
 
+        self.arr_ax0 = arr_ax0  # set times
+        self.arr_ax1 = arr_ax1
         if not np.allclose(arr_ax0_diff, arr_ax0_diff[0], atol=0):  # if loaded data are not spaced linearly,
-            self.arr_ax0 = arr_ax0  # set times
             self.string_axis_left.transform = self.transform_t_pos
             self.string_axis_right.transform = self.transform_t_pos
+            self.y_arr_nonlinear = True
 
         if not np.allclose(arr_ax1_diff, arr_ax1_diff[0], atol=0):
-            self.arr_ax1 = arr_ax1
             self.string_axis_bottom.transform = self.transform_wl_pos
             self.string_axis_top.transform = self.transform_wl_pos
+            self.x_arr_nonlinear = True
 
         self.vline.setBounds((x0, x_max))
         self.hline.setBounds((y0, y_max))
@@ -359,16 +382,16 @@ class Heatmap(pg.GraphicsLayout):
         self.hline.setPos(value)
 
     def transform_t_pos(self, value):
-        return transform_value_pos(value, self.arr_ax0)
+        return transform_value_pos(value, self.arr_ax0 if self.y_arr_nonlinear else None)
 
     def inv_transform_t_pos(self, value):
-        return inv_transform_value_pos(value, self.arr_ax0)
+        return inv_transform_value_pos(value, self.arr_ax0 if self.y_arr_nonlinear else None)
 
     def transform_wl_pos(self, value):
-        return transform_value_pos(value, self.arr_ax1)
+        return transform_value_pos(value, self.arr_ax1 if self.x_arr_nonlinear else None)
 
     def inv_transform_wl_pos(self, value):
-        return inv_transform_value_pos(value, self.arr_ax1)
+        return inv_transform_value_pos(value, self.arr_ax1 if self.x_arr_nonlinear else None)
 
     def set_xy_range(self, x0, x1, y0, y1, padding=0):
         y0, y1 = self.inv_transform_t_pos(y0), self.inv_transform_t_pos(y1)
@@ -387,6 +410,11 @@ class Heatmap(pg.GraphicsLayout):
 
         # set the corresponding cursor
         if in_scene:
+            mouse_point = self.heatmap_pi.vb.mapSceneToView(pos)
+            n = Settings.coordinates_sig_figures
+            # double format with n being the number of significant figures of a number
+            self.probe_label.setText(f"x={{:.{n}g}}, y={{:.{n}g}}".format(mouse_point.x(), mouse_point.y()))
+
             if on_vline:
                 self.parentWidget.viewport().setCursor(Qt.CursorShape.SizeHorCursor)
             elif on_hline:
@@ -395,6 +423,8 @@ class Heatmap(pg.GraphicsLayout):
                 self.parentWidget.viewport().setCursor(Qt.CursorShape.OpenHandCursor)
             else:
                 self.parentWidget.viewport().setCursor(Qt.CursorShape.CrossCursor)
+        else:
+            self.probe_label.setText("<span style='color: #808080'>No data at cursor</span>")
 
     def mouse_clicked(self, ev):
         if ev.button() == Qt.MouseButton.LeftButton and ev.modifiers() == Qt.KeyboardModifier.ControlModifier:

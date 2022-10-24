@@ -33,9 +33,9 @@ class Settings(object):
     export_spectra_as_dialog_delimiter = '\t'
     export_spectra_as_dialog_decimal_sep = '.'
 
-    coordinates_sig_figures = 4
-    infinite_line_label_color = (255, 255, 255)
-    infinite_line_label_brush_alpha = 150
+    coordinates_sig_figures = 5
+    infinite_line_label_color = (0, 0, 0)
+    infinite_line_label_brush_alpha = 200
     plot_title_font_size = '8pt'
     heatmap_line_label_position = 0.1
 

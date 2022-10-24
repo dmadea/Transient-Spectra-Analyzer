@@ -66,17 +66,17 @@ class fMain(QMainWindow):
 
         self.user_namespace = UserNamespace(self)
 
-        self.setMenuBar(MenuBar(self))
+        self.menu_bar = MenuBar(self, common_dimension_triggered=self.main_display_widget.set_common_dim)
+        self.setMenuBar(self.menu_bar)
         Settings.load()
 
         self.update_recent_files()
 
-        Console.push_variables({'main_widget': self})
-
         Console.execute_command("from LFP_matrix import LFP_matrix\nimport fitmodels as m\n"
-                                "import matplotlib.pyplot as plt\nfrom Widgets.fit_widget import FitWidget\n"
+                                "import matplotlib.pyplot as plt\n"
                                 "import augmentedmatrix")
 
+        Console.push_variables({'main_widget': self})
         Console.push_variables({'pw': self.main_display_widget})
         Console.push_variables({'fw': self.fit_widget})
         Console.push_variables({'sw': self.SVD_widget})
@@ -97,15 +97,15 @@ class fMain(QMainWindow):
         statusBar.addPermanentWidget(console_button)
 
     def update_recent_files(self):
-        num = min(len(Settings.recent_project_filepaths), len(self.menuBar().recent_file_actions))
+        num = min(len(Settings.recent_project_filepaths), len(self.menu_bar.recent_file_actions))
 
         for i in range(num):
             filepath = Settings.recent_project_filepaths[i]
             head, tail = os.path.split(filepath)
             text = os.path.split(head)[1] + '\\' + tail
-            self.menuBar().recent_file_actions[i].setText(text)
-            self.menuBar().recent_file_actions[i].setData(filepath)
-            self.menuBar().recent_file_actions[i].setVisible(True)
+            self.menu_bar.recent_file_actions[i].setText(text)
+            self.menu_bar.recent_file_actions[i].setData(filepath)
+            self.menu_bar.recent_file_actions[i].setVisible(True)
 
     def add_recent_file(self, filepath):
         # if there is the same filepath in the list, remove this entry
@@ -113,7 +113,7 @@ class fMain(QMainWindow):
             Settings.recent_project_filepaths.remove(filepath)
 
         Settings.recent_project_filepaths.insert(0, filepath)
-        while len(Settings.recent_project_filepaths) > len(self.menuBar().recent_file_actions):
+        while len(Settings.recent_project_filepaths) > len(self.menu_bar.recent_file_actions):
             # remove last one
             Settings.recent_project_filepaths = Settings.recent_project_filepaths[:-1]
         Settings.save()
@@ -139,8 +139,8 @@ class fMain(QMainWindow):
 
         if filepaths is False:
             filepaths = QFileDialog.getOpenFileNames(caption="Import files",
-                                                   directory=Settings.import_files_dialog_path,
-                                                   filter=filter, initialFilter=initial_filter)[0]
+                                                     directory=Settings.import_files_dialog_path,
+                                                     filter=filter, initialFilter=initial_filter)[0]
 
             if len(filepaths) == 0:
                 return
@@ -159,9 +159,11 @@ class fMain(QMainWindow):
         mats_to_plot = self.matrices if matrices is None else matrices
 
         self.main_display_widget.plot_matrices(mats_to_plot)
+        self.menu_bar.set_common_dimension(self.main_display_widget.same_dimension)
+
         self.SVD_widget.set_data(mats_to_plot[0])
 
-        Console.push_variables({'matrix': mats_to_plot})
+        Console.push_variables({'matrices': mats_to_plot})
         self.fit_widget.matrix = mats_to_plot[0]
         self.fit_widget.init_matrices()
 

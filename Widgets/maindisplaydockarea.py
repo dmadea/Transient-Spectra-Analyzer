@@ -16,8 +16,19 @@ from Widgets.plotwidget import PlotWidget
 from Widgets.datapanel import DataPanel
 from Widgets.svddockarea import SVDDockArea
 
+from pyqtgraphmodif.dock_modif import DockLabel, DockDisplayMode
+
 from scipy.linalg import lstsq
 from scipy.integrate import cumtrapz
+
+from scipy.interpolate import interp2d
+
+
+class CommonDimension:
+    Not = None
+    First = 0
+    Second = 1
+    Both = 2
 
 
 # from https://math.stackexchange.com/questions/1428566/fit-sum-of-exponentials/3808325#3808325
@@ -94,46 +105,35 @@ class MainDisplayDockArea(DockArea):
 
         # axes of the equal dimensions (same start and end points) of all matrices
         # 0 for first dimensions, 1 for second, 2 for both
-        self.same_dimension = None
+        self.same_dimension = CommonDimension.Not
 
         self.plotted_spectra = []
         self.plotted_traces = []
-
-        # self.trace_plot_item = None
-        # self.spectrum_plot_item = None
-        #
-        # self.trace_plot_item_fit = None
-        # self.spectrum_plot_item_fit = None
-        #
-        # self.trace_orig_plot_item = None
-        # self.spectrum_orig_plot_item = None
 
         self.heat_map_levels = None
         self.selected_range_idxs = None
 
         #  heat map
-
-        self.heat_map_widget = HeatMapWidget()
-        self.heat_map_dock = Dock("Heat Map", widget=self.heat_map_widget, size=(50, 7))
-
-        # self.heat_map_plot.range_changed.connect(self.heat_map_range_changed)
-        # # updates the spectra when y range of heatmap was changed
-        # self.heat_map_plot.Y_range_changed.connect(self.update_spectra)
-        # self.heat_map_plot.levels_changed.connect(self.heat_map_levels_changed)
+        default_mode = DockDisplayMode.Matrix
+        self.heat_map_widget = HeatMapWidget(default_mode=default_mode)
+        self.heat_map_dock_label = DockLabel("Heat Map", self.heat_map_widget, display_mode=default_mode)
+        self.heat_map_dock = Dock("Heat Map", widget=self.heat_map_widget, size=(50, 7), label=self.heat_map_dock_label)
 
         # Spectra plot
 
-        self.spectra_widget = PlotWidget()
-        self.spectra_dock = Dock("Spectra", widget=self.spectra_widget, size=(40, 7))
+        default_mode = DockDisplayMode.Column
+        self.spectra_widget = PlotWidget(default_mode=default_mode)
+        self.spectra_dock_label = DockLabel("Spectra", self.spectra_widget, closable=True)
+        self.spectra_dock = Dock("Spectra", widget=self.spectra_widget, size=(40, 7), label=self.spectra_dock_label)
 
-        self.spectrum_widget = PlotWidget()
-        self.spectrum_dock = Dock("Spectrum", widget=self.spectrum_widget)
+        self.spectrum_widget = PlotWidget(default_mode=default_mode)
+        self.spectrum_dock_label = DockLabel("Spectrum", self.spectrum_widget, display_mode=default_mode)
+        self.spectrum_dock = Dock("Spectrum", widget=self.spectrum_widget, label=self.spectrum_dock_label)
 
-        self.trace_widget = PlotWidget()
-        self.trace_dock = Dock("Trace", widget=self.trace_widget)
-
-        # self.spectrum.getViewBox().sigRangeChanged.connect(self.trace_spectrum_range_changed)
-        # self.trace.getViewBox().sigRangeChanged.connect(self.trace_spectrum_range_changed)
+        default_mode = DockDisplayMode.Row
+        self.trace_widget = PlotWidget(default_mode=default_mode)
+        self.trace_dock_label = DockLabel("Trace", self.trace_widget, display_mode=default_mode)
+        self.trace_dock = Dock("Trace", widget=self.trace_widget, label=self.trace_dock_label)
 
         # data panel
 
@@ -190,6 +190,44 @@ class MainDisplayDockArea(DockArea):
         # self.spectrum_vline.sigPositionChangeFinished.connect(self.update_trace_and_spectrum)
         # self.trace_vline.sigPositionChangeFinished.connect(self.update_trace_and_spectrum)
 
+    def set_axis_label(self, index: int, x_label='Wavelength / nm', y_label='Time / ps', z_label='\u0394A'):
+        self.heat_map_widget.plots[index].heatmap_pi.setLabel('left', y_label)
+        self.heat_map_widget.plots[index].heatmap_pi.setLabel('bottom', x_label)
+        self.heat_map_widget.plots[index].hist.axis.setLabel(z_label)
+
+        self.trace_widget.plots[index].plot_item.setLabel('left', z_label)
+        self.trace_widget.plots[index].plot_item.setLabel('bottom', y_label)
+
+        self.spectrum_widget.plots[index].plot_item.setLabel('left', z_label)
+        self.spectrum_widget.plots[index].plot_item.setLabel('bottom', x_label)
+
+    def HPLCMS_baseline_corr(self, MS_index=0, UV_index=1, threshold_TWC=300):
+        uv = self.matrices[UV_index]
+        ms = self.matrices[MS_index]
+        twc = uv.get_TWC(axis=1)
+
+        # downscale twc to match the MS data
+        twc = np.interp(ms.times, uv.times, twc)
+
+        idxs = twc < threshold_TWC  # indexes where to interpolate the MS data and then subtract from all of them
+        y = ms.times[idxs]
+        mat2interp = ms.Y[idxs, :]
+
+        f = interp2d(ms.wavelengths, y, mat2interp, kind='linear', copy=True)
+        D_interp = f(ms.wavelengths, ms.times)
+
+        # baseline correct
+        # D_new = ms.Y - D_interp
+
+        # replace the value
+        ms.Y -= D_interp
+        ms.Yr = ms.Y
+
+        self.heat_map_widget.plots[MS_index].set_matrix(ms.Y, ms.times, ms.wavelengths, center_lines=False)
+
+    def set_common_dim(self, dim: CommonDimension):
+        self.same_dimension = dim
+
     def get_roi_pos(self):
         """This shit took me half a day to figure out."""
         if self.roi is None:
@@ -228,7 +266,7 @@ class MainDisplayDockArea(DockArea):
                            hoverPen=pg.mkPen(color=(0, 150, 0), width=2),
                            handleHoverPen=pg.mkPen(color=(0, 150, 0), width=3))
 
-            self.heat_map_widget.heatmaps[0].addItem(self.roi)
+            self.heat_map_widget.plots[0].addItem(self.roi)
 
     def add_chirp(self, wls,  mu):  # plots the chirp
         pen = pg.mkPen(color=QColor('black'), width=2)
@@ -544,17 +582,17 @@ class MainDisplayDockArea(DockArea):
         self.matrix.restore_original_data()
         self.plot_matrices(self.matrix, False)
 
-    def init_trace_and_spectrum(self):
-
-        self.trace_plot_item = self.trace.plot([])
-        self.spectrum_plot_item = self.spectrum.plot([])
-
-        self.trace_orig_plot_item = self.trace.plot([])
-        self.spectrum_orig_plot_item = self.spectrum.plot([])
-
-    def init_fit_trace_sp(self):
-        self.trace_plot_item_fit = self.trace.plot([])
-        self.spectrum_plot_item_fit = self.spectrum.plot([])
+    # def init_trace_and_spectrum(self):
+    #
+    #     self.trace_plot_item = self.trace.plot([])
+    #     self.spectrum_plot_item = self.spectrum.plot([])
+    #
+    #     self.trace_orig_plot_item = self.trace.plot([])
+    #     self.spectrum_orig_plot_item = self.spectrum.plot([])
+    #
+    # def init_fit_trace_sp(self):
+    #     self.trace_plot_item_fit = self.trace.plot([])
+    #     self.spectrum_plot_item_fit = self.spectrum.plot([])
 
     def update_trace_and_spectrum(self, sender=None):
         if self.matrices is None or self.heatmap_line_lock or self.heatmap_range_lock:
@@ -670,11 +708,11 @@ class MainDisplayDockArea(DockArea):
         x_pos_orig = sender_heatmap.get_xpos()
         x_pos = sender_heatmap.transform_wl_pos(x_pos_orig)
 
-        i = self.heat_map_widget.heatmaps.index(sender_heatmap)
+        i = self.heat_map_widget.plots.index(sender_heatmap)
         self.spectrum_widget.plots[i].set_xpos(x_pos)
 
-        if self.same_dimension in (1, 2):
-            for h, spectrum in zip(self.heat_map_widget.heatmaps, self.spectrum_widget.plots):
+        if self.same_dimension in (CommonDimension.Second, CommonDimension.Both):
+            for h, spectrum in zip(self.heat_map_widget.plots, self.spectrum_widget.plots):
                 h.set_xpos(x_pos_orig)  # set the original value without transformation
                 spectrum.set_xpos(x_pos)
 
@@ -690,11 +728,11 @@ class MainDisplayDockArea(DockArea):
         y_pos_orig = sender_heatmap.get_ypos()
         y_pos = sender_heatmap.transform_t_pos(y_pos_orig)
 
-        i = self.heat_map_widget.heatmaps.index(sender_heatmap)
+        i = self.heat_map_widget.plots.index(sender_heatmap)
         self.trace_widget.plots[i].set_xpos(y_pos)
 
-        if self.same_dimension in (0, 2):
-            for h, trace in zip(self.heat_map_widget.heatmaps, self.trace_widget.plots):
+        if self.same_dimension in (CommonDimension.First, CommonDimension.Both):
+            for h, trace in zip(self.heat_map_widget.plots, self.trace_widget.plots):
                 h.set_ypos(y_pos_orig)  # set the original value without transformation
                 trace.set_xpos(y_pos)
 
@@ -721,7 +759,7 @@ class MainDisplayDockArea(DockArea):
         x0, x1, y0, y1 = ranges[0][0], ranges[0][1], ranges[1][0], ranges[1][1]
         change_x, change_y = changes
 
-        i = self.heat_map_widget.heatmaps.index(sender_heatmap)
+        i = self.heat_map_widget.plots.index(sender_heatmap)
 
         if change_x:
             x0_tr = sender_heatmap.transform_wl_pos(x0)
@@ -730,8 +768,8 @@ class MainDisplayDockArea(DockArea):
             self.spectrum_widget.plots[i].set_x_range(x0_tr, x1_tr)
             self.data_panel.set_range(i, x0=x0_tr, x1=x1_tr)
 
-            if self.same_dimension in (1, 2):
-                for i, h in enumerate(self.heat_map_widget.heatmaps):
+            if self.same_dimension in (CommonDimension.Second, CommonDimension.Both):
+                for i, h in enumerate(self.heat_map_widget.plots):
                     h.set_x_range(x0, x1)
                     self.spectrum_widget.plots[i].set_x_range(x0_tr, x1_tr)
                     self.data_panel.set_range(i, x0=x0_tr, x1=x1_tr)
@@ -743,8 +781,8 @@ class MainDisplayDockArea(DockArea):
             self.trace_widget.plots[i].set_x_range(y0_tr, y1_tr)
             self.data_panel.set_range(i, y0=y0_tr, y1=y1_tr)
 
-            if self.same_dimension in (0, 2):
-                for i, h in enumerate(self.heat_map_widget.heatmaps):
+            if self.same_dimension in (CommonDimension.First, CommonDimension.Both):
+                for i, h in enumerate(self.heat_map_widget.plots):
                     h.set_y_range(y0, y1)
                     self.trace_widget.plots[i].set_x_range(y0_tr, y1_tr)
                     self.data_panel.set_range(i, y0=y0_tr, y1=y1_tr)
@@ -776,7 +814,7 @@ class MainDisplayDockArea(DockArea):
 
         if change_x:
             i = self.trace_widget.plots.index(sender_trace)
-            h = self.heat_map_widget.heatmaps[i]
+            h = self.heat_map_widget.plots[i]
             h.set_y_range(h.inv_transform_t_pos(x0), h.inv_transform_t_pos(x1))
 
     def spectrum_range_changed(self, sender_spectrum, sender_vb, ranges, changes):
@@ -785,19 +823,19 @@ class MainDisplayDockArea(DockArea):
 
         if change_x:
             i = self.spectrum_widget.plots.index(sender_spectrum)
-            h = self.heat_map_widget.heatmaps[i]
+            h = self.heat_map_widget.plots[i]
             h.set_x_range(h.inv_transform_wl_pos(x0), h.inv_transform_wl_pos(x1))
 
     def trace_v_line_changed(self, sender_trace):
         y_pos = sender_trace.get_xpos()
         i = self.trace_widget.plots.index(sender_trace)
-        h = self.heat_map_widget.heatmaps[i]
+        h = self.heat_map_widget.plots[i]
         h.set_ypos(h.inv_transform_t_pos(y_pos))
 
     def spectrum_v_line_changed(self, sender_spectrum):
         x_pos = sender_spectrum.get_xpos()
         i = self.spectrum_widget.plots.index(sender_spectrum)
-        h = self.heat_map_widget.heatmaps[i]
+        h = self.heat_map_widget.plots[i]
         h.set_xpos(h.inv_transform_wl_pos(x_pos))
 
     def plot_matrices(self, matrices, center_lines=True, keep_ranges=False, keep_fits=False):
@@ -815,7 +853,7 @@ class MainDisplayDockArea(DockArea):
         # self.heat_map_widget.clear_plots()
         # self.spectrum_widget.clear_plots()
         # self.trace_widget.clear_plots()
-        self.same_dimension = None
+        self.same_dimension = CommonDimension.Not
 
         self.matrices = matrices
 
@@ -837,11 +875,11 @@ class MainDisplayDockArea(DockArea):
 
             if np.allclose(ax_0_starts, ax_0_starts[0], rtol, atol) and \
                np.allclose(ax_0_ends, ax_0_ends[0], rtol, atol):
-                self.same_dimension = 0
+                self.same_dimension = CommonDimension.First
 
             if np.allclose(ax_1_starts, ax_1_starts[0], rtol, atol) and \
                np.allclose(ax_1_ends, ax_1_ends[0], rtol, atol):
-                self.same_dimension = 1 if self.same_dimension is None else 2  # both are the same
+                self.same_dimension = CommonDimension.First if self.same_dimension is None else CommonDimension.Both  # both are the same
 
             # # test if matrices has common dimensions
             # if np.all(ax0_shapes == ax0_shapes[0]):
@@ -884,12 +922,15 @@ class MainDisplayDockArea(DockArea):
         self.trace_widget.connect_ranges_changed(self.trace_range_changed)
         self.spectrum_widget.connect_ranges_changed(self.spectrum_range_changed)
 
+        for i in range(len(self.matrices)):
+            self.set_axis_label(i)
+
         # self.spectra_vline.sigPositionChanged.connect(update_heat_lines_spectra)
         # self.plotted_spectra.connect_v_lines_position_changed(self.update_trace_and_spectrum)
         # self.plotted_traces.connect_v_lines_position_changed(self.update_trace_and_spectrum)
 
         # update lines
-        for h in self.heat_map_widget.heatmaps:
+        for h in self.heat_map_widget.plots:
             self.heatmap_v_line_changed(h)
             self.heatmap_h_line_changed(h)
 
@@ -913,11 +954,11 @@ class MainDisplayDockArea(DockArea):
         # self.plot_chirp_points()
         # self.cb_show_roi_checkstate_changed()
 
-    def save_plot_to_clipboard_as_png(self, plot_item):
-        self.img_exporter = ImageExporter(plot_item)
-        self.img_exporter.export(copy=True)
-
-    def save_plot_to_clipboard_as_svg(self, plot_item):
-        self.svg_exporter = SVGExporter(plot_item)
-        self.svg_exporter.export(copy=True)
+    # def save_plot_to_clipboard_as_png(self, plot_item):
+    #     self.img_exporter = ImageExporter(plot_item)
+    #     self.img_exporter.export(copy=True)
+    #
+    # def save_plot_to_clipboard_as_svg(self, plot_item):
+    #     self.svg_exporter = SVGExporter(plot_item)
+    #     self.svg_exporter.export(copy=True)
 
