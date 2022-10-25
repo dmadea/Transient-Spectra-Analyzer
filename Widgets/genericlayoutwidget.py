@@ -1,15 +1,15 @@
 import pyqtgraph as pg
 from pyqtgraphmodif.dock_modif import DockDisplayMode
-from functools import reduce
-import operator
 import numpy as np
 
 
-class GenericPlotWidget(pg.GraphicsLayoutWidget):
+class GenericLayoutWidget(pg.GraphicsLayoutWidget):
 
     def __init__(self, parent=None, border=None, default_mode=DockDisplayMode.Row):
 
-        super(GenericPlotWidget, self).__init__(parent, border)
+        super(GenericLayoutWidget, self).__init__(parent, border)
+
+        self.parent = parent
 
         self.default_mode = default_mode
         self.plots = []
@@ -20,6 +20,12 @@ class GenericPlotWidget(pg.GraphicsLayoutWidget):
 
     def initialize(self):
         pass
+
+    def get_labels(self):
+        raise NotImplemented()
+
+    def set_labels(self, index: int, x_label: str, y_label: str, z_label: str):
+        self.parent.set_axis_label(index, x_label, y_label, z_label)
 
     def set_display_mode(self, mode: DockDisplayMode):
         for plot in self.plots:

@@ -8,12 +8,12 @@ from misc import find_nearest_idx
 from pyqtgraph.functions import mkBrush, mkColor
 
 from pyqtgraphmodif.infinite_line_modif import InfiniteLine
-from pyqtgraphmodif.dock_modif import DockDisplayMode
-from Widgets.genericplotwidget import GenericPlotWidget
+from Widgets.genericlayoutwidget import GenericLayoutWidget
 from pyqtgraphmodif.StringAxis import StringAxis
+from Widgets.genericplotlayout import GenericPlotLayout
 
 
-class PlotWidget(GenericPlotWidget):
+class PlotWidget(GenericLayoutWidget):
 
     def initialize(self):
         self.plots = [PlotLayout(self)]
@@ -71,7 +71,7 @@ class PlotWidget(GenericPlotWidget):
             plot.vline.label.setColor(mkColor(Settings.infinite_line_label_color))
 
 
-class PlotLayout(pg.GraphicsLayout):
+class PlotLayout(GenericPlotLayout):
 
     def __init__(self, parent=None, border=None, ylabel='\u0394A', xlabel='Wavelength (nm)'):
         super(PlotLayout, self).__init__(None, border)

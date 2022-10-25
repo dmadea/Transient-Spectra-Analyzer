@@ -115,23 +115,23 @@ class MainDisplayDockArea(DockArea):
 
         #  heat map
         default_mode = DockDisplayMode.Matrix
-        self.heat_map_widget = HeatMapWidget(default_mode=default_mode)
-        self.heat_map_dock_label = DockLabel("Heat Map", self.heat_map_widget, display_mode=default_mode)
+        self.heat_map_widget = HeatMapWidget(self, default_mode=default_mode)
+        self.heat_map_dock_label = DockLabel("Heat Map", self.heat_map_widget, display_mode=default_mode, show_setting_option=True)
         self.heat_map_dock = Dock("Heat Map", widget=self.heat_map_widget, size=(50, 7), label=self.heat_map_dock_label)
 
         # Spectra plot
 
         default_mode = DockDisplayMode.Column
-        self.spectra_widget = PlotWidget(default_mode=default_mode)
+        self.spectra_widget = PlotWidget(self, default_mode=default_mode)
         self.spectra_dock_label = DockLabel("Spectra", self.spectra_widget, closable=True)
         self.spectra_dock = Dock("Spectra", widget=self.spectra_widget, size=(40, 7), label=self.spectra_dock_label)
 
-        self.spectrum_widget = PlotWidget(default_mode=default_mode)
+        self.spectrum_widget = PlotWidget(self, default_mode=default_mode)
         self.spectrum_dock_label = DockLabel("Spectrum", self.spectrum_widget, display_mode=default_mode)
         self.spectrum_dock = Dock("Spectrum", widget=self.spectrum_widget, label=self.spectrum_dock_label)
 
         default_mode = DockDisplayMode.Row
-        self.trace_widget = PlotWidget(default_mode=default_mode)
+        self.trace_widget = PlotWidget(self, default_mode=default_mode)
         self.trace_dock_label = DockLabel("Trace", self.trace_widget, display_mode=default_mode)
         self.trace_dock = Dock("Trace", widget=self.trace_widget, label=self.trace_dock_label)
 

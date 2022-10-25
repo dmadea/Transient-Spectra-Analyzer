@@ -5,8 +5,6 @@ from pyqtgraphmodif.StringAxis import StringAxis
 from misc import find_nearest_idx
 from PyQt6.QtCore import Qt
 
-
-
 from settings import Settings
 
 from typing import Callable
@@ -14,15 +12,26 @@ from typing import Callable
 from pyqtgraph.functions import mkBrush, mkColor
 
 from pyqtgraphmodif.infinite_line_modif import InfiniteLine
-from Widgets.genericplotwidget import GenericPlotWidget
+from Widgets.genericlayoutwidget import GenericLayoutWidget
+from Widgets.genericplotlayout import GenericPlotLayout
 
 
-class HeatMapWidget(GenericPlotWidget):
+class HeatMapWidget(GenericLayoutWidget):
 
     def initialize(self):
         self.plots = [Heatmap(self, title='')]
         self.addItem(self.plots[0], 0, 0)
         self.plots[0].connect_signals()
+
+    def get_labels(self):
+        return [(h.heatmap_pi.getAxis('bottom').labelText,
+                 h.heatmap_pi.getAxis('left').labelText,
+                 h.hist.axis.labelText) for h in self.plots]
+
+    # def set_labels(self, index: int, x_label: str, y_label: str, z_label: str):
+    #     self.plots[index].heatmap_pi.setLabel('bottom', x_label)
+    #     self.plots[index].heatmap_pi.setLabel('left', y_label)
+    #     self.plots[index].hist.axis.setLabel(z_label)
 
     def set_heatmaps(self, matrices, center_lines=True, keep_ranges=False):
 
@@ -133,7 +142,7 @@ def transform_value_pos(value, arr=None):
     return arr[idx]
 
 
-class Heatmap(pg.GraphicsLayout):
+class Heatmap(GenericPlotLayout):
 
     dark = 150
     positive_grad = {'ticks': [(0.0, (255, 255, 255, 255)), (1.0, (100, 0, 0, 255)), (0.33, (255, 200, 0, 255)),
@@ -238,6 +247,7 @@ class Heatmap(pg.GraphicsLayout):
 
         self.layout.setSpacing(0)
         self.setContentsMargins(0, 0, 0, 0)
+
 
     def vline_moved(self, line):
         if self.arr_ax1 is None:
