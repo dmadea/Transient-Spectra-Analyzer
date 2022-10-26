@@ -15,11 +15,13 @@ class DockDisplayMode:
 class DockLabel(_DockLabel):
 
     def __init__(self, text, widget, closable=False, fontSize="12px", display_mode=DockDisplayMode.Row,
-                 show_setting_option=False):
+                 show_setting_option=False, show_peaks_options=False):
         super(DockLabel, self).__init__(text, closable, fontSize)
 
         self.widget = widget
         self.show_setting_option = show_setting_option
+        self.show_peaks_option = show_peaks_options
+        self.show_peaks = False
         self.mode = display_mode
         self.sett_dialog = None
 
@@ -109,8 +111,19 @@ class DockLabel(_DockLabel):
             sett_act.triggered.connect(lambda: self.open_options())
             menu.addAction(sett_act)
 
+        if self.show_peaks_option:
+            peaks_act = QAction("Display peaks")
+            peaks_act.setCheckable(True)
+            peaks_act.setChecked(self.show_peaks)
+            peaks_act.triggered.connect(self.show_peaks_triggered)
+            menu.addAction(peaks_act)
+
         cursor = QCursor()
         menu.exec_(cursor.pos())
+
+    def show_peaks_triggered(self, checked: bool):
+        self.show_peaks = checked
+        self.widget.show_peaks(show=self.show_peaks)
 
     def set_mode(self, mode):
         self.mode = mode

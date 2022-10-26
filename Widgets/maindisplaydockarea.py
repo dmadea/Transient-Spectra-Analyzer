@@ -107,8 +107,8 @@ class MainDisplayDockArea(DockArea):
         # 0 for first dimensions, 1 for second, 2 for both
         self.same_dimension = CommonDimension.Not
 
-        self.plotted_spectra = []
-        self.plotted_traces = []
+        # self.plotted_spectra = []
+        # self.plotted_traces = []
 
         self.heat_map_levels = None
         self.selected_range_idxs = None
@@ -127,12 +127,12 @@ class MainDisplayDockArea(DockArea):
         self.spectra_dock = Dock("Spectra", widget=self.spectra_widget, size=(40, 7), label=self.spectra_dock_label)
 
         self.spectrum_widget = PlotWidget(self, default_mode=default_mode)
-        self.spectrum_dock_label = DockLabel("Spectrum", self.spectrum_widget, display_mode=default_mode)
+        self.spectrum_dock_label = DockLabel("Spectrum", self.spectrum_widget, display_mode=default_mode, show_peaks_options=True)
         self.spectrum_dock = Dock("Spectrum", widget=self.spectrum_widget, label=self.spectrum_dock_label)
 
         default_mode = DockDisplayMode.Row
         self.trace_widget = PlotWidget(self, default_mode=default_mode)
-        self.trace_dock_label = DockLabel("Trace", self.trace_widget, display_mode=default_mode)
+        self.trace_dock_label = DockLabel("Trace", self.trace_widget, display_mode=default_mode, show_peaks_options=True)
         self.trace_dock = Dock("Trace", widget=self.trace_widget, label=self.trace_dock_label)
 
         # data panel
@@ -606,12 +606,18 @@ class MainDisplayDockArea(DockArea):
             x_idx = find_nearest_idx(m.wavelengths, x_positions[i])
             y_idx = find_nearest_idx(m.times, y_positions[i])
 
-            try:
-                self.plotted_traces[i].setData(m.times, m.D[:, x_idx], pen=pen)
-                self.plotted_spectra[i].setData(m.wavelengths, m.D[y_idx], pen=pen)
+            # try:
+            self.trace_widget.plots[i].set_main_data(m.times, m.D[:, x_idx], pen=pen)
+            self.spectrum_widget.plots[i].set_main_data(m.wavelengths, m.D[y_idx], pen=pen)
 
-            except Exception as e:
-                print(x_idx, y_idx, e)
+                # self.plotted_traces[i].setData(m.times, m.D[:, x_idx], pen=pen)
+                # self.plotted_spectra[i].setData(m.wavelengths, m.D[y_idx], pen=pen)
+
+            # except Exception as e:
+            #     print(x_idx, y_idx, e)
+
+
+
 
         # time_pos = self.heat_map_hline.pos()[1]
         # time_pos = self.heat_map_widget.transform_t_pos(time_pos)
@@ -902,8 +908,8 @@ class MainDisplayDockArea(DockArea):
         self.spectrum_widget.set_data(self.matrices, axis=1, title_prefix='Spectrum [')
         self.trace_widget.set_data(self.matrices, axis=0, title_prefix='Trace [')
 
-        self.plotted_spectra = self.spectrum_widget.get_plotted_data()
-        self.plotted_traces = self.trace_widget.get_plotted_data()
+        # self.plotted_spectra = self.spectrum_widget.get_plotted_data()
+        # self.plotted_traces = self.trace_widget.get_plotted_data()
 
         self.heat_map_widget.connect_v_lines_position_changed(self.heatmap_v_line_changed)
         self.heat_map_widget.connect_h_lines_position_changed(self.heatmap_h_line_changed)

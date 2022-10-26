@@ -1,3 +1,4 @@
+import numpy as np
 import pyqtgraph as pg
 from PyQt6.QtCore import Qt
 
@@ -5,12 +6,15 @@ from settings import Settings
 from typing import Callable
 from misc import find_nearest_idx
 
-from pyqtgraph.functions import mkBrush, mkColor
+from pyqtgraph.functions import mkBrush, mkColor, mkPen
 
 from pyqtgraphmodif.infinite_line_modif import InfiniteLine
 from Widgets.genericlayoutwidget import GenericLayoutWidget
 from pyqtgraphmodif.StringAxis import StringAxis
 from Widgets.genericplotlayout import GenericPlotLayout
+from pyqtgraph import TextItem
+
+from scipy.signal import find_peaks
 
 
 class PlotWidget(GenericLayoutWidget):
@@ -42,7 +46,6 @@ class PlotWidget(GenericLayoutWidget):
             plot.plot_item.setTitle(f"{title_prefix}{m.get_filename()}{title_postfix}",
                                     size=Settings.plot_title_font_size)
 
-
     def get_positions(self):
         return [plot.vline.pos()[0] for plot in self.plots]
 
@@ -54,8 +57,8 @@ class PlotWidget(GenericLayoutWidget):
         for plot in self.plots:
             plot.connect_range_changed(fn)
 
-    def get_plotted_data(self):
-        return [p.plotted_data for p in self.plots]
+    # def get_plotted_data(self):
+    #     return [p.plotted_data for p in self.plots]
 
     def clear_plots(self):
         for plot in self.plots:
@@ -70,6 +73,12 @@ class PlotWidget(GenericLayoutWidget):
         for plot in self.plots:
             plot.vline.label.setColor(mkColor(Settings.infinite_line_label_color))
 
+    def show_peaks(self, show=True):
+        for plot in self.plots:
+            plot.show_peaks = show
+            x, y = plot.plotted_data.getData()
+            plot.set_main_data(x, y)
+
 
 class PlotLayout(GenericPlotLayout):
 
@@ -78,6 +87,8 @@ class PlotLayout(GenericPlotLayout):
         self.parentWidget = parent
 
         self.arr_ax0 = None
+        self.peak_labels = []
+        self.show_peaks = False
 
         self.string_axis_left = StringAxis(orientation='left', keep_constant_space=True)
         self.string_axis_right = StringAxis(orientation='right', keep_constant_space=True)
@@ -92,6 +103,7 @@ class PlotLayout(GenericPlotLayout):
                                       'top': self.string_axis_top})
 
         self.plotted_data = self.plot_item.plot([])
+        # self.plotted_data.
         self.probe_label = pg.LabelItem("<span style='color: #808080'>No data at cursor</span>", justify='left')
         self.addItem(self.probe_label, 1, 0)
 
@@ -126,6 +138,20 @@ class PlotLayout(GenericPlotLayout):
         self.layout.setSpacing(0)
         self.setContentsMargins(0, 0, 0, 0)
 
+    def set_main_data(self, x: np.ndarray, y: np.ndarray, pen=None):
+        pen = pen if pen is not None else mkPen(color=(0, 0, 0), width=1)
+
+        self.plotted_data.setData(x, y, pen=pen)
+
+        if len(self.peak_labels) > 0:
+            for label in self.peak_labels:
+                self.plot_item.removeItem(label)
+            self.peak_labels.clear()
+
+        if self.show_peaks:
+            x0, x1 = self.plot_item.getViewBox().state['viewRange'][0]
+            self.plot_peaks(x0, x1)
+
     def vline_moved(self, line):
         if self.arr_ax0 is None:
             return
@@ -136,7 +162,8 @@ class PlotLayout(GenericPlotLayout):
         self.set_xpos(new_x)
 
     def set_limits(self, xmin, xmax, ymin, ymax):
-        self.plot_item.getViewBox().setLimits(xMin=xmin, xMax=xmax, yMin=ymin, yMax=ymax)
+        ydiff = ymax - ymin
+        self.plot_item.getViewBox().setLimits(xMin=xmin, xMax=xmax, yMin=ymin - 0.05 * ydiff, yMax=ymax + 0.05 * ydiff)
         self.vline.setBounds((xmin, xmax))
 
     def get_xpos(self):
@@ -151,16 +178,47 @@ class PlotLayout(GenericPlotLayout):
     def connect_signals(self):
         self.plot_item.scene().sigMouseMoved.connect(self.mouse_moved)
         self.plot_item.scene().sigMouseClicked.connect(self.mouse_clicked)
+        self.plot_item.getViewBox().sigXRangeChanged.connect(self.x_range_changed)
 
     def disconnect_signals(self):
         self.plot_item.scene().sigMouseMoved.disconnect(self.mouse_moved)
         self.plot_item.scene().sigMouseClicked.disconnect(self.mouse_clicked)
+        self.plot_item.getViewBox().sigXRangeChanged.disconnect(self.x_range_changed)
 
     def connect_range_changed(self, fn: Callable):
         self.plot_item.getViewBox().sigRangeChanged.connect(lambda *args: fn(self, *args))
 
     def connect_v_line_position_changed(self, fn: Callable):
         self.vline.sigPositionChanged.connect(lambda: fn(self))
+
+    def plot_peaks(self, x0, x1):
+        x, y = self.plotted_data.getData()
+
+        idx0, idx1 = find_nearest_idx(x, (x0, x1))
+        x = x[idx0:idx1 + 1]
+        y = y[idx0:idx1 + 1]
+
+        distance = x.shape[0] / Settings.peak_density
+        distance = 1 if distance < 1 else distance
+
+        peaks = find_peaks(y, distance=distance)[0]
+
+        label_format = f'{{value:.{Settings.coordinates_sig_figures}g}}'
+        for xval, yval in zip(x[peaks], y[peaks]):
+            ti = TextItem(label_format.format(value=xval), color=Settings.peak_color, anchor=(0.5, 1))
+            self.peak_labels.append(ti)
+            self.plot_item.addItem(ti)
+            ti.setPos(xval, yval)
+
+    def x_range_changed(self, sender_vb, ranges):
+        x0, x1 = ranges
+
+        if self.show_peaks:
+            if len(self.peak_labels) > 0:
+                for label in self.peak_labels:
+                    self.plot_item.removeItem(label)
+                self.peak_labels.clear()
+            self.plot_peaks(x0, x1)
 
     def mouse_moved(self, pos):
         in_scene = self.plot_item.sceneBoundingRect().contains(pos)

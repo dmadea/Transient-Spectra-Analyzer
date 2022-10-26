@@ -38,7 +38,8 @@ class Settings(object):
     infinite_line_label_brush_alpha = 200
     plot_title_font_size = '8pt'
     heatmap_line_label_position = 0.1
-
+    peak_density = 10
+    peak_color = (5, 35, 140)
 
     # recent projects filepaths
 

@@ -24,6 +24,9 @@ class GenericLayoutWidget(pg.GraphicsLayoutWidget):
     def get_labels(self):
         raise NotImplemented()
 
+    def show_peaks(self):
+        raise NotImplemented()
+
     def set_labels(self, index: int, x_label: str, y_label: str, z_label: str):
         self.parent.set_axis_label(index, x_label, y_label, z_label)
 
