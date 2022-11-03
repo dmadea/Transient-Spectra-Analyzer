@@ -5,6 +5,8 @@ from PyQt6.QtGui import QAction, QCursor
 
 from Widgets.settingsdialog import SettingsDialog
 
+from copy import deepcopy
+
 
 class DockDisplayMode:
     Row = 0
@@ -54,7 +56,7 @@ class DockLabel(_DockLabel):
         labels = self.widget.get_labels()
 
         for i in range(n):
-            mat_opt = mat_opt_template.copy()
+            mat_opt = deepcopy(mat_opt_template)
             for j in range(6):
                 mat_opt[j]['value'] = labels[i][j]
             opts.append(dict(name=f'{i}', title=f'Matrix {i} Options', type='group', children=mat_opt))
