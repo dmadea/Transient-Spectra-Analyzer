@@ -33,15 +33,19 @@ class DockLabel(_DockLabel):
 
         index = int(parent.opts['name'])
 
-        self.widget.set_labels(index, parent['x_label'], parent['y_label'], parent['z_label'])
+        self.widget.set_labels(index, parent['x_label'], parent['x_label_unit'], parent['y_label'],
+                               parent['y_label_unit'], parent['z_label'], parent['z_label_unit'])
 
     def open_options(self):
         if self.widget is None:
             return
 
-        mat_opt_template = [dict(name='x_label', type='str', value="Wavelength / nm"),
-                            dict(name='y_label', type='str', value="Time / min"),
-                            dict(name='z_label', type='str', value="\u0394A")]
+        mat_opt_template = [dict(name='x_label', type='str', value="Wavelength"),
+                            dict(name='x_label_unit', type='str', value="nm"),
+                            dict(name='y_label', type='str', value="Time"),
+                            dict(name='y_label_unit', type='str', value="min"),
+                            dict(name='z_label', type='str', value="\u0394A"),
+                            dict(name='z_label_unit', type='str', value="")]
 
         opts = []
 
@@ -51,7 +55,8 @@ class DockLabel(_DockLabel):
 
         for i in range(n):
             mat_opt = mat_opt_template.copy()
-            mat_opt[0]['value'], mat_opt[1]['value'], mat_opt[2]['value'] = labels[i]
+            for j in range(6):
+                mat_opt[j]['value'] = labels[i][j]
             opts.append(dict(name=f'{i}', title=f'Matrix {i} Options', type='group', children=mat_opt))
 
         self.sett_dialog = SettingsDialog(opts)

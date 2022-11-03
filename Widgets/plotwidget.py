@@ -43,8 +43,10 @@ class PlotWidget(GenericLayoutWidget):
             plot.arr_ax0 = m.times if axis == 0 else m.wavelengths
             min_val, max_val = plot.arr_ax0[0], plot.arr_ax0[-1]
             plot.set_limits(min_val, max_val, m.D.min(), m.D.max())
-            plot.plot_item.setTitle(f"{title_prefix}{m.get_filename()}{title_postfix}",
-                                    size=Settings.plot_title_font_size)
+            plot.title = f"{title_prefix}{m.get_filename()}{title_postfix}"
+
+            # plot.plot_item.setTitle(f"{title_prefix}{m.get_filename()}{title_postfix}",
+            #                         size=Settings.plot_title_font_size)
 
     def get_positions(self):
         return [plot.vline.pos()[0] for plot in self.plots]
@@ -89,6 +91,7 @@ class PlotLayout(GenericPlotLayout):
         self.arr_ax0 = None
         self.peak_labels = []
         self.show_peaks = False
+        self.title = ''
 
         self.string_axis_left = StringAxis(orientation='left', keep_constant_space=True)
         self.string_axis_right = StringAxis(orientation='right', keep_constant_space=True)
@@ -138,10 +141,11 @@ class PlotLayout(GenericPlotLayout):
         self.layout.setSpacing(0)
         self.setContentsMargins(0, 0, 0, 0)
 
-    def set_main_data(self, x: np.ndarray, y: np.ndarray, pen=None):
+    def set_main_data(self, x: np.ndarray, y: np.ndarray, pen=None, add2title=''):
         pen = pen if pen is not None else mkPen(color=(0, 0, 0), width=1)
 
         self.plotted_data.setData(x, y, pen=pen)
+        self.plot_item.setTitle(f'{self.title} at {add2title}', size=Settings.plot_title_font_size)
 
         if len(self.peak_labels) > 0:
             for label in self.peak_labels:

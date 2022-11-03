@@ -27,8 +27,9 @@ class GenericLayoutWidget(pg.GraphicsLayoutWidget):
     def show_peaks(self):
         raise NotImplemented()
 
-    def set_labels(self, index: int, x_label: str, y_label: str, z_label: str):
-        self.parent.set_axis_label(index, x_label, y_label, z_label)
+    def set_labels(self, index: int, x_label: str, x_label_unit: str, y_label: str, y_label_unit: str, z_label: str,
+                   z_label_unit: str,):
+        self.parent.set_axis_label(index, x_label, x_label_unit, y_label, y_label_unit, z_label, z_label_unit)
 
     def set_display_mode(self, mode: DockDisplayMode):
         for plot in self.plots:

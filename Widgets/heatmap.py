@@ -25,8 +25,11 @@ class HeatMapWidget(GenericLayoutWidget):
 
     def get_labels(self):
         return [(h.heatmap_pi.getAxis('bottom').labelText,
+                 h.heatmap_pi.getAxis('bottom').labelUnits,
                  h.heatmap_pi.getAxis('left').labelText,
-                 h.hist.axis.labelText) for h in self.plots]
+                 h.heatmap_pi.getAxis('left').labelUnits,
+                 h.hist.axis.labelText,
+                 h.hist.axis.labelUnits) for h in self.plots]
 
     # def set_labels(self, index: int, x_label: str, y_label: str, z_label: str):
     #     self.plots[index].heatmap_pi.setLabel('bottom', x_label)

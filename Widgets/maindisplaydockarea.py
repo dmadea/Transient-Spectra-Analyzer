@@ -22,6 +22,7 @@ from scipy.linalg import lstsq
 from scipy.integrate import cumtrapz
 
 from scipy.interpolate import interp2d
+from settings import Settings
 
 
 class CommonDimension:
@@ -190,16 +191,17 @@ class MainDisplayDockArea(DockArea):
         # self.spectrum_vline.sigPositionChangeFinished.connect(self.update_trace_and_spectrum)
         # self.trace_vline.sigPositionChangeFinished.connect(self.update_trace_and_spectrum)
 
-    def set_axis_label(self, index: int, x_label='Wavelength / nm', y_label='Time / ps', z_label='\u0394A'):
-        self.heat_map_widget.plots[index].heatmap_pi.setLabel('left', y_label)
-        self.heat_map_widget.plots[index].heatmap_pi.setLabel('bottom', x_label)
-        self.heat_map_widget.plots[index].hist.axis.setLabel(z_label)
+    def set_axis_label(self, index: int, x_label='Wavelength', x_label_unit='nm', y_label='Time', y_label_unit='ps',
+                       z_label='\u0394A', z_label_unit=''):
+        self.heat_map_widget.plots[index].heatmap_pi.setLabel('left', y_label, units=y_label_unit)
+        self.heat_map_widget.plots[index].heatmap_pi.setLabel('bottom', x_label, units=x_label_unit)
+        self.heat_map_widget.plots[index].hist.axis.setLabel(z_label, units=z_label_unit)
 
-        self.trace_widget.plots[index].plot_item.setLabel('left', z_label)
-        self.trace_widget.plots[index].plot_item.setLabel('bottom', y_label)
+        self.trace_widget.plots[index].plot_item.setLabel('left', z_label, units=z_label_unit)
+        self.trace_widget.plots[index].plot_item.setLabel('bottom', y_label, units=y_label_unit)
 
-        self.spectrum_widget.plots[index].plot_item.setLabel('left', z_label)
-        self.spectrum_widget.plots[index].plot_item.setLabel('bottom', x_label)
+        self.spectrum_widget.plots[index].plot_item.setLabel('left', z_label, units=z_label_unit)
+        self.spectrum_widget.plots[index].plot_item.setLabel('bottom', x_label, units=x_label_unit)
 
     def HPLCMS_baseline_corr(self, MS_index=0, UV_index=1, threshold_TWC=300):
         uv = self.matrices[UV_index]
@@ -606,18 +608,22 @@ class MainDisplayDockArea(DockArea):
             x_idx = find_nearest_idx(m.wavelengths, x_positions[i])
             y_idx = find_nearest_idx(m.times, y_positions[i])
 
-            # try:
-            self.trace_widget.plots[i].set_main_data(m.times, m.D[:, x_idx], pen=pen)
-            self.spectrum_widget.plots[i].set_main_data(m.wavelengths, m.D[y_idx], pen=pen)
+            label_format = f'{{:.{Settings.coordinates_sig_figures}g}}'
+            xunit = self.heat_map_widget.plots[i].heatmap_pi.getAxis('bottom').labelUnits
+            yunit = self.heat_map_widget.plots[i].heatmap_pi.getAxis('left').labelUnits
 
-                # self.plotted_traces[i].setData(m.times, m.D[:, x_idx], pen=pen)
-                # self.plotted_spectra[i].setData(m.wavelengths, m.D[y_idx], pen=pen)
+            trace_add2title = f'{label_format.format(m.wavelengths[x_idx])} {xunit}'
+            spectrum_add2title = f'{label_format.format(m.times[y_idx])} {yunit}'
+
+            # try:
+            self.trace_widget.plots[i].set_main_data(m.times, m.D[:, x_idx], pen=pen, add2title=trace_add2title)
+            self.spectrum_widget.plots[i].set_main_data(m.wavelengths, m.D[y_idx], pen=pen, add2title=spectrum_add2title)
+
+            # self.plotted_traces[i].setData(m.times, m.D[:, x_idx], pen=pen)
+            # self.plotted_spectra[i].setData(m.wavelengths, m.D[y_idx], pen=pen)
 
             # except Exception as e:
             #     print(x_idx, y_idx, e)
-
-
-
 
         # time_pos = self.heat_map_hline.pos()[1]
         # time_pos = self.heat_map_widget.transform_t_pos(time_pos)
