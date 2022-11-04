@@ -28,8 +28,8 @@ class StringAxis(pg.AxisItem):
             # strings = [label_format.format(s=s) for s in strings] if self.keep_constant_space else strings
             # return strings
 
-        vs = np.asarray(values) * scale
-        tr_values = self.transform(vs)
+        vs = np.asarray(values)
+        tr_values = self.transform(vs) * scale
         # label_format = f'{{value:{self.direction}{self.digits}.{Settings.coordinates_sig_figures}g}}' if self.keep_constant_space else f'{{value:.{Settings.coordinates_sig_figures}g}}'
         label_format = f'{{value:.{Settings.coordinates_sig_figures}g}}'
         strings = [label_format.format(value=v) for v in tr_values]

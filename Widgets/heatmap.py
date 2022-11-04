@@ -163,8 +163,8 @@ class Heatmap(GenericPlotLayout):
                           (0.875, (255, 0, 0, 255))],
                 'mode': 'rgb'}
 
-    def __init__(self, parent=None, border=None, title="Residuals (CS<sup>T</sup> - D)", xlabel='\u2190 Time (ps)',
-                 ylabel='Wavelength (nm) \u2192', z_label='\u0394A', keep_levels_centered=True):
+    def __init__(self, parent=None, border=None, title="Residuals", xlabel='Time',
+                 ylabel='Wavelength \u2192', z_label='\u0394A', keep_levels_centered=True):
         super(Heatmap, self).__init__(None, border)
         self.keep_levels_centered = keep_levels_centered
         self.parentWidget = parent

@@ -191,7 +191,7 @@ class MainDisplayDockArea(DockArea):
         # self.spectrum_vline.sigPositionChangeFinished.connect(self.update_trace_and_spectrum)
         # self.trace_vline.sigPositionChangeFinished.connect(self.update_trace_and_spectrum)
 
-    def set_axis_label(self, index: int, x_label='Wavelength', x_label_unit='nm', y_label='Time', y_label_unit='ps',
+    def set_axis_label(self, index: int, x_label='Wavelength', x_label_unit='nm', y_label='Time', y_label_unit='s',
                        z_label='\u0394A', z_label_unit=''):
         self.heat_map_widget.plots[index].heatmap_pi.setLabel('left', y_label, units=y_label_unit)
         self.heat_map_widget.plots[index].heatmap_pi.setLabel('bottom', x_label, units=x_label_unit)
