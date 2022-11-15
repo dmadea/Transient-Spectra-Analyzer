@@ -603,6 +603,7 @@ class MainDisplayDockArea(DockArea):
         x_positions, y_positions = self.heat_map_widget.get_positions()
 
         pen = pg.mkPen(color=QColor('black'), width=1)
+        # pen_fit = pg.mkPen(color=QColor('red'), width=1)
 
         for i, m in enumerate(self.matrices):
             x_idx = find_nearest_idx(m.wavelengths, x_positions[i])
@@ -619,11 +620,9 @@ class MainDisplayDockArea(DockArea):
             self.trace_widget.plots[i].set_main_data(m.times, m.D[:, x_idx], pen=pen, add2title=trace_add2title)
             self.spectrum_widget.plots[i].set_main_data(m.wavelengths, m.D[y_idx], pen=pen, add2title=spectrum_add2title)
 
-            # self.plotted_traces[i].setData(m.times, m.D[:, x_idx], pen=pen)
-            # self.plotted_spectra[i].setData(m.wavelengths, m.D[y_idx], pen=pen)
-
-            # except Exception as e:
-            #     print(x_idx, y_idx, e)
+            if self.fit_matrix and i == 0:
+                self.trace_widget.plots[i].set_fit_data(m.times, self.fit_matrix.D[:, x_idx])
+                self.spectrum_widget.plots[i].set_fit_data(m.wavelengths, self.fit_matrix.D[y_idx])
 
         # time_pos = self.heat_map_hline.pos()[1]
         # time_pos = self.heat_map_widget.transform_t_pos(time_pos)
@@ -678,16 +677,7 @@ class MainDisplayDockArea(DockArea):
 
     def set_fit_matrix(self, fit_matrix):
         self.fit_matrix = fit_matrix
-
-        self.spectrum.clearPlots()
-        self.trace.clearPlots()
-
-        self.init_trace_and_spectrum()
-        self.init_fit_trace_sp()
-        self.update_trace_and_spectrum()
-
-        self.spectrum.autoBtnClicked()
-        self.trace.autoBtnClicked()
+        self.update_trace_and_spectrum(None)
 
     def update_spectra(self):
         if self.matrix is None:
@@ -852,6 +842,8 @@ class MainDisplayDockArea(DockArea):
 
     def plot_matrices(self, matrices, center_lines=True, keep_ranges=False, keep_fits=False):
 
+        self.fit_matrix = None
+
         # w_range, t_range = self.heat_map_widget.heat_map_plot.getViewBox().viewRange()
         # z_range = self.heat_map_widget.get_z_range()
 
@@ -951,9 +943,9 @@ class MainDisplayDockArea(DockArea):
         self.heat_map_widget.autoscale()
         self.update_trace_and_spectrum()
 
-        self.heat_map_widget.set_lines_color()
-        self.spectrum_widget.set_lines_color()
-        self.trace_widget.set_lines_color()
+        # self.heat_map_widget.set_lines_color()
+        # self.spectrum_widget.set_lines_color()
+        # self.trace_widget.set_lines_color()
 
         # if keep_fits:
         #     self.init_fit_trace_sp()

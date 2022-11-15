@@ -42,11 +42,8 @@ class PlotWidget(GenericLayoutWidget):
         for plot, m in zip(self.plots, matrices):
             plot.arr_ax0 = m.times if axis == 0 else m.wavelengths
             min_val, max_val = plot.arr_ax0[0], plot.arr_ax0[-1]
-            plot.set_limits(min_val, max_val, m.D.min(), m.D.max())
+            plot.set_limits(min_val, max_val,  m.D.min(), m.D.max())
             plot.title = f"{title_prefix}{m.get_filename()}{title_postfix}"
-
-            # plot.plot_item.setTitle(f"{title_prefix}{m.get_filename()}{title_postfix}",
-            #                         size=Settings.plot_title_font_size)
 
     def get_positions(self):
         return [plot.vline.pos()[0] for plot in self.plots]
@@ -106,7 +103,8 @@ class PlotLayout(GenericPlotLayout):
                                       'top': self.string_axis_top})
 
         self.plotted_data = self.plot_item.plot([])
-        # self.plotted_data.
+        self.fit_data = self.plot_item.plot([])
+        self.factored_data = self.plot_item.plot([])
         self.probe_label = pg.LabelItem("<span style='color: #808080'>No data at cursor</span>", justify='left')
         self.addItem(self.probe_label, 1, 0)
 
@@ -155,6 +153,14 @@ class PlotLayout(GenericPlotLayout):
         if self.show_peaks:
             x0, x1 = self.plot_item.getViewBox().state['viewRange'][0]
             self.plot_peaks(x0, x1)
+
+    def set_factored_data(self, x: np.ndarray, y: np.ndarray, pen=None):
+        pen = pen if pen is not None else mkPen(color=(0, 255, 0), width=1)
+        self.factored_data.setData(x, y, pen=pen)
+
+    def set_fit_data(self, x: np.ndarray, y: np.ndarray, pen=None):
+        pen = pen if pen is not None else mkPen(color=(255, 0, 0), width=1)
+        self.fit_data.setData(x, y, pen=pen)
 
     def vline_moved(self, line):
         if self.arr_ax0 is None:

@@ -481,7 +481,9 @@ class Fitter:
 
             R = _C_opt @ _ST_opt - self.D  # calculate residuals
 
-            return np.nan_to_num(R)
+            weights = self.c_model.get_weights()
+
+            return np.nan_to_num(R * weights)
 
         self.minimizer = lmfit.Minimizer(residuals, self.c_model.params,
                                          iter_cb=lambda params, iter, resid, *args, **kws: self.is_interruption_requested())

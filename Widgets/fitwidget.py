@@ -27,6 +27,7 @@ from .combo_box_cb import ComboBoxCB
 # from fitting.constraints import *
 import pyqtgraph as pg
 from .taskfit import TaskFit
+from Widgets.heatmap import Heatmap
 
 import inspect
 
@@ -406,8 +407,12 @@ class FitWidget(QWidget, Ui_Form):
         for i in range(self.current_model.params.__len__()):
             param = self.params_list[i].text()
 
-            val = float(self.value_list[i].text())
-            min, max = float(self.lower_bound_list[i].text()), float(self.upper_bound_list[i].text())
+            try:
+                val = float(self.value_list[i].text())
+                min, max = float(self.lower_bound_list[i].text()), float(self.upper_bound_list[i].text())
+            except ValueError:
+                val = 0
+                min, max = -np.inf, np.inf
             val = val if min <= val <= max else (min if np.abs(min - val) < np.abs(max - val) else max)
 
             self.current_model.params[param].min = min
@@ -613,7 +618,7 @@ class FitWidget(QWidget, Ui_Form):
                                                   pen=pen_coh_spec, name=name)
 
         self.fit_plot_layout.heat_map_plot.set_matrix(R, self.matrix.times, self.matrix.wavelengths,
-                                                      gradient=HeatMapWidget.seismic)
+                                                      gradient=Heatmap.seismic)
 
         mat = LFP_matrix.from_value_matrix(D_fit, self.matrix.times, self.matrix.wavelengths)
         MainDisplayDockArea.instance.set_fit_matrix(mat)

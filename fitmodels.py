@@ -169,8 +169,9 @@ class _Model(object):
 
     _err = 1e-8
 
-    def __init__(self, times=None, connectivity=(0, 1, 2), C=None):
+    def __init__(self, times=None, connectivity=(0, 1, 2), wavelengths=None, C=None):
         self.times = times
+        self.wavelengths = wavelengths
         self.C = C
         self._connectivity = connectivity
         self.method = 'MCR-ALS'
@@ -179,6 +180,7 @@ class _Model(object):
         self.target_model = None
         self.j = None  # j vector for target analysis
         self.params = None
+        self.weights = []  # (wl_start, wl_end, weight) default weight 1
 
         # self.init_params()
         self.species_names = np.array(list('ABCDEFGHIJKL'), dtype=np.str)
@@ -300,6 +302,13 @@ class _Model(object):
         else:
             return np.heaviside(t, 1) * (k1 * c0 / (k2 - k1 - k0)) * (np.exp(-(k1 + k0) * t) - np.exp(-k2 * t))
 
+    def get_weights(self):
+        weights = np.ones((self.times.shape[0], self.wavelengths.shape[0]))
+        for *rng, w in self.weights:
+            idx0, idx1 = find_nearest_idx(self.wavelengths, rng)
+            weights[:, idx0:idx1+1] *= w
+
+        return weights
 
 class _Femto(_Model):
 
@@ -309,7 +318,7 @@ class _Femto(_Model):
     spectra = 'EADS'  # or 'EADS'
 
     def __init__(self, times=None, connectivity=(0, 1, 2), wavelengths=None,  method='femto'):
-        super(_Femto, self).__init__(times, connectivity)
+        super(_Femto, self).__init__(times, connectivity, wavelengths)
         self.method = method
         self.description = ""
 
@@ -318,7 +327,6 @@ class _Femto(_Model):
         self._connectivity = connectivity
         self.init_times(times)
         self.species_names = np.array(list('ABCDEFGHIJ'), dtype=np.str)
-        self.wavelengths = wavelengths
 
         self.coh_spec = True
         self.coh_spec_order = 2
@@ -329,7 +337,7 @@ class _Femto(_Model):
         # self.weights = [(456, 475, 0.05)]  # (wl_start, wl_end, weight) default weight 1
 
         self.zero_coh_spec_range = []  # zero coherent artifact in that wavelength range
-        self.weights = []  # (wl_start, wl_end, weight) default weight 1
+
         self.weight_chirp = False
         self.w_of_chirp = 0.1
         self.t_radius_chirp = 0.2  # time radius around chirp / in ps
@@ -604,7 +612,6 @@ class _Femto(_Model):
                 self.params[f'mul_{i+1}'].value = coefs[i*2 + 1]
                 self.params[f'lam_{i+1}'].value = coefs[i*2 + 2]
 
-
     def init_model_params(self):
         params = super(_Femto, self).init_model_params()
 
@@ -628,11 +635,7 @@ class _Femto(_Model):
         return params
 
     def get_weights(self, params=None):
-        weights = np.ones((self.times.shape[0], self.wavelengths.shape[0]))
-        for *rng, w in self.weights:
-            idx0, idx1 = find_nearest_idx(self.wavelengths, rng)
-            weights[:, idx0:idx1+1] *= w
-
+        weights = super(_Femto, self).get_weights()
         if self.weight_chirp:
             mu = self.get_mu(params)
 
@@ -641,6 +644,7 @@ class _Femto(_Model):
                 weights[idx0:idx1+1, i] *= self.w_of_chirp
 
         return weights
+
 
     def simulate_C_tensor(self, params=None):
         if params is None:
@@ -691,6 +695,7 @@ class _Photokinetic_Model(_Model):
 
     def __init__(self, times=None, connectivity=(0, 1, 2), ST=None, wavelengths=None, aug_matrix=None, rot_mat=True,
                  C=None, method='RFA'):
+        super(_Photokinetic_Model, self).__init__(times, connectivity, wavelengths)
 
         self.fit_methods = [
             {'name': 'Resolving Factor Analysis', 'abbr': 'RFA'},
@@ -706,7 +711,6 @@ class _Photokinetic_Model(_Model):
         self.init_times(times)
         self.species_names = np.array(list('ABCDEFGHIJ'), dtype=np.str)
 
-        self.wavelengths = wavelengths
         self.ST = ST
         self.interp_kind = 'quadratic'
 
@@ -760,7 +764,7 @@ class _Photokinetic_Model(_Model):
         plt.legend()
         plt.show()
 
-    def open_model_settings(self):
+    def open_model_settings(self, show_target_model=False):
         if GenericInputDialog.if_opened_activate():
             return
 
@@ -2586,6 +2590,83 @@ class SingletOxygenProductionAbs(_Photokinetic_Model):
         # c0 = 63e-6 if self.C[0, 0] == 0 else self.C[0, 0]
 
         self.C[:, 0] = odeint(dc_dt, c0_DPBF, self.times).squeeze()
+
+        return self.get_conc_matrix(C_out, self._connectivity)
+
+class Z3_Photokinetics(_Photokinetic_Model):
+    n = 4
+    name = '3Z photokinetic and thermal target model'
+    _class = 'Steady state photokinetics'
+
+    def __init__(self, times=None, ST=None, wavelengths=None):
+        super(Z3_Photokinetics, self).__init__(times)
+
+        self.species_names = ['3Z', 'PDP', 'Hydroperoxide', 'Imine']  + list('ABCDEFGH')
+        self.wavelengths = wavelengths
+        self.ST = ST
+
+    def init_model_params(self):
+        params = Parameters()
+        params.add('I', value=1.105e-3, min=0, max=np.inf, vary=True)  # Current in ampere on the photodide, without any cuvette
+        params.add('V', value=0.0025, min=0, max=np.inf, vary=False)  # Volume of the solution
+        params.add('k_r', value=1e9, min=0, max=np.inf, vary=False)  # reaction of 3Z with singlet oxygen
+        params.add('k_d', value=105263.15, min=0, max=np.inf, vary=False)  # decay rate constant of singlet ox. in MeOH
+        params.add('Phi_Delta', value=0.7, min=0, max=np.inf, vary=False)  # quantum yield of singlet ox. production from RB
+        params.add('alpha', value=0.5, min=0, max=1, vary=False)  #  branching coefficient
+        # params.add('eps_3Z', value=63e-6, min=0, max=np.inf, vary=False)  # Concentration of DPBF
+
+        params.add('tau1', value=96, min=0, max=np.inf, vary=True)  # Concentration of DPBF
+        params.add('tau2', value=300, min=0, max=np.inf, vary=True)  # Concentration of DPBF
+        params.add('tau3', value=16373, min=0, max=np.inf, vary=True)  # Concentration of DPBF
+
+        return params
+
+    def calc_C(self, params=None, C_out=None):
+        super(Z3_Photokinetics, self).calc_C(params)
+
+        if self.ST is None:
+            raise ValueError("Spectra matrix must not be none.")
+
+        R = 0.036  # Cuvette reflectivity
+
+        I, V, k_r, k_d, Phi_Delta, alpha, tau1, tau2, tau3 = [par[1].value for par in self.params.items()]
+
+        irr_source = self.get_LED_source()
+        q_rel = self.get_q_rel()
+
+        # calculate incident spectral photon flux
+        spectral_flux = I * np.trapz(q_rel * irr_source) * irr_source / V  # I * integral(q_rel * PDF) * PDF
+
+        # K = np.asarray([[0, 0, 0, 0],
+        #                 [0, -1/tau1, 0, 0],
+        #                 [0, 1/tau1, -1/tau2, 0],
+        #                 [0, 0, 1/tau2, -1/tau3]])
+
+        # 3Z, PDP, OOH, imine
+        K = np.asarray([[0, 0, 0, 0],
+                        [0, -1/tau3, 0, 1/tau2],
+                        [0, 0, -1/tau1, 0],
+                        [0, 0, 1/tau1, -1/tau2]])
+
+        def dc_dt(c, t):
+            tidx = find_nearest_idx(self.times, t)
+            A = self.D[tidx, :]  # current absorbance
+            T = 10**(-A)  # calculate transmittance
+
+            effective_spectral_flux = spectral_flux * (1 - R) * (1 + R * T)
+            integral = np.trapz(effective_spectral_flux * (1 - T), self.wavelengths)  # integrate
+
+            vec = np.zeros_like(c)
+            decay = -Phi_Delta * k_r * c[0] * integral / (k_d + k_r * c[0])  # photochemical decay by singlet ox
+            vec[0] = decay  # decay of 3Z
+            vec[1] = -decay * alpha  # rise of PDP
+            vec[2] = -decay * (1 - alpha)  # rise of hydroperoxide
+
+            return K.dot(c) + vec
+
+        c0_3Z = 6.45e-5
+
+        self.C = odeint(dc_dt, np.asarray([c0_3Z, 0, 0, 0]), self.times).squeeze()
 
         return self.get_conc_matrix(C_out, self._connectivity)
 
