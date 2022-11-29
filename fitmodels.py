@@ -2671,6 +2671,80 @@ class Z3_Photokinetics(_Photokinetic_Model):
         return self.get_conc_matrix(C_out, self._connectivity)
 
 
+
+class Z3_Photokinetics_MeCN(_Photokinetic_Model):
+    n = 4
+    name = '3Z photokinetic and thermal target model MeCN'
+    _class = 'Steady state photokinetics'
+
+    def __init__(self, times=None, ST=None, wavelengths=None):
+        super(Z3_Photokinetics_MeCN, self).__init__(times)
+
+        self.species_names = ['3Z', 'PDP', 'Hydroperoxide', 'Imine'] + list('ABCDEFGH')
+        self.wavelengths = wavelengths
+        self.ST = ST
+
+    def init_model_params(self):
+        params = Parameters()
+        params.add('I', value=1.105e-3, min=0, max=np.inf, vary=True)  # Current in ampere on the photodide, without any cuvette
+        params.add('V', value=0.0025, min=0, max=np.inf, vary=False)  # Volume of the solution
+        params.add('k_r', value=1e9, min=0, max=np.inf, vary=False)  # reaction of 3Z with singlet oxygen
+        params.add('k_d', value=105263.15, min=0, max=np.inf, vary=False)  # decay rate constant of singlet ox. in MeOH
+        params.add('Phi_Delta', value=0.7, min=0, max=np.inf, vary=False)  # quantum yield of singlet ox. production from RB
+        params.add('alpha', value=0.3, min=0, max=1, vary=False)  #  branching coefficient
+        # params.add('eps_3Z', value=63e-6, min=0, max=np.inf, vary=False)  # Concentration of DPBF
+
+        params.add('tau1', value=96, min=0, max=np.inf, vary=True)  # Concentration of DPBF
+        # params.add('tau2', value=300, min=0, max=np.inf, vary=True)  # Concentration of DPBF
+        # params.add('tau3', value=16373, min=0, max=np.inf, vary=True)  # Concentration of DPBF
+
+        return params
+
+    def calc_C(self, params=None, C_out=None):
+        super(Z3_Photokinetics_MeCN, self).calc_C(params)
+
+        if self.ST is None:
+            raise ValueError("Spectra matrix must not be none.")
+
+        R = 0.036  # Cuvette reflectivity
+
+        I, V, k_r, k_d, Phi_Delta, alpha, tau1 = [par[1].value for par in self.params.items()]
+
+        irr_source = self.get_LED_source()
+        q_rel = self.get_q_rel()
+
+        # calculate incident spectral photon flux
+        spectral_flux = I * np.trapz(q_rel * irr_source) * irr_source / V  # I * integral(q_rel * PDF) * PDF
+
+        # 3Z, PDP, OOH, imine
+        K = np.asarray([[0, 0, 0, 0],
+                        [0, 0, 0, 0],
+                        [0, 0, -1/tau1, 0],
+                        [0, 0, 1/tau1, 0]])
+
+        def dc_dt(c, t):
+            tidx = find_nearest_idx(self.times, t)
+            A = self.D[tidx, :]  # current absorbance
+            T = 10**(-A)  # calculate transmittance
+
+            effective_spectral_flux = spectral_flux * (1 - R) * (1 + R * T)
+            integral = np.trapz(effective_spectral_flux * (1 - T), self.wavelengths)  # integrate
+
+            vec = np.zeros_like(c)
+            v = -Phi_Delta * k_r * c[0] * integral / (k_d + k_r * c[0])  # photochemical decay by singlet ox
+            vec[0] = v  # decay of 3Z
+            vec[1] = -v * alpha  # rise of PDP
+            vec[2] = -v * (1 - alpha)  # rise of hydroperoxide
+
+            return K.dot(c) + vec
+
+        c0_3Z = 3.22e-5
+
+        self.C = odeint(dc_dt, np.asarray([c0_3Z, 0, 0, 0]), self.times).squeeze()
+
+        return self.get_conc_matrix(C_out, self._connectivity)
+
+
 # class Half_Bilirubin_Multiset(_Model):
 #     n = 4
 #     name = 'Half-Bilirubin Multiset Model'
