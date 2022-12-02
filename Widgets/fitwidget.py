@@ -218,6 +218,17 @@ class FitWidget(QWidget, Ui_Form):
 
         self.plot_opt_matrices()
 
+    def set_ST_fit(self):
+        if self.matrix is None:
+            return
+
+        eps488 = 24712
+        self._ST[0] = self.matrix.D[0] * eps488 / self.matrix.D[0].max()
+        self._ST[1] = self.matrix.D[85] * eps488 / self.matrix.D[0].max()
+        self._ST[-1] = self.matrix.D[-1] * eps488 / self.matrix.D[0].max()
+
+        self.plot_opt_matrices()
+
     def ssq(self):
         self.D_fit = self._C @ self._ST if self.current_model.method is not 'femto' else self.D_fit
         return ((self.matrix.D - self.D_fit) ** 2).sum()
@@ -472,6 +483,8 @@ class FitWidget(QWidget, Ui_Form):
 
         if self.current_model.method is 'RFA':
             T = self.current_model.get_T()
+            setattr(self.current_model, 'D', self.matrix.D)
+            self.current_model.calc_SVD()
             self._ST = T.dot(self.current_model.VT)
 
             self.current_model.ST = self._ST
@@ -650,7 +663,7 @@ class FitWidget(QWidget, Ui_Form):
         if self._au:
             setattr(self.current_model, 'aug_matrix', self._au)
         else:
-            setattr(self.current_model, 'matrix', self.matrix)
+            setattr(self.current_model, 'D', self.matrix.D)
 
         # get the conectivity with kinetic model
         n = int(self.sbN.value())  # number of species

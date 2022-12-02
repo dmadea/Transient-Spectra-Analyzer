@@ -228,6 +228,9 @@ class _Model(object):
 
         return models, cbModels
 
+    def calc_SVD(self):
+        pass
+
     def open_model_settings(self, show_target_model=False):
         pass
         # if GenericInputDialog.if_opened_activate():
@@ -806,8 +809,19 @@ class _Photokinetic_Model(_Model):
 
         self.T = np.zeros((self.n, self.n + 1), dtype=np.float64) if self.T is not None else None
 
-        if self.aug_matrix:
-            U, S, VT = svd(self.aug_matrix.aug_mat, full_matrices=False)
+        self.calc_SVD()
+
+        # if self.aug_matrix:
+        #     U, S, VT = svd(self.aug_matrix.aug_mat, full_matrices=False)
+        #
+        #     self.U, self.Sigma, self.VT = U[:, :self.n + 1], np.diag(S[:self.n + 1]), VT[:self.n + 1, :]
+
+    def calc_SVD(self):
+        matrix = self.aug_matrix if self.aug_matrix else self.D
+
+        if matrix is not None:
+            U, S, VT = svd(matrix, full_matrices=False)
+
             self.U, self.Sigma, self.VT = U[:, :self.n + 1], np.diag(S[:self.n + 1]), VT[:self.n + 1, :]
 
     def get_T(self, params=None):
@@ -820,7 +834,7 @@ class _Photokinetic_Model(_Model):
         assert type(n) is int
 
         pars = [par[1].value for par in params.items()]
-        self.T = np.asarray(pars[:n*(n+1)]).reshape((n, n+1))
+        self.T = np.asarray(pars[:n*(n+1)]).reshape((n, n+1))  # taking n+1 spectral components
 
         return self.T
 
@@ -1371,11 +1385,12 @@ class Sequential_Model_FK(_Photokinetic_Model):
 
     def init_model_params(self):
         params = super(Sequential_Model_FK, self).init_model_params()
-        params.add('c0', value=1e-3, min=0, max=np.inf, vary=False)  # initial concentration of species A
-        params.add('q0', value=1e-8, min=0, max=np.inf, vary=False)  # total photon flux
+        params.add('c0', value=1.52/24712, min=0, max=np.inf, vary=True)  # initial concentration of species A
+        # params.add('q0', value=1e-8, min=0, max=np.inf, vary=False)  # total photon flux
         params.add('l', value=1, min=0, max=np.inf, vary=False)  # length of cuvette
-        params.add('V', value=1e-3, min=0, max=np.inf, vary=False)  # volume of solution in cuvette
+        params.add('V', value=3e-3, min=0, max=np.inf, vary=False)  # volume of solution in cuvette
         params.add('t0', value=0, min=0, max=np.inf, vary=False)  # time of start of irradiation
+        params.add('I', value=0.966e-3, min=0, max=np.inf, vary=False)  # total photon flux
 
         for i in range(self.n):
             sec_label = self.species_names[i + 1] if i < self.n - 1 else ""
@@ -1386,7 +1401,7 @@ class Sequential_Model_FK(_Photokinetic_Model):
     def calc_C(self, params=None, C_out=None):
         super(Sequential_Model_FK, self).calc_C(params, C_out)
 
-        c0, q0, l, V, t0, *phis = self.get_photokin_params()
+        c0, l, V, t0, I, *phis = self.get_photokin_params()
         n = self.n
 
         K = np.zeros((n, n), dtype=np.float64)  # setup a model matrix
@@ -1399,10 +1414,13 @@ class Sequential_Model_FK(_Photokinetic_Model):
         c0_vec = np.zeros(n, dtype=np.float64)
         c0_vec[0] = c0  # initial concentration vector
 
-        irr = self.Irr_norm if self.Irr_norm is not None else self.get_LED_source()
+        irr_source = self.Irr_norm if self.Irr_norm is not None else self.get_LED_source()
+        q_rel = self.get_q_rel()
 
-        self.C = self.simul_photokin_model(irr * q0, c0_vec, K, self.ST, self.times, V=V, l=l, t0=t0,
-                                           use_numba=self.use_numba)
+        # calculate incident spectral photon flux
+        spectral_flux = I * np.trapz(q_rel * irr_source) * irr_source  # I * integral(q_rel * PDF) * PDF
+
+        self.C = self.simul_photokin_model(spectral_flux, c0_vec, K, self.ST, self.times, V=V, l=l, t0=t0)
 
         return self.get_conc_matrix(C_out, self._connectivity)
 
@@ -2564,6 +2582,62 @@ class SingletOxygenProductionAbs(_Photokinetic_Model):
 
     def calc_C(self, params=None, C_out=None):
         super(SingletOxygenProductionAbs, self).calc_C(params)
+
+        if self.ST is None:
+            raise ValueError("Spectra matrix must not be none.")
+
+        I, V, k_r, k_d, Phi_Delta, R, c0_DPBF = [par[1].value for par in self.params.items()]
+
+        irr_source = self.get_LED_source()
+        q_rel = self.get_q_rel()
+
+        # calculate incident spectral photon flux
+        spectral_flux = I * np.trapz(q_rel * irr_source) * irr_source / V  # I * integral(q_rel * PDF) * PDF
+
+        def dc_dt(c, t):
+            tidx = find_nearest_idx(self.times, t)
+            A = self.D[tidx, :]  # current absorbance
+            T = 10**(-A)  # calculate transmittance
+
+            effective_spectral_flux = spectral_flux * (1 - R) * (1 + R * T)
+
+            integral = np.trapz(effective_spectral_flux * (1 - T), self.wavelengths)  # integrate
+
+            return -Phi_Delta * k_r * c * integral / (k_d + k_r * c)
+
+        # c0 = 63e-6 if self.C[0, 0] == 0 else self.C[0, 0]
+
+        self.C[:, 0] = odeint(dc_dt, c0_DPBF, self.times).squeeze()
+
+        return self.get_conc_matrix(C_out, self._connectivity)
+
+
+class SingletOxygenProductionAbs850(_Photokinetic_Model):
+    n = 1
+    name = 'Determination of 1O2 QY absolute, solvent'
+    _class = 'Steady state photokinetics'
+
+    def __init__(self, times=None, ST=None, wavelengths=None):
+        super(SingletOxygenProductionAbs850, self).__init__(times)
+
+        self.species_names = ['DPBF'] + list('XXXXXXXXX')
+        self.wavelengths = wavelengths
+        self.ST = ST
+
+    def init_model_params(self):
+        params = Parameters()
+        params.add('I', value=1.105e-3, min=0, max=np.inf, vary=False)  # Current in ampere on the photodide, without any cuvette
+        params.add('V', value=0.00291, min=0, max=np.inf, vary=False)  # Volume of the solution
+        params.add('k_r', value=2.83e9, min=0, max=np.inf, vary=False)  # reaction of DPBF with singlet oxygen
+        params.add('k_d', value=105263.15, min=0, max=np.inf, vary=False)  # decay rate constant of singlet ox. in MeOH
+        params.add('Phi_Delta', value=0.0025, min=0, max=np.inf, vary=False)  # quantum yield of singlet ox. production
+        params.add('R', value=0.036, min=0, max=np.inf, vary=False)  # Cuvette reflectivity
+        params.add('c0_DPBF', value=63e-6, min=0, max=np.inf, vary=True)  # Concentration of DPBF
+
+        return params
+
+    def calc_C(self, params=None, C_out=None):
+        super(SingletOxygenProductionAbs850, self).calc_C(params)
 
         if self.ST is None:
             raise ValueError("Spectra matrix must not be none.")

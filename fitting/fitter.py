@@ -421,29 +421,31 @@ class Fitter:
 
             self.c_model.ST = ST
 
-            t, w, n = self.D.shape[0], self.D.shape[1], T.shape[0]
+            t, w, n = self.D.shape[0], self.D.shape[1], ST.shape[0]
 
             _C_opt = self.c_model.calc_C(params, _C_opt)
 
-            R = np.zeros((t + n + 1, w), dtype=np.float64)  # residual matrix
-            # R = np.zeros((n + 1, w), dtype=np.float64)  # residual matrix
+            # R = np.zeros((t + n + 1, w), dtype=np.float64)  # residual matrix
+            R = np.zeros((t + 1, w), dtype=np.float64)  # residual matrix
 
             # nonnegativity of spectra
             # put negative values, positives will be zero, normalization to maximum of individual spectrum
-            R_sp = ST * (ST < 0) / ST.max(axis=0, keepdims=True) * 2
+            # R_sp = ST * (ST < 0) / ST.max(axis=0, keepdims=True) * 2
 
-            R[:n, :] = R_sp
+            # R[:n, :] = R_sp
 
             # fixed spectrum
             # R[n, :] = (self.c_model.Z_true - ST[0]) / self.c_model.Z_true.max()
             # R[n, :] = np.ones_like(w) * (self.c_model.Z_true.max() - ST[0].max())  # norm to maximum
-            Z_eps415 = 39033
-            R[n, :] = np.ones_like(w) * (Z_eps415 - ST[0].max())  # norm to maximum
+            # Z_eps415 = 39033
+            Biopyrrin_EPS_at_488 = 24712
+
+            R[0, :] = np.ones_like(w) * (Biopyrrin_EPS_at_488 - ST[0].max())  # norm to maximum
 
             #
             # _C_opt = self.c_model.calc_C(params, _C_opt)
             #
-            R[n+1:, :] = (_C_opt @ ST - self.D) / self.D.max()
+            R[1:, :] = (_C_opt @ ST - self.D) #/ self.D.max()
 
             # R_C = (_C_opt - C_basis) / _C_opt.max()
 
@@ -453,8 +455,8 @@ class Fitter:
 
         self.minimizer = lmfit.Minimizer(residuals, self.c_model.params)
         # kws = {} if self.kwds is None else self.kwds
-        kws = {'verbose': 2}
-        self.last_result = self.minimizer.minimize(method=self.fit_alg, **kws)  # minimize the residuals
+        # kws = {'verbose': 2}
+        self.last_result = self.minimizer.minimize(method=self.fit_alg, **self.kwds)  # minimize the residuals
 
         self.c_model.params = self.last_result.params
 
