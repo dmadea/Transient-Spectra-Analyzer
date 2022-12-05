@@ -24,6 +24,7 @@ from PyQt6.QtWidgets import QPushButton, QCheckBox, QComboBox, QSpinBox, QDouble
 from target_model import TargetModel
 import glob, os
 import scipy.constants as sc
+from scipy.linalg import lstsq
 
 
 # from concurrent.futures import ProcessPoolExecutor
@@ -951,58 +952,6 @@ class _Photokinetic_Model(_Model):
 
         return result / scaling_coef
 
-    #
-    # @staticmethod
-    # def simulate(q0, c0, K, I_source, wavelengths=None, times=None, eps=None, V=0.003, l=1,  D=None, t0=0):
-    #     """
-    #     c0 is concentration vector at time, defined in times array as first element (initial condition), eps is vector of molar abs. coefficients,
-    #     I_source is spectrum of irradiaiton source if this was used,
-    #     if not, w_irr as irradiaton wavelength must be specified, K is transfer matrix, l is length of a cuvette, default 1 cm
-    #     times are times for which to simulate the kinetics
-    #     """
-    #     # n = eps.shape[0]  # eps are epsilons - n x w matrix, where n is number of species and w is number of wavelengths
-    #     # assert n == K.shape[0] == K.shape[1]
-    #     c0 = np.asarray(c0)
-    #
-    #     c_tot = c0.sum()
-    #
-    #     # get absorbances from real data
-    #     abs_at = interp2d(wavelengths, times, D, kind='linear', copy=True)
-    #
-    #     # const = l * np.log(10)
-    #     # tol = 1e-3
-    #
-    #     def dc_dt(c, t):
-    #
-    #         # c_eps = c[..., None] * eps  # hadamard product
-    #
-    #         _c = np.append(c, c_tot - c.sum())
-    #
-    #         c_dot_eps = abs_at(wavelengths, t)
-    #
-    #         # I = c_eps * Half_Bilirubin_Multiset_Half.photokin_factor(c_dot_eps) * I_source
-    #         FI0 = _Photokinetic_Model.photokin_factor(c_dot_eps) * I_source
-    #
-    #         tensor = FI0[:, None, None] * K * eps.T[:, None, :]  # I0 * F * K x diag(epsilon)
-    #
-    #         return q0 / V * tensor.sum(axis=0).dot(_c)
-    #
-    #         #
-    #         # # w x n x n   x   w x n x 1
-    #         # product = np.matmul(K, I.T[..., None])  # w x n x 1
-    #         #
-    #         # irr_on = 1 if t >= t0 else 0
-    #         #
-    #         # return irr_on * q0 / V * product.sum(axis=0).squeeze()
-    #
-    #     result = odeint(dc_dt, c0, times)
-    #
-    #     forth_comp = c_tot - result.sum(axis=1, keepdims=True)
-    #
-    #     result = np.hstack((result, forth_comp))
-    #
-    #     return result
-
     def calc_C(self, params=None, C_out=None):
         super(_Photokinetic_Model, self).calc_C(params)
 
@@ -1010,6 +959,15 @@ class _Photokinetic_Model(_Model):
         #     raise ValueError("Spectra matrix must not be None.")
 
         return C_out
+
+    def residuals_RFA(self, params, D):
+        T = self.get_T(params)
+        self.ST = T.dot(self.VT)
+
+        _C_opt = self.calc_C(params)
+        W = self.get_weights()
+
+        return (_C_opt @ self.ST - D) * W
 
 
 class PumpProbeCrossCorrelation(_Femto):
@@ -2566,6 +2524,12 @@ class SingletOxygenProductionAbs(_Photokinetic_Model):
 
         self.species_names = ['DPBF'] + list('XXXXXXXXX')
         self.wavelengths = wavelengths
+
+        # _data_LED = np.loadtxt(r'C:\Users\dominik\Documents\RealTimeSync\Projects\2022-ICG\UV-Vis\RK04\850_LUXEOSTAR_230_1000_norm.txt',
+        #                        delimiter='\t', skiprows=1)
+        #
+        # self.irr_source_wls = _data_LED[:, 0]
+        # self.irr_source = _data_LED[:, 1]
         self.ST = ST
 
     def init_model_params(self):
@@ -2588,7 +2552,7 @@ class SingletOxygenProductionAbs(_Photokinetic_Model):
 
         I, V, k_r, k_d, Phi_Delta, R, c0_DPBF = [par[1].value for par in self.params.items()]
 
-        irr_source = self.get_LED_source()
+        irr_source = self.get_LED_source()  # self.get_LED_source()
         q_rel = self.get_q_rel()
 
         # calculate incident spectral photon flux
@@ -2613,24 +2577,44 @@ class SingletOxygenProductionAbs(_Photokinetic_Model):
 
 
 class SingletOxygenProductionAbs850(_Photokinetic_Model):
-    n = 1
-    name = 'Determination of 1O2 QY absolute, solvent'
+    n = 3
+    name = 'Determination of 1O2 QY absolute, 850 nm, solvent'
     _class = 'Steady state photokinetics'
 
     def __init__(self, times=None, ST=None, wavelengths=None):
         super(SingletOxygenProductionAbs850, self).__init__(times)
 
-        self.species_names = ['DPBF'] + list('XXXXXXXXX')
+        self.species_names = ['DPBF', 'ICG', 'Solvent'] + list('XXXXXXXXX')
+
+        _data_LED = np.loadtxt(
+            r'C:\Users\dominik\Documents\RealTimeSync\Projects\2022-ICG\UV-Vis\RK04\850_LUXEOSTAR_230_1000_norm.txt',
+            delimiter='\t', skiprows=1)
+
+        self.irr_source_wls = _data_LED[:, 0]
+        self.irr_source = _data_LED[:, 1]
+
+        _data = np.loadtxt(
+            r'C:\Users\dominik\Documents\RealTimeSync\Projects\2022-ICG\UV-Vis\RK04\eps ICG in MeOH.txt',
+            delimiter='\t', skiprows=1)
+
+        self.ICG_spectrum = _data[:, 1]
+
+        _data = np.loadtxt(
+            r'C:\Users\dominik\Documents\RealTimeSync\Projects\2022-ICG\UV-Vis\RK04\blank.txt',
+            delimiter='\t', skiprows=1)
+
+        self.solvent_spectrum = _data[:, 1]
+
         self.wavelengths = wavelengths
         self.ST = ST
 
     def init_model_params(self):
-        params = Parameters()
-        params.add('I', value=1.105e-3, min=0, max=np.inf, vary=False)  # Current in ampere on the photodide, without any cuvette
-        params.add('V', value=0.00291, min=0, max=np.inf, vary=False)  # Volume of the solution
+        params = super(SingletOxygenProductionAbs850, self).init_model_params()
+        params.add('I', value=1.022e-3, min=0, max=np.inf, vary=False)  # Current in ampere on the photodide, without any cuvette
+        params.add('V', value=0.00304, min=0, max=np.inf, vary=False)  # Volume of the solution
         params.add('k_r', value=2.83e9, min=0, max=np.inf, vary=False)  # reaction of DPBF with singlet oxygen
         params.add('k_d', value=105263.15, min=0, max=np.inf, vary=False)  # decay rate constant of singlet ox. in MeOH
-        params.add('Phi_Delta', value=0.0025, min=0, max=np.inf, vary=False)  # quantum yield of singlet ox. production
+        params.add('Phi_Delta', value=0.0025, min=0, max=np.inf, vary=True)  # quantum yield of singlet ox. production
         params.add('R', value=0.036, min=0, max=np.inf, vary=False)  # Cuvette reflectivity
         params.add('c0_DPBF', value=63e-6, min=0, max=np.inf, vary=True)  # Concentration of DPBF
 
@@ -2642,9 +2626,9 @@ class SingletOxygenProductionAbs850(_Photokinetic_Model):
         if self.ST is None:
             raise ValueError("Spectra matrix must not be none.")
 
-        I, V, k_r, k_d, Phi_Delta, R, c0_DPBF = [par[1].value for par in self.params.items()]
+        I, V, k_r, k_d, Phi_Delta, R, c0_DPBF = self.get_photokin_params()
 
-        irr_source = self.get_LED_source()
+        irr_source = self.irr_source
         q_rel = self.get_q_rel()
 
         # calculate incident spectral photon flux
@@ -2664,8 +2648,62 @@ class SingletOxygenProductionAbs850(_Photokinetic_Model):
         # c0 = 63e-6 if self.C[0, 0] == 0 else self.C[0, 0]
 
         self.C[:, 0] = odeint(dc_dt, c0_DPBF, self.times).squeeze()
+        self.C[:, 2] = 1
 
         return self.get_conc_matrix(C_out, self._connectivity)
+
+    def residuals_RFA(self, params, D):
+        #  self.species_names = ['DPBF', 'ICG', 'Solvent'] + list('XXXXXXXXX')
+        T = self.get_T(params)
+        self.ST = T.dot(self.VT)
+
+        idx_406, idx_784 = find_nearest_idx(self.wavelengths, [406, 784])  # abs max of DPBF
+        DPBF_eps_406 = 23000
+        ICG_eps_780 = 1.1e5
+
+        # normalize DPBF so that at 406 nm it has epsilon 23000
+        # self.ST[0] *= DPBF_eps_406 / self.ST[0, idx_406]
+        # # normalize ICG
+        # self.ST[0] *= DPBF_eps_406 / self.ST[0, max_idx]
+
+        # idx = find_nearest_idx(self.wavelengths, 500)
+        # self.ST[0, idx:] = 0  # eps at >500 nm will be 0
+
+        # chosen = self.ST[0, idx:]
+        # chosen[chosen > 0] = 0
+        # self.ST[0, idx:] = chosen
+
+        t, w = D.shape[0], self.wavelengths.shape[0]
+
+        # R = np.zeros((t + n + 1, w), dtype=np.float64)  # residual matrix
+        R = np.zeros((t + 3, w), dtype=np.float64)  # residual matrix
+
+        # fixed spectrum
+        # R[n, :] = (self.c_model.Z_true - ST[0]) / self.c_model.Z_true.max()
+        # R[n, :] = np.ones_like(w) * (self.c_model.Z_true.max() - ST[0].max())  # norm to maximum
+        # Z_eps415 = 39033
+        # Biopyrrin_EPS_at_488 = 24712
+
+        R[0, :] = np.ones_like(w) * (DPBF_eps_406 - self.ST[0, idx_406])  # norm to maximum of DPBF
+        # R[1, :] = np.ones_like(w) * (ICG_eps_780 - self.ST[1, idx_784])  # norm to maximum of DPBF
+        R[1, :] = self.ICG_spectrum - self.ST[1]  # fixed spectrum of ICG
+        R[2, :] = 1e2*(self.solvent_spectrum - self.ST[2])  # fixed spectrum of solvent
+
+        _C_opt = self.calc_C(params)
+
+        # calculate ICG profiles by least squares
+        C_est = lstsq(self.ST.T, D.T)[0].T
+
+        _C_opt[:, 1] = C_est[:, 1]
+
+        W = self.get_weights()
+
+        D_res = (_C_opt.dot(self.ST) - D) * W
+
+        R[3:, :] = D_res
+
+        return R, _C_opt
+
 
 class Z3_Photokinetics(_Photokinetic_Model):
     n = 4

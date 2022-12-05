@@ -285,7 +285,7 @@ class Fitter:
         # # normalize DPBF so that at 406 nm it has epsilon 23000
         # self.ST_opt[0] *= eps_406 / self.ST_opt[0, max_idx]
         #
-        # idx = find_nearest_idx(self.wls, 500)  # abs max of DPBF
+        # idx = find_nearest_idx(self.wls, 500)
         #
         # chosen = self.ST_opt[0, idx:]
         # chosen[chosen > 0] = 0
@@ -329,9 +329,6 @@ class Fitter:
             nonlocal _ST_opt, _C_opt
 
             for i in range(it_mcr):
-
-
-
                 # # perform MCR of calculating C profiles from spectra
                 # _C_opt = lstsq(_ST_opt.T, self.D.T)[0].T
                 #
@@ -414,44 +411,47 @@ class Fitter:
         def residuals(params):
             nonlocal _C_opt
 
-            T = self.c_model.get_T(params)
-            ST = T.dot(self.c_model.VT)
+            Res, _C_opt = self.c_model.residuals_RFA(params, self.D)
+            return Res
 
-            # C_basis = self.c_model.U @ self.c_model.Sigma @ np.linalg.inv(T)
-
-            self.c_model.ST = ST
-
-            t, w, n = self.D.shape[0], self.D.shape[1], ST.shape[0]
-
-            _C_opt = self.c_model.calc_C(params, _C_opt)
-
-            # R = np.zeros((t + n + 1, w), dtype=np.float64)  # residual matrix
-            R = np.zeros((t + 1, w), dtype=np.float64)  # residual matrix
-
-            # nonnegativity of spectra
-            # put negative values, positives will be zero, normalization to maximum of individual spectrum
-            # R_sp = ST * (ST < 0) / ST.max(axis=0, keepdims=True) * 2
-
-            # R[:n, :] = R_sp
-
-            # fixed spectrum
-            # R[n, :] = (self.c_model.Z_true - ST[0]) / self.c_model.Z_true.max()
-            # R[n, :] = np.ones_like(w) * (self.c_model.Z_true.max() - ST[0].max())  # norm to maximum
-            # Z_eps415 = 39033
-            Biopyrrin_EPS_at_488 = 24712
-
-            R[0, :] = np.ones_like(w) * (Biopyrrin_EPS_at_488 - ST[0].max())  # norm to maximum
-
+            # T = self.c_model.get_T(params)
+            # ST = T.dot(self.c_model.VT)
+            #
+            # # C_basis = self.c_model.U @ self.c_model.Sigma @ np.linalg.inv(T)
+            #
+            # self.c_model.ST = ST
+            #
+            # t, w, n = self.D.shape[0], self.D.shape[1], ST.shape[0]
             #
             # _C_opt = self.c_model.calc_C(params, _C_opt)
             #
-            R[1:, :] = (_C_opt @ ST - self.D) #/ self.D.max()
-
-            # R_C = (_C_opt - C_basis) / _C_opt.max()
-
-            # return np.hstack((R.flatten(), R_C.flatten()))
-            # return R * weights
-            return R
+            # # R = np.zeros((t + n + 1, w), dtype=np.float64)  # residual matrix
+            # R = np.zeros((t + 1, w), dtype=np.float64)  # residual matrix
+            #
+            # # nonnegativity of spectra
+            # # put negative values, positives will be zero, normalization to maximum of individual spectrum
+            # # R_sp = ST * (ST < 0) / ST.max(axis=0, keepdims=True) * 2
+            #
+            # # R[:n, :] = R_sp
+            #
+            # # fixed spectrum
+            # # R[n, :] = (self.c_model.Z_true - ST[0]) / self.c_model.Z_true.max()
+            # # R[n, :] = np.ones_like(w) * (self.c_model.Z_true.max() - ST[0].max())  # norm to maximum
+            # # Z_eps415 = 39033
+            # Biopyrrin_EPS_at_488 = 24712
+            #
+            # R[0, :] = np.ones_like(w) * (Biopyrrin_EPS_at_488 - ST[0].max())  # norm to maximum
+            #
+            # #
+            # # _C_opt = self.c_model.calc_C(params, _C_opt)
+            # #
+            # R[1:, :] = (_C_opt @ ST - self.D) #/ self.D.max()
+            #
+            # # R_C = (_C_opt - C_basis) / _C_opt.max()
+            #
+            # # return np.hstack((R.flatten(), R_C.flatten()))
+            # # return R * weights
+            # return R
 
         self.minimizer = lmfit.Minimizer(residuals, self.c_model.params)
         # kws = {} if self.kwds is None else self.kwds
