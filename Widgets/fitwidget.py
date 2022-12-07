@@ -218,7 +218,7 @@ class FitWidget(QWidget, Ui_Form):
 
         self.plot_opt_matrices()
 
-    def set_ST_fit(self):
+    def set_ST_fit_3Z(self):
         if self.matrix is None:
             return
 
@@ -228,6 +228,18 @@ class FitWidget(QWidget, Ui_Form):
         self._ST[-1] = self.matrix.D[-1] * eps488 / self.matrix.D[0].max()
 
         self.plot_opt_matrices()
+
+    def set_ST_fit_ZLP(self):
+        if self.matrix is None:
+            return
+
+        eps321 = 20000
+        self._ST[0] = self.matrix.D[0] * eps321 / self.matrix.D[0].max()
+        self._ST[-1] = self.matrix.D[-1] * eps321 / self.matrix.D[0].max()
+
+        self.plot_opt_matrices()
+
+
 
     def ssq(self):
         self.D_fit = self._C @ self._ST if self.current_model.method is not 'femto' else self.D_fit
@@ -266,7 +278,7 @@ class FitWidget(QWidget, Ui_Form):
     def set_ST_noise(self, components=None, noise_amp=0.1):
         n = self._ST.shape[0]
 
-        # all
+        # allY
         if not components:
             self._ST = np.random.random((n, self._ST.shape[1])) * noise_amp
         else:

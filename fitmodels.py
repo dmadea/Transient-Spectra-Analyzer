@@ -967,7 +967,7 @@ class _Photokinetic_Model(_Model):
         _C_opt = self.calc_C(params)
         W = self.get_weights()
 
-        return (_C_opt @ self.ST - D) * W
+        return (_C_opt @ self.ST - D) * W, _C_opt
 
 
 class PumpProbeCrossCorrelation(_Femto):
@@ -1343,12 +1343,14 @@ class Sequential_Model_FK(_Photokinetic_Model):
 
     def init_model_params(self):
         params = super(Sequential_Model_FK, self).init_model_params()
-        params.add('c0', value=1.52/24712, min=0, max=np.inf, vary=True)  # initial concentration of species A
+        # params.add('c0', value=1.52/24712, min=0, max=np.inf, vary=True)  # initial concentration of species A
+        params.add('c0', value=7.3e-5, min=0, max=np.inf, vary=True)  # initial concentration of species A
         # params.add('q0', value=1e-8, min=0, max=np.inf, vary=False)  # total photon flux
         params.add('l', value=1, min=0, max=np.inf, vary=False)  # length of cuvette
         params.add('V', value=3e-3, min=0, max=np.inf, vary=False)  # volume of solution in cuvette
         params.add('t0', value=0, min=0, max=np.inf, vary=False)  # time of start of irradiation
-        params.add('I', value=0.966e-3, min=0, max=np.inf, vary=False)  # total photon flux
+        # params.add('I', value=0.966e-3, min=0, max=np.inf, vary=False)  # total photon flux
+        params.add('I', value=0.2885e-3, min=0, max=np.inf, vary=False)  # total photon flux
 
         for i in range(self.n):
             sec_label = self.species_names[i + 1] if i < self.n - 1 else ""
