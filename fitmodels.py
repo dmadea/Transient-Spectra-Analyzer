@@ -64,7 +64,7 @@ def blstsq(A, B, alpha=0.001):
 
     fit = np.matmul(A, X).squeeze().T
 
-    return X.squeeze().T, fit
+    return X[..., 0].T, fit
 
 # copied from https://github.com/Tillsten/skultrafast/blob/23572ba9ea32238f34a8a15390fb572ecd8bc6fa/skultrafast/base_funcs/backend_tester.py
 # © Till Stensitzki

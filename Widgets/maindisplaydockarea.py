@@ -271,10 +271,11 @@ class MainDisplayDockArea(DockArea):
             self.heat_map_widget.plots[0].addItem(self.roi)
 
     def add_chirp(self, wls,  mu):  # plots the chirp
-        pen = pg.mkPen(color=QColor('black'), width=2)
-        mu_tr = self.heat_map_widget.inv_transform_t_pos(mu)
-        wls_tr = self.heat_map_widget.inv_transform_wl_pos(wls)
-        self.chirp.setData(wls_tr, mu_tr, pen=pen)
+        pass # TODO
+        # pen = pg.mkPen(color=QColor('black'), width=2)
+        # mu_tr = self.heat_map_widget.inv_transform_t_pos(mu)
+        # wls_tr = self.heat_map_widget.inv_transform_wl_pos(wls)
+        # self.chirp.setData(wls_tr, mu_tr, pen=pen)
 
     def fit_chirp_params(self):
         from Widgets.fitwidget import FitWidget as _fw
