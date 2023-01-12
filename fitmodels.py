@@ -1242,6 +1242,53 @@ class First_Order_Sequential_Model(_Model):
         return self.get_conc_matrix(C_out, self._connectivity)
 
 
+class First_Order_Sequential_IRF_Model(_Model):
+
+    name = 'Sequential model (1st order) with known IRF'
+    _class = 'Nano'
+
+    def __init__(self, times=None, connectivity=(0, 1, 2), wavelengths=None, C=None):
+        super(First_Order_Sequential_IRF_Model, self).__init__(times, connectivity, wavelengths, C)
+
+        self.IRF = None
+        fname = r'C:\Users\dominik\Documents\RealTimeSync\Projects\2020- Bilirubin & dipyrrinones\Mechanism of 3Z oxidation\Fluorimetr\IRF 400 nm.csv'
+        self.IRF_times, self.IRF = np.loadtxt(fname, dtype=np.float64, skiprows=1, delimiter=',').T
+        self.IRF = self.IRF / np.trapz(self.IRF, self.IRF_times)
+
+    def init_model_params(self):
+        params = Parameters()
+        params.add('c0', value=1, min=0, max=np.inf, vary=False)
+
+        for i in range(self.n):
+            sec_label = self.species_names[i+1] if i < self.n - 1 else ""
+            params.add(f'tau_{self.species_names[i]}{sec_label}', value=1+i**2, min=0, max=np.inf)
+
+        return params
+
+    def calc_C(self, params=None, C_out=None):
+        super(First_Order_Sequential_IRF_Model, self).calc_C(params, C_out)
+
+        c0, *taus = [par[1].value for par in self.params.items()]
+
+        K = np.zeros((self.n, self.n))
+
+        for i in range(self.n):
+            K[i, i] = -1/taus[i]
+            if i < self.n - 1:
+                K[i+1, i] = 1/taus[i]
+
+        def dc_dt(c, t):
+            tidx = find_nearest_idx(self.times, t)
+            j = np.zeros_like(c)
+            j[0] = self.IRF[tidx]
+            return K.dot(c) + j
+
+        init = np.zeros(self.n)
+        self.C = odeint(dc_dt, init, self.times)
+
+        return self.get_conc_matrix(C_out, self._connectivity)
+
+
 class First_Order_Parallel_Model(_Model):
 
     name = 'Parallel model (1st order)'
