@@ -184,7 +184,7 @@ class _Model(object):
         self.weights = []  # (wl_start, wl_end, weight) default weight 1
 
         # self.init_params()
-        self.species_names = np.array(list('ABCDEFGHIJKL'), dtype=np.str)
+        self.species_names = np.array(list('ABCDEFGHIJKL'), dtype=str)
         self.model_settigs_dialog = None
 
     @property
@@ -330,7 +330,7 @@ class _Femto(_Model):
         self.C = None
         self._connectivity = connectivity
         self.init_times(times)
-        self.species_names = np.array(list('ABCDEFGHIJ'), dtype=np.str)
+        self.species_names = np.array(list('ABCDEFGHIJ'), dtype=str)
 
         self.coh_spec = True
         self.coh_spec_order = 2
@@ -713,7 +713,7 @@ class _Photokinetic_Model(_Model):
         self.C = C
         self._connectivity = connectivity
         self.init_times(times)
-        self.species_names = np.array(list('ABCDEFGHIJ'), dtype=np.str)
+        self.species_names = np.array(list('ABCDEFGHIJ'), dtype=str)
 
         self.ST = ST
         self.interp_kind = 'quadratic'
@@ -1543,7 +1543,7 @@ class AB_Model(_Model):
 
         super(AB_Model, self).__init__(times)
 
-        self.species_names = np.array(list('AB'), dtype=np.str)
+        self.species_names = np.array(list('AB'), dtype=str)
 
         # self.description = "Simple A->B model of n-th order. d[A]/dt = -k[A]^n, [A]_0 = c_0"
 
@@ -1582,7 +1582,7 @@ class AB_mixed12_Model(_Model):
     def __init__(self, times=None):
         super(AB_mixed12_Model, self).__init__(times)
 
-        # self.species_names = np.array(list('AB'), dtype=np.str)
+        # self.species_names = np.array(list('AB'), dtype=str)
 
         self.description = "A->B model of mixed first and second order. d[A]/dt = -k1[A] - k2[A]^2, [A]_0 = c_0"
 
@@ -1614,7 +1614,7 @@ class ABDE_Model(_Model):
     def __init__(self, times=None):
         super(ABDE_Model, self).__init__(times)
 
-        # self.species_names = np.array(list('ABCD'), dtype=np.str)
+        # self.species_names = np.array(list('ABCD'), dtype=str)
 
         self.description = "TODOchange++++Simple A->B->C model of 1st order. d[A]/dt = -k1[A] - k2[A]^2, [A]_0 = c_0"
 
@@ -1647,7 +1647,7 @@ class ABDE_Model(_Model):
 #     def __init__(self, times=None):
 #         super(ABC_Model, self).__init__(times)
 #
-#         self.species_names = np.array(list('ABC'), dtype=np.str)
+#         self.species_names = np.array(list('ABC'), dtype=str)
 #
 #         self.description = "Simple A->B->C model of 1st order. d[A]/dt = -k1[A] - k2[A]^2, [A]_0 = c_0"
 #
@@ -1679,7 +1679,7 @@ class ABC_zero_Model(_Model):
     def __init__(self, times=None):
         super(ABC_zero_Model, self).__init__(times)
 
-        # self.species_names = np.array(list('ABC'), dtype=np.str)
+        # self.species_names = np.array(list('ABC'), dtype=str)
 
         self.description = "Simple A->B->C model of 1st order. d[A]/dt = -k1[A] - k2[A]^2, [A]_0 = c_0"
 
@@ -1733,7 +1733,7 @@ class ABC_zero_Model(_Model):
 #     def __init__(self, times=None, visible=None):
 #         super(ABCD_Model, self).__init__(times, visible)
 #
-#         self.species_names = np.array(list('ABCD'), dtype=np.str)
+#         self.species_names = np.array(list('ABCD'), dtype=str)
 #
 #         # self.description = "Simple A->B->C model of 1st order. d[A]/dt = -k1[A] - k2[A]^2, [A]_0 = c_0"
 #
@@ -1781,7 +1781,7 @@ class ABC_zero_Model(_Model):
 #     def __init__(self, times=None, visible=None):
 #         super(CP_Model, self).__init__(times, visible)
 #
-#         self.species_names = np.array(list('ABCZ'), dtype=np.str)
+#         self.species_names = np.array(list('ABCZ'), dtype=str)
 #
 #     def init_params(self):
 #         self.params = Parameters()
@@ -1833,7 +1833,7 @@ class ABC_zero_Model(_Model):
 #     def __init__(self, times=None, visible=None):
 #         super(ABCDE_Model, self).__init__(times, visible)
 #
-#         self.species_names = np.array(list('ABCDE'), dtype=np.str)
+#         self.species_names = np.array(list('ABCDE'), dtype=str)
 #
 #     def init_params(self):
 #         self.params = Parameters()
@@ -1883,7 +1883,7 @@ class Delayed_Fl(_Model):
     def __init__(self, times=None, visible=None):
         super(Delayed_Fl, self).__init__(times, visible)
 
-        self.species_names = np.array(list('ABCZ'), dtype=np.str)
+        self.species_names = np.array(list('ABCZ'), dtype=str)
 
     def init_params(self):
         self.params = Parameters()
@@ -1938,7 +1938,7 @@ class ABC_DEF_Model(_Model):
     def __init__(self, times=None, visible=None):
         super(ABC_DEF_Model, self).__init__(times, visible)
 
-        self.species_names = np.array(list('ABCDEF'), dtype=np.str)
+        self.species_names = np.array(list('ABCDEF'), dtype=str)
 
         # self.description = "Simple A->B->C model of 1st order. d[A]/dt = -k1[A] - k2[A]^2, [A]_0 = c_0"
 
@@ -1976,7 +1976,7 @@ class Photosens_Model_Aug(_Model):
     def __init__(self, times=None, aug_matrix=None):
         super(Photosens_Model_Aug, self).__init__(times)
 
-        self.species_names = np.array(list('ABC'), dtype=np.str)
+        self.species_names = np.array(list('ABC'), dtype=str)
         self.aug_matrix = aug_matrix
 
         self.description = "Simple A->B->C model of 1st order. d[A]/dt = -k1[A] - k2[A]^2, [A]_0 = c_0"
@@ -2050,7 +2050,7 @@ class ABC_NR(_Model):
     def __init__(self, times=None, visible=None):
         super(ABC_NR, self).__init__(times, visible)
 
-        self.species_names = np.array(list('ABC'), dtype=np.str)
+        self.species_names = np.array(list('ABC'), dtype=str)
 
         # self.description = "Simple A->B->C model of 1st order. d[A]/dt = -k1[A] - k2[A]^2, [A]_0 = c_0"
 
@@ -2093,7 +2093,7 @@ class Bridge_Splitting(_Model):
     def __init__(self, times=None, ST=None, wavelengths=None):
         super(Bridge_Splitting, self).__init__(times)
 
-        self.species_names = np.array(list('DMXXXXXXXX'), dtype=np.str)
+        self.species_names = np.array(list('DMXXXXXXXX'), dtype=str)
         self.wavelengths = wavelengths
         self.ST = ST
 
@@ -2149,7 +2149,7 @@ class Bridge_Splitting_Simple(_Model):
     def __init__(self, times=None, ST=None, wavelengths=None):
         super(Bridge_Splitting_Simple, self).__init__(times)
 
-        self.species_names = np.array(list('DMXXXXXXXX'), dtype=np.str)
+        self.species_names = np.array(list('DMXXXXXXXX'), dtype=str)
         self.wavelengths = wavelengths
         self.ST = ST
 
@@ -2185,7 +2185,7 @@ class Dimerization_Equilibrium(_Model):
     def __init__(self, times=None, ST=None, wavelengths=None):
         super(Dimerization_Equilibrium, self).__init__(times)
 
-        self.species_names = np.array(['M', 'D'] + list('XXXXXXX'), dtype=np.str)
+        self.species_names = np.array(['M', 'D'] + list('XXXXXXX'), dtype=str)
         self.wavelengths = wavelengths
         self.ST = ST
 
@@ -2227,7 +2227,7 @@ class HG_Equilibrium(_Model):
     def __init__(self, times=None, ST=None, wavelengths=None):
         super(HG_Equilibrium, self).__init__(times)
 
-        self.species_names = np.array(['G', 'HG'] + list('XXXXXXX'), dtype=np.str)
+        self.species_names = np.array(['G', 'HG'] + list('XXXXXXX'), dtype=str)
         self.wavelengths = wavelengths
         self.ST = ST
 
@@ -2264,7 +2264,7 @@ class H2G_Equilibrium(_Model):
     def __init__(self, times=None, ST=None, wavelengths=None):
         super(H2G_Equilibrium, self).__init__(times)
 
-        self.species_names = np.array(['G', 'HG', 'H2G'] + list('XXXXXXX'), dtype=np.str)
+        self.species_names = np.array(['G', 'HG', 'H2G'] + list('XXXXXXX'), dtype=str)
         self.wavelengths = wavelengths
         self.ST = ST
 
@@ -2326,7 +2326,7 @@ class HDHG_Equilibrium(_Model):
     def __init__(self, times=None, ST=None, wavelengths=None):
         super(HDHG_Equilibrium, self).__init__(times)
 
-        self.species_names = np.array(['D', 'G', 'HG'] + list('XXXXXXX'), dtype=np.str)
+        self.species_names = np.array(['D', 'G', 'HG'] + list('XXXXXXX'), dtype=str)
         self.wavelengths = wavelengths
         self.ST = ST
 
@@ -2386,7 +2386,7 @@ class Half_Bilirubin_1st_Model(_Model):
     def __init__(self, times=None, ST=None, wavelengths=None):
         super(Half_Bilirubin_1st_Model, self).__init__(times)
 
-        self.species_names = np.array(list('ZEHUXXXXX'), dtype=np.str)
+        self.species_names = np.array(list('ZEHUXXXXX'), dtype=str)
         self.wavelengths = wavelengths
         self.ST = ST
         self.I_source = None
@@ -2913,7 +2913,7 @@ class Z3_Photokinetics_MeCN(_Photokinetic_Model):
 #     def __init__(self, times=None, ST=None, wavelengths=None, aug_matrix=None):
 #         super(Half_Bilirubin_Multiset, self).__init__(times)
 #
-#         self.species_names = np.array(list('ZEHD'), dtype=np.str)
+#         self.species_names = np.array(list('ZEHD'), dtype=str)
 #         self.wavelengths = wavelengths
 #         self.ST = ST
 #         self.interp_kind = 'linear'
@@ -3879,7 +3879,7 @@ class Test_Bilirubin_Multiset(_Photokinetic_Model):
 #
 #         self.ST = ST
 #         # self.interp_kind = 'quadratic'
-#         self.species_names = np.array(list('ZEHD'), dtype=np.str)
+#         self.species_names = np.array(list('ZEHD'), dtype=str)
 #
 #         # path = r"C:\Users\dominik\Documents\Projects\Bilirubin\UV-Vis Z purified"
 #         path = r"C:\Users\Dominik\Documents\MUNI\Organic Photochemistry\Projects\2019-Bilirubin project\UV-VIS\QY measurement\Photodiode\Z purified"
@@ -4143,7 +4143,7 @@ class Gibs_Eq(_Model):
     def __init__(self, times=None):
         super(Gibs_Eq, self).__init__(times)
 
-        self.species_names = np.array(list('AB'), dtype=np.str)
+        self.species_names = np.array(list('AB'), dtype=str)
 
         self.description = "TODO "
 

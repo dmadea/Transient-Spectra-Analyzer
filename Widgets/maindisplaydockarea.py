@@ -841,6 +841,9 @@ class MainDisplayDockArea(DockArea):
         h = self.heat_map_widget.plots[i]
         h.set_xpos(h.inv_transform_wl_pos(x_pos))
 
+    def replot(self):
+        self.plot_matrices(self.matrices, center_lines=True, keep_ranges=False)
+
     def plot_matrices(self, matrices, center_lines=True, keep_ranges=False, keep_fits=False):
 
         self.fit_matrix = None
