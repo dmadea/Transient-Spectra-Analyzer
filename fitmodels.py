@@ -909,7 +909,7 @@ class _Photokinetic_Model(_Model):
                              use_backref_correction=True,  scaling_coef=1e6):
         """
         no wl dependence of K
-        I0 - irradiation spectrum scalled by q0 = PDF * q0 so that integral(I0) = q0
+        I0 - spectral flux: irradiation spectrum scalled by q0 = PDF * q0 so that integral(I0) = q0
         eps - spectra (= epsilons)
         t0 - time of start of irradiaiton
         l - length of cuvette
@@ -939,7 +939,9 @@ class _Photokinetic_Model(_Model):
 
             # Ieff = I0 * (1-R)*(1 + R*T) = I_solvent * (1 + R*T) / (1 - R), where T is transmittance
             # I0 is Isolvent, so irradiance measured after cuvette with pure solvent
-            Ieff = I0_s * (1 + R * np.exp(-ln10 * A)) / (1 - R) if use_backref_correction else I0_s
+            T = np.exp(-ln10 * A)  # transmittance
+            # Ieff = I0_s * (1 + R * np.exp(-ln10 * A)) / (1 - R) if use_backref_correction else I0_s
+            Ieff = I0_s * (1 - R) * (1 + R * T) if use_backref_correction else I0_s * (1 - R)
 
             product = K * (F * Ieff * eps_s * l).sum(axis=-1)  # K @ sum(diag(F * I0 * eps * l))
 
@@ -1388,16 +1390,21 @@ class Sequential_Model_FK(_Photokinetic_Model):
         self.Irr_norm = None  # normalized irradiation spectrum
         self.use_numba = True
 
+        # if param c0 will not be varied, and self.eps_at_lambda will not be None, then c0 will be calculated from this
+        # epsilon at given_lambda
+
+        self.eps_at_lambda = 24954.9  # epsilon at given wavelength
+        self.given_lambda = 400  # nm
+
     def init_model_params(self):
         params = super(Sequential_Model_FK, self).init_model_params()
         # params.add('c0', value=1.52/24712, min=0, max=np.inf, vary=True)  # initial concentration of species A
         params.add('c0', value=7.3e-5, min=0, max=np.inf, vary=True)  # initial concentration of species A
         # params.add('q0', value=1e-8, min=0, max=np.inf, vary=False)  # total photon flux
         params.add('l', value=1, min=0, max=np.inf, vary=False)  # length of cuvette
-        params.add('V', value=3e-3, min=0, max=np.inf, vary=False)  # volume of solution in cuvette
+        params.add('V', value=3.5e-3, min=0, max=np.inf, vary=False)  # volume of solution in cuvette
         params.add('t0', value=0, min=0, max=np.inf, vary=False)  # time of start of irradiation
-        # params.add('I', value=0.966e-3, min=0, max=np.inf, vary=False)  # total photon flux
-        params.add('I', value=0.2885e-3, min=0, max=np.inf, vary=False)  # total photon flux
+        params.add('I', value=1.08e-3, min=0, max=np.inf, vary=False)  # incident photon current
 
         for i in range(self.n):
             sec_label = self.species_names[i + 1] if i < self.n - 1 else ""
@@ -1417,6 +1424,11 @@ class Sequential_Model_FK(_Photokinetic_Model):
             K[i, i] = -phis[i]
             if i < n - 1:
                 K[i+1, i] = phis[i]
+
+        if not self.params['c0'].vary and self.eps_at_lambda is not None and self.given_lambda is not None:
+            idx_wl = find_nearest_idx(self.wavelengths, self.given_lambda)
+            c0 = self.D[0, idx_wl] / (l * self.eps_at_lambda)
+            self.params['c0'].value = c0
 
         c0_vec = np.zeros(n, dtype=np.float64)
         c0_vec[0] = c0  # initial concentration vector
