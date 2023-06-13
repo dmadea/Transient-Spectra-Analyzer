@@ -2637,6 +2637,76 @@ class SingletOxygenProductionAbs(_Photokinetic_Model):
         return self.get_conc_matrix(C_out, self._connectivity)
 
 
+class SingletOxygenSelfDegradation(_Photokinetic_Model):
+    n = 2
+    name = '3Z degradation by singlet ox.'
+    _class = 'Steady state photokinetics'
+
+    def __init__(self, times=None, ST=None, wavelengths=None):
+        super(SingletOxygenSelfDegradation, self).__init__(times)
+
+        self.species_names = ['3Z'] + list('BCDEFGHIJKLMN')
+        self.wavelengths = wavelengths
+
+        self.eps_at_lambda = 24954.9  # epsilon at given wavelength
+        self.given_lambda = 400  # nm
+
+        self.ST = ST
+
+    def init_model_params(self):
+        params = super(SingletOxygenSelfDegradation, self).init_model_params()
+        params.add('I', value=1.08e-3, min=0, max=np.inf, vary=False)  # Current in ampere on the photodide, without any cuvette
+        params.add('V', value=3.5e-3, min=0, max=np.inf, vary=False)  # Volume of the solution
+        params.add('k_r', value=1e9, min=0, max=np.inf, vary=False)  # reaction of 3Z with singlet oxygen
+        params.add('k_d', value=105263.15, min=0, max=np.inf, vary=False)  # decay rate constant of singlet ox. in MeOH
+        params.add('Phi_Delta', value=0.0025, min=0, max=np.inf, vary=True)  # quantum yield of singlet ox. production
+        params.add('R', value=0.036, min=0, max=np.inf, vary=False)  # Cuvette reflectivity
+        params.add('c0', value=63e-6, min=0, max=np.inf, vary=False)  # Concentration of 3Z
+        params.add('l', value=1, min=0, max=np.inf, vary=False)  # Concentration of 3Z
+
+        return params
+
+    def calc_C(self, params=None, C_out=None):
+        super(SingletOxygenSelfDegradation, self).calc_C(params)
+
+        if self.ST is None:
+            raise ValueError("Spectra matrix must not be none.")
+
+        I, V, k_r, k_d, Phi_Delta, R, c0, l = self.get_photokin_params(params)
+
+        irr_source = self.get_LED_source()  # self.get_LED_source()
+        q_rel = self.get_q_rel()
+
+        # calculate incident spectral photon flux
+        spectral_flux = I * np.trapz(q_rel * irr_source) * irr_source / V  # I * integral(q_rel * PDF) * PDF
+
+        if not self.params['c0'].vary and self.eps_at_lambda is not None and self.given_lambda is not None:
+            idx_wl = find_nearest_idx(self.wavelengths, self.given_lambda)
+            c0 = self.D[0, idx_wl] / (l * self.eps_at_lambda)
+            self.params['c0'].value = c0
+
+        ln10 = np.log(10)
+
+        def dc_dt(c, t):
+            p_A = c[:, None] * self.ST * l  # hadamard product - partial absorbance
+            A = p_A.sum(axis=0)  # total absorbance
+
+            F = photokin_factor(A)  # (1-10^-A) / A
+
+            T = np.exp(-ln10 * A)  # transmittance
+            Ieff = spectral_flux * (1 - R) * (1 + R * T)
+
+            q_A = np.trapz(F * Ieff * self.ST[0] * l)  # absorbed photons by first species
+
+            ret = Phi_Delta * k_r * c[0] * q_A / (k_d + k_r * c[0])
+
+            return np.asarray([-ret, ret])
+
+        self.C = odeint(dc_dt, [c0, 0], self.times)
+
+        return self.get_conc_matrix(C_out, self._connectivity)
+
+
 class SingletOxygenProductionAbs850(_Photokinetic_Model):
     n = 3
     name = 'Determination of 1O2 QY absolute, 850 nm, solvent'
