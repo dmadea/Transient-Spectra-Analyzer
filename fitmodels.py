@@ -1402,9 +1402,9 @@ class Sequential_Model_FK(_Photokinetic_Model):
         params.add('c0', value=7.3e-5, min=0, max=np.inf, vary=True)  # initial concentration of species A
         # params.add('q0', value=1e-8, min=0, max=np.inf, vary=False)  # total photon flux
         params.add('l', value=1, min=0, max=np.inf, vary=False)  # length of cuvette
-        params.add('V', value=3.5e-3, min=0, max=np.inf, vary=False)  # volume of solution in cuvette
+        params.add('V', value=2.0e-3, min=0, max=np.inf, vary=False)  # volume of solution in cuvette
         params.add('t0', value=0, min=0, max=np.inf, vary=False)  # time of start of irradiation
-        params.add('I', value=1.08e-3, min=0, max=np.inf, vary=False)  # incident photon current
+        params.add('I', value=1.440e-3, min=0, max=np.inf, vary=False)  # incident photon current
 
         for i in range(self.n):
             sec_label = self.species_names[i + 1] if i < self.n - 1 else ""

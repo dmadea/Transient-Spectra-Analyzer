@@ -298,16 +298,20 @@ class Heatmap(GenericPlotLayout):
         self.hline.sigPositionChanged.connect(lambda: fn(self))
 
     def set_x_range(self, x0, x1):
-        self.heatmap_pi.getViewBox().setXRange(x0, x1, padding=0)
+        self.heatmap_pi.setXRange(x0, x1, padding=0)
+        # self.heatmap_pi.getViewBox().setXRange(x0, x1, padding=0)
 
     def set_y_range(self, y0, y1):
-        self.heatmap_pi.getViewBox().setYRange(y0, y1, padding=0)
+        self.heatmap_pi.setYRange(y0, y1, padding=0)
+        # self.heatmap_pi.getViewBox().setYRange(y0, y1, padding=0)
 
     def get_x_range(self):
-        return self.heatmap_pi.getViewBox().getXRange()
+        return self.heatmap_pi.viewRange()[0]  # Return a the view's visible range as a list: [[xmin, xmax], [ymin, ymax]]
+        # return self.heatmap_pi.getViewBox().getXRange()
 
     def get_y_range(self):
-        return self.heatmap_pi.getViewBox().getYRange()
+        return self.heatmap_pi.viewRange()[1]
+        # return self.heatmap_pi.getViewBox().getYRange()
 
     def get_z_range(self):
         return self.hist.getLevels()
@@ -325,7 +329,7 @@ class Heatmap(GenericPlotLayout):
         :param z_range:  tuple '[min, max]' or None
         :return:
         """
-        extreme = np.max(matrix) if np.abs(np.max(matrix)) > 1e-10 else np.min(matrix)
+        extreme = np.nanmax(matrix) if np.abs(np.nanmax(matrix)) > 1e-10 else np.nanmin(matrix)
 
         matrix_min = -np.abs(extreme)
         matrix_max = -matrix_min
@@ -426,7 +430,9 @@ class Heatmap(GenericPlotLayout):
             mouse_point = self.heatmap_pi.vb.mapSceneToView(pos)
             n = Settings.coordinates_sig_figures
             # double format with n being the number of significant figures of a number
-            self.probe_label.setText(f"x={{:.{n}g}}, y={{:.{n}g}}".format(mouse_point.x(), mouse_point.y()))
+
+            x, y = self.transform_wl_pos(mouse_point.x()), self.transform_t_pos(mouse_point.y())
+            self.probe_label.setText(f"x={{:.{n}g}}, y={{:.{n}g}}".format(x, y))
 
             if on_vline:
                 self.parentWidget.viewport().setCursor(Qt.CursorShape.SizeHorCursor)

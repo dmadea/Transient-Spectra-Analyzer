@@ -1,5 +1,6 @@
 from PyQt6 import QtCore, QtGui, QtWidgets
 import numpy as np
+import os
 import pyqtgraph as pg
 from pyqtgraph.exporters import SVGExporter, ImageExporter
 from pyqtgraph.dockarea import Dock, DockArea
@@ -23,6 +24,8 @@ from scipy.integrate import cumtrapz
 
 from scipy.interpolate import interp2d
 from settings import Settings
+
+from LFP_matrix import LFP_matrix
 
 
 class CommonDimension:
@@ -303,12 +306,17 @@ class MainDisplayDockArea(DockArea):
 
         fw.update_model_par_count(update_after_fit=True)
 
-    def use_mask(self):
-        if self.matrix is None:
+    def use_mask(self, matrix_index=None):
+        if self.matrices is None:
             return
 
-        self.matrix.Mask = not self.matrix.Mask
-        self.plot_matrices(self.matrix, center_lines=False, keep_range=True, keep_fits=True)
+        # apply for all matrices
+        indexes = range(len(self.matrices)) if matrix_index is None else [matrix_index]
+
+        for i in indexes:
+            self.matrices[i].Mask = not self.matrices[i].Mask
+
+        self.plot_matrices(self.matrices, center_lines=False, keep_ranges=False, keep_fits=True)
 
     def cb_SVD_filter_toggled(self):
         if self.matrix is None:
@@ -551,23 +559,55 @@ class MainDisplayDockArea(DockArea):
 
         # self.plot_matrix(self.matrix, False)
 
-    def crop_matrix(self, t0=None, t1=None, w0=None, w1=None):
-        if self.matrix is None:
+    def crop_matrices(self, t0=None, t1=None, w0=None, w1=None):
+        if self.matrices is None:
             return
 
-        self.matrix.crop_data(t0, t1, w0, w1)
+        for m in self.matrices:
+            m.crop_data(t0, t1, w0, w1)
 
-        SVDDockArea.instance.set_data(self.matrix)
-        self.cb_SVD_filter_toggled()
+        self.plot_matrices(self.matrices)
+
+    def average_matrices(self, apply_mask=True):
+        if self.matrices is None:
+            return
+
+        if len(self.matrices) < 2:
+            return
+
+        mats2avrg = []
+
+        for m in self.matrices:
+            if m is None:
+                continue
+            D = m.Y.copy()
+            if apply_mask:
+                m.apply_mask(D)
+            mats2avrg.append(D)
+
+        D_stack = np.stack(mats2avrg, axis=2)
+        D_avrg = np.nanmean(D_stack, axis=2, keepdims=False)
+
+        assert len(D_avrg[np.isnan(D_avrg)]) == 0  # resulting array cannot contain nan values
+
+        _dir, fname = os.path.split(self.matrices[0].filepath)  # get dir and filename
+        fname, _ = os.path.splitext(fname)  # get filename without extension
+
+        m = LFP_matrix.from_value_matrix(D_avrg, self.matrices[0].times.copy(),
+                                                 self.matrices[0].wavelengths.copy(),
+                                                 filename=f'{fname}-avrg.txt',
+                                                 name=self.matrices[0].name)
+
+        self.plot_matrices([m])
+
 
     def baseline_correct(self, t0=0, t1=0.2):
-        if self.matrix is None:
+        if self.matrices is None:
             return
 
-        self.matrix.baseline_corr(t0, t1)
-
-        SVDDockArea.instance.set_data(self.matrix)
-        self.cb_SVD_filter_toggled()
+        for i, m in enumerate(self.matrices):
+            m.baseline_corr(t0, t1)
+            self.heat_map_widget.plots[i].set_matrix(m.Y, m.times, m.wavelengths, center_lines=False)
 
     def dimension_mul(self, t_mul=1, w_mul=1):
         if self.matrix is None:
