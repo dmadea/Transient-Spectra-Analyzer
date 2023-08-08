@@ -649,7 +649,7 @@ class FitWidget(QWidget, Ui_Form):
         MainDisplayDockArea.instance.set_fit_matrix(mat)
 
         if self.plot_chirp and self.current_model._class == 'Femto':
-            MainDisplayDockArea.instance.add_chirp(self.matrix.wavelengths, self.current_model.get_mu())
+            MainDisplayDockArea.instance.plot_chirp(self.matrix.wavelengths, self.current_model.get_mu())
 
     # def set_Closure_constraint(self, set=True, value=1, hard_closure=True):
     #     if set:

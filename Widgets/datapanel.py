@@ -23,8 +23,8 @@ class DataPanel(QTabWidget):
 
         self.i = 0
 
-        for m in matrices:
-            self.addTab(self.create_panels(m), m.get_filename())
+        for i, m in enumerate(matrices):
+            self.addTab(self.create_panels(m, i), m.get_filename())
 
     def set_range(self, index, x0=None, x1=None, y0=None, y1=None):
         assert type(index) is int
@@ -38,7 +38,7 @@ class DataPanel(QTabWidget):
         if x1 is not None:
             getattr(self, f'txb_w1{index}').setText(f'{x1:.4g}')
 
-    def create_panels(self, matrix):
+    def create_panels(self, matrix, index):
 
         main_widget = QWidget()
         main_layout = QVBoxLayout()
@@ -132,6 +132,12 @@ class DataPanel(QTabWidget):
 
         cb_show_chirp_points = QCheckBox("Show chirp points")
         btn_fit_chirp_params = QPushButton("Fit chirp params")
+
+        scp_name = f"cb_show_cp_{index}"
+        fcp_name = f"btn_fit_cp_{index}"
+
+        setattr(self, scp_name, cb_show_chirp_points)
+        setattr(self, fcp_name, btn_fit_chirp_params)
 
         main_layout.addWidget(self._QLabel("For femto fitting:"))
 

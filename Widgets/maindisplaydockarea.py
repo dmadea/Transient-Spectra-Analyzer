@@ -186,8 +186,8 @@ class MainDisplayDockArea(DockArea):
         self.addDock(self.trace_dock, 'right', self.spectrum_dock)
         self.addDock(self.settings_dock, 'left', self.heat_map_dock)
 
-        # self.roi = None
-        # self.chirp = self.heat_map_widget.heat_map_plot.heatmap_pi.plot([])
+        self.roi = None
+        # self.chirp = self.heat_map_widget.plots[0].heatmap_pi.plot([])
 
         # self.heat_map_vline.sigPositionChangeFinished.connect(self.update_trace_and_spectrum)
         # self.heat_map_hline.sigPositionChangeFinished.connect(self.update_trace_and_spectrum)
@@ -233,52 +233,30 @@ class MainDisplayDockArea(DockArea):
     def set_common_dim(self, dim: CommonDimension):
         self.same_dimension = dim
 
-    def get_roi_pos(self):
-        """This shit took me half a day to figure out."""
-        if self.roi is None:
-            return
-
-        hs = self.roi.getHandles()
-        n = len(hs)
-
-        positions = np.zeros((n, 2))
-        for i, h in enumerate(self.roi.getHandles()):
-            qPoint = self.roi.mapSceneToParent(h.scenePos())
-
-            positions[i, 0] = self.heat_map_widget.transform_wl_pos(qPoint.x())
-            positions[i, 1] = self.heat_map_widget.transform_t_pos(qPoint.y())
-
-        return positions
+    # def get_roi_pos(self):
+    #     """This shit took me half a day to figure out."""
+    #     if self.roi is None:
+    #         return
+    #
+    #     hs = self.roi.getHandles()
+    #     n = len(hs)
+    #
+    #     positions = np.zeros((n, 2))
+    #     for i, h in enumerate(self.roi.getHandles()):
+    #         qPoint = self.roi.mapSceneToParent(h.scenePos())
+    #
+    #         positions[i, 0] = self.heat_map_widget.transform_wl_pos(qPoint.x())
+    #         positions[i, 1] = self.heat_map_widget.transform_t_pos(qPoint.y())
+    #
+    #     return positions
 
     def cb_show_roi_checkstate_changed(self):
-        if self.roi is None:
-            return
+        for i in range(len(self.matrices)):
+            val = 1000 if getattr(self.data_panel, f"cb_show_cp_{i}").isChecked() else -1000
+            self.heat_map_widget.plots[i].chirp_roi.setZValue(val)
 
-        val = 1000 if self.data_panel.cb_show_chirp_points.isChecked() else -1000
-        self.roi.setZValue(val)
-
-    def plot_chirp_points(self):
-        if self.roi is None:
-
-            matrix = self.matrices[0]
-
-            t_mid = (matrix.times[-1] - matrix.times[0]) / 2
-            n_w = matrix.wavelengths.shape[0] - 1
-            wls = matrix.wavelengths[int(n_w / 5)], matrix.wavelengths[int(2 * n_w / 5)], \
-                  matrix.wavelengths[int(3 * n_w / 5)], matrix.wavelengths[int(4 * n_w / 5)]
-            self.roi = pg.PolyLineROI([[wls[0], t_mid], [wls[1], t_mid], [wls[2], t_mid], [wls[3], t_mid]], closed=False,
-                           handlePen=pg.mkPen(color=(0, 255, 0), width=5),
-                           hoverPen=pg.mkPen(color=(0, 150, 0), width=2),
-                           handleHoverPen=pg.mkPen(color=(0, 150, 0), width=3))
-
-            self.heat_map_widget.plots[0].addItem(self.roi)
-
-    def add_chirp(self, wls,  mu):  # plots the chirp
-        pass # TODO
-        # pen = pg.mkPen(color=QColor('black'), width=2)
-        # mu_tr = self.heat_map_widget.inv_transform_t_pos(mu)
-        # wls_tr = self.heat_map_widget.inv_transform_wl_pos(wls)
-        # self.chirp.setData(wls_tr, mu_tr, pen=pen)
+    def plot_chirp(self, wavelengths, mu):  # plots the chirp
+        self.heat_map_widget.plots[0].plot_chirp(wavelengths, mu)
 
     def fit_chirp_params(self):
         from Widgets.fitwidget import FitWidget as _fw
@@ -291,7 +269,7 @@ class MainDisplayDockArea(DockArea):
         if fw.current_model._class != 'Femto':
             return
 
-        roi_pos = self.get_roi_pos()
+        roi_pos = self.heat_map_widget.plots[0].get_roi_pos()
         x, y = roi_pos[:, 0], roi_pos[:, 1]
         lambda_c = fw.current_model.get_lambda_c()
 
@@ -984,6 +962,12 @@ class MainDisplayDockArea(DockArea):
 
         self.data_panel.initialize(self.matrices)
 
+        # connects signals
+
+        for i in range(len(self.matrices)):
+            getattr(self.data_panel, f"cb_show_cp_{i}").toggled.connect(self.cb_show_roi_checkstate_changed)
+            getattr(self.data_panel, f"btn_fit_cp_{i}").clicked.connect(self.fit_chirp_params)
+
         self.heat_map_widget.autoscale()
         self.update_trace_and_spectrum()
 
@@ -1000,7 +984,7 @@ class MainDisplayDockArea(DockArea):
         # self.update_spectra()
         #
         # self.plot_chirp_points()
-        # self.cb_show_roi_checkstate_changed()
+        self.cb_show_roi_checkstate_changed()
 
     # def save_plot_to_clipboard_as_png(self, plot_item):
     #     self.img_exporter = ImageExporter(plot_item)

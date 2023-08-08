@@ -198,6 +198,9 @@ class Heatmap(GenericPlotLayout):
         self.heatmap_pi.setLabel('left', text=xlabel)
         self.heatmap_pi.setLabel('bottom', text=ylabel)
 
+        self.chirp_data = self.heatmap_pi.plot([])  # chirp plot
+        self.chirp_roi = None  # roi for chirp
+
         self.addItem(self.heatmap_pi, 0, 0)
 
         # self.probe_label = pg.LabelItem('no cursor data shown', justify='left')
@@ -251,6 +254,46 @@ class Heatmap(GenericPlotLayout):
         self.layout.setSpacing(0)
         self.setContentsMargins(0, 0, 0, 0)
 
+    def get_roi_pos(self):
+        """This shit took me half a day to figure out."""
+        if self.chirp_roi is None:
+            return
+
+        hs = self.chirp_roi.getHandles()
+        n = len(hs)
+
+        positions = np.zeros((n, 2))
+        for i, h in enumerate(self.chirp_roi.getHandles()):
+            qPoint = self.chirp_roi.mapSceneToParent(h.scenePos())
+
+            positions[i, 0] = self.transform_wl_pos(qPoint.x())
+            positions[i, 1] = self.transform_t_pos(qPoint.y())
+
+        return positions
+
+    def plot_chirp(self, wavelengths: np.ndarray, mu: np.ndarray):
+        pen = pg.mkPen(color=(0, 0, 0), width=2)
+        mu_trace = self.inv_transform_t_pos(mu)
+        wls_trace = self.inv_transform_wl_pos(wavelengths)
+        self.chirp_data.setData(wls_trace, mu_trace, pen=pen)
+
+    def plot_chirp_points(self):
+        if self.chirp_roi is None:
+
+            t_mid = (self.arr_ax0[-1] - self.arr_ax0[0]) / 2
+            n_w = self.arr_ax1.shape[0] - 1
+            wls = self.arr_ax1[int(n_w / 5)], self.arr_ax1[int(2 * n_w / 5)], \
+                  self.arr_ax1[int(3 * n_w / 5)], self.arr_ax1[int(4 * n_w / 5)]
+
+            self.chirp_roi = pg.PolyLineROI([[wls[0], t_mid], [wls[1], t_mid], [wls[2], t_mid], [wls[3], t_mid]],
+                             closed=False,
+                             handlePen=pg.mkPen(color=(0, 255, 0), width=5),
+                             hoverPen=pg.mkPen(color=(0, 150, 0), width=2),
+                             handleHoverPen=pg.mkPen(color=(0, 150, 0), width=3))
+
+            self.heatmap_pi.addItem(self.chirp_roi)
+
+        self.chirp_roi.setZValue(-1000)
 
     def vline_moved(self, line):
         if self.arr_ax1 is None:
@@ -385,6 +428,8 @@ class Heatmap(GenericPlotLayout):
         if center_lines:
             self.vline.setPos((x0 + x_max) / 2)
             self.hline.setPos((y0 + y_max) / 2)
+
+        self.plot_chirp_points()
 
     def get_xpos(self):
         return self.vline.pos()[0]

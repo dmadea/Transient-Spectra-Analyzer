@@ -335,7 +335,7 @@ class _Femto(_Model):
         self.coh_spec = True
         self.coh_spec_order = 2
 
-        self.partau = True
+        self.partau = False
 
         # self.zero_coh_spec_range = [(460, 750)]  # zero coherent artifact in that wavelength range
         # self.weights = [(456, 475, 0.05)]  # (wl_start, wl_end, weight) default weight 1
@@ -566,6 +566,9 @@ class _Femto(_Model):
         return tau
 
     def plot_tau(self):
+        if not self.partau:
+            return
+
         plt.plot(self.wavelengths, self.get_tau())
         plt.xlabel('Wavelength / nm')
         plt.ylabel('IRF_FWHM / ps')
