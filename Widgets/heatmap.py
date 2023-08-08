@@ -164,7 +164,8 @@ class Heatmap(GenericPlotLayout):
                 'mode': 'rgb'}
 
     def __init__(self, parent=None, border=None, title="Residuals", xlabel='Time',
-                 ylabel='Wavelength \u2192', z_label='\u0394A', keep_levels_centered=True):
+                 ylabel='Wavelength \u2192', z_label='\u0394A', keep_levels_centered=True,
+                 ):
         super(Heatmap, self).__init__(None, border)
         self.keep_levels_centered = keep_levels_centered
         self.parentWidget = parent
@@ -225,12 +226,13 @@ class Heatmap(GenericPlotLayout):
 
         self.vline = InfiniteLine(self.arr_ax1, angle=90, movable=True, label=label_format,
                                   labelOpts=dict(rotateAxis=(1, 0), position=Settings.heatmap_line_label_position))
-        self.vline.setZValue(10000)
+        num = 10000
+        self.vline.setZValue(num)
         self.heatmap_pi.addItem(self.vline)
 
         self.hline = InfiniteLine(self.arr_ax0, angle=0, movable=True, label=label_format,
                                   labelOpts=dict(position=Settings.heatmap_line_label_position))
-        self.hline.setZValue(10000)
+        self.hline.setZValue(num)
         self.heatmap_pi.addItem(self.hline)
 
         self.vline.sigPositionChanged.connect(self.vline_moved)

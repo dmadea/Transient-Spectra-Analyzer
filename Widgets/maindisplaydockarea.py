@@ -233,23 +233,6 @@ class MainDisplayDockArea(DockArea):
     def set_common_dim(self, dim: CommonDimension):
         self.same_dimension = dim
 
-    # def get_roi_pos(self):
-    #     """This shit took me half a day to figure out."""
-    #     if self.roi is None:
-    #         return
-    #
-    #     hs = self.roi.getHandles()
-    #     n = len(hs)
-    #
-    #     positions = np.zeros((n, 2))
-    #     for i, h in enumerate(self.roi.getHandles()):
-    #         qPoint = self.roi.mapSceneToParent(h.scenePos())
-    #
-    #         positions[i, 0] = self.heat_map_widget.transform_wl_pos(qPoint.x())
-    #         positions[i, 1] = self.heat_map_widget.transform_t_pos(qPoint.y())
-    #
-    #     return positions
-
     def cb_show_roi_checkstate_changed(self):
         for i in range(len(self.matrices)):
             val = 1000 if getattr(self.data_panel, f"cb_show_cp_{i}").isChecked() else -1000
@@ -578,7 +561,6 @@ class MainDisplayDockArea(DockArea):
 
         self.plot_matrices([m])
 
-
     def baseline_correct(self, t0=0, t1=0.2):
         if self.matrices is None:
             return
@@ -587,15 +569,17 @@ class MainDisplayDockArea(DockArea):
             m.baseline_corr(t0, t1)
             self.heat_map_widget.plots[i].set_matrix(m.Y, m.times, m.wavelengths, center_lines=False)
 
-    def dimension_mul(self, t_mul=1, w_mul=1):
-        if self.matrix is None:
+    def dimension_multiply(self, times_mul=1, wavelengths_mul=1, index=None):
+        if self.matrices is None:
             return
 
-        self.matrix.times *= t_mul
-        self.matrix.wavelengths *= w_mul
+        inds = range(len(self.matrices)) if index is None else [index]
 
-        SVDDockArea.instance.set_data(self.matrix)
-        self.cb_SVD_filter_toggled()
+        for i in inds:
+            self.matrices[i].times *= times_mul
+            self.matrices[i].wavelengths *= wavelengths_mul
+
+        self.plot_matrices(self.matrices)
 
     def btn_restore_matrix_clicked(self):
         if self.matrix is None:

@@ -39,13 +39,15 @@ class FitLayout(pg.GraphicsLayoutWidget):
         self.ST_plot.showGrid(x=True, y=True, alpha=0.1)
         self.C_plot.showGrid(x=True, y=True, alpha=0.1)
 
-        self.heat_map_plot = Heatmap()
+        self.heat_map_plot = Heatmap(self, keep_levels_centered=True)
         self.addItem(self.heat_map_plot)
 
         self.C_legend = None
         self.ST_legend = None
 
         self.add_legend()
+
+        self.heat_map_plot.connect_signals()
 
     def add_legend(self, size=None, spacing=0, offset=(-30, 30)):
 
