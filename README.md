@@ -5,9 +5,10 @@
 
 * pyqt6
 * matplotlib
-* pyqtgraph
+* pyqtgraph >= 0.13.3
 * lmfit
-* sklearn
+* scikit-learn
 * qtconsole
 * numba
 
+Works on Python 3.9 and 3.10.
