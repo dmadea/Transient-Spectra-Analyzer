@@ -581,6 +581,49 @@ class MainDisplayDockArea(DockArea):
 
         self.plot_matrices(self.matrices)
 
+    def MS_norm2TIC(self, index=None):
+        inds = range(len(self.matrices)) if index is None else [index]
+
+        for i in inds:
+            m = self.matrices[i]
+            tic = m.get_TWC()
+            m.Y /= tic[:, None]
+            m.update_D()
+            self.heat_map_widget.plots[i].set_matrix(m.Y, m.times, m.wavelengths, center_lines=False)
+
+    def MS_remove_zero_scans(self, index=None, fraction=0.05):
+        """Removes scans that contains all zeros or 1/n of shape contains zeros"""
+
+        inds = range(len(self.matrices)) if index is None else [index]
+
+        for i in inds:
+            m = self.matrices[i]
+
+            zero_values = (m.Y == 0).sum(axis=1)
+            mask = zero_values <= int(fraction * m.wavelengths.shape[0])
+            m.Y = m.Y[mask]
+            m.times = m.times[mask]
+            m.update_D()
+
+        self.plot_matrices(self.matrices)
+
+    # def MS_remove_scan_at(self, t=5, index=None):
+    #     inds = range(len(self.matrices)) if index is None else [index]
+    #
+    #     for i in inds:
+    #         m = self.matrices[i]
+    #
+    #         idx = find_nearest_idx(m.times, t)
+    #
+    #         mask = np.ones(m.times.shape[0], dtype=int)
+    #         mask[idx] = False
+    #         m.Y = m.Y[mask]
+    #         m.times = m.times[mask]
+    #         m.update_D()
+    #
+    #     self.plot_matrices(self.matrices)
+
+
     def btn_restore_matrix_clicked(self):
         if self.matrix is None:
             return

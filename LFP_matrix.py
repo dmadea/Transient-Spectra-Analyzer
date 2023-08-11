@@ -139,6 +139,9 @@ class LFP_matrix(object):
         if self._mask:
             self.apply_mask(self.D)
 
+    def update_D(self):
+        self._set_D()
+
     def get_factored_matrix(self):
         """Returns the current/factored matrix as a LFP_Matrix object."""
 
@@ -360,7 +363,7 @@ class LFP_matrix(object):
             f.write(buff_C)
 
     def get_TWC(self, axis=1):
-        return np.trapz(self.D, self.wavelengths, axis=axis)
+        return np.trapz(self.Y, self.wavelengths, axis=axis)
 
     def plot_TWC(self):
         twc = self.get_TWC()
@@ -371,25 +374,25 @@ class LFP_matrix(object):
         plt.tight_layout()
         plt.show()
 
-    def save_factored_matrix(self, output_dir='.\\', delimiter='\t', encoding='utf8', t0=None, t1=None, w0=None, w1=None):
+    def save_factored_matrix(self, output_dir='.\\', delimiter='\t',  extension='txt', encoding='utf8', t0=None, t1=None, w0=None, w1=None):
         if self.filepath is None:
             return
 
         _, fname = os.path.split(self.filepath)
         name, ext = os.path.splitext(fname)
 
-        fpath = os.path.join(output_dir, f'{name}_factored{ext}')
+        fpath = os.path.join(output_dir, f'{name}_factored.{extension}')
 
         self._save_matrix(self.D, fname=fpath, delimiter=delimiter, encoding=encoding, t0=t0, t1=t1, w0=w0, w1=w1)
 
-    def save_original_matrix(self, output_dir='.\\', delimiter='\t', encoding='utf8', t0=None, t1=None, w0=None, w1=None):
+    def save_original_matrix(self, output_dir='.\\', delimiter='\t', extension='txt', encoding='utf8', t0=None, t1=None, w0=None, w1=None):
         if self.filepath is None:
             return
 
         _, fname = os.path.split(self.filepath)
         name, ext = os.path.splitext(fname)
 
-        fpath = os.path.join(output_dir, f'{name}{ext}')
+        fpath = os.path.join(output_dir, f'{name}.{extension}')
 
         self._save_matrix(self.Y, fname=fpath, delimiter=delimiter, encoding=encoding, t0=t0, t1=t1, w0=w0, w1=w1)
 

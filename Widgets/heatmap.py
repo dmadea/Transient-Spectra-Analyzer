@@ -129,7 +129,6 @@ def inv_transform_value_pos(value, arr=None):
     inv_t = t_min + t_idx * (t_max - t_min) / (arr.shape[0] - 1)  # inverse transform
     return inv_t
 
-
 def transform_value_pos(value, arr=None):
     """works for scalar and arrays"""
     if arr is None:
@@ -142,7 +141,10 @@ def transform_value_pos(value, arr=None):
         idx[idx >= arr.shape[0]] = arr.shape[0] - 1
     else:
         idx = arr.shape[0] - 1 if idx >= arr.shape[0] else idx
+    # try:
     return arr[idx]
+    # except ValueError:
+    #     return arr[0]
 
 
 class Heatmap(GenericPlotLayout):
