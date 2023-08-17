@@ -3,11 +3,12 @@ from pyqtgraph.graphicsItems.InfiniteLine import InfiniteLine as pgInfiniteLine
 from pyqtgraph.functions import mkPen
 import numpy as np
 from PyQt6.QtCore import Qt
+from typing import Union
 
 
 class InfiniteLine(pgInfiniteLine):
 
-    def __init__(self, datapoints: np.ndarray | None, pos=None, angle=90, pen=None, movable=False, bounds=None, hoverPen=None, label=None,
+    def __init__(self, datapoints: Union[np.ndarray, None], pos=None, angle=90, pen=None, movable=False, bounds=None, hoverPen=None, label=None,
                  labelOpts=None, span=(0, 1), markers=None, name=None, dragPen=None):
 
         self.datapoints = datapoints
