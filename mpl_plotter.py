@@ -10,7 +10,7 @@ import matplotlib as mpl
 import matplotlib.colors as c
 from numpy import ma
 
-from matplotlib.ticker import SymmetricalLogLocator, ScalarFormatter, AutoMinorLocator, MultipleLocator, Locator
+from matplotlib.ticker import SymmetricalLogLocator, ScalarFormatter, AutoMinorLocator, MultipleLocator, Locator, FixedLocator
 
 WL_LABEL = 'Wavelength / nm'
 WN_LABEL = "Wavenumber / $10^{4}$ cm$^{-1}$"
@@ -420,6 +420,137 @@ def plot_spectra_ax(ax, D, times, wavelengths, selected_times=(0, 100), zero_reg
 
     ax.set_axisbelow(False)
     ax.yaxis.set_ticks_position('both')
+
+def setup_twin_x_axis(ax, y_label="$I_{0,\\mathrm{m}}$ / $10^{-10}$ einstein s$^{-1}$ nm$^{-1}$",
+                      x_label=None, ylim=(None, None), y_major_locator=None, y_minor_locator=None,
+                      keep_zero_aligned=True):
+    ax2 = ax.twinx()
+
+    ax2.tick_params(which='major', direction='in')
+    ax2.tick_params(which='minor', direction='in')
+
+    if y_major_locator:
+        ax2.yaxis.set_major_locator(y_major_locator)
+
+    if y_minor_locator:
+        ax2.yaxis.set_minor_locator(y_minor_locator)
+
+    ax2.set_ylabel(y_label)
+
+    if keep_zero_aligned and ylim[0] is None and ylim[1] is not None:
+        # a = bx/(x-1)
+        ax1_ylim = ax.get_ylim()
+        x = -ax1_ylim[0] / (ax1_ylim[1] - ax1_ylim[0])  # position of zero in ax1, from 0, to 1
+        a = ylim[1] * x / (x - 1)  # calculates the ylim[0] so that zero position is the same for both axes
+        ax2.set_ylim(a, ylim[1])
+
+    elif ylim[0] is not None:
+        ax2.set_ylim(ylim)
+
+    return ax2
+
+def plot_kinetics_ax(ax, D, times, wavelengths,   lw=0.5,  time_unit='ps',
+                     n_spectra=50, linscale=1, linthresh=100, cmap='jet_r', major_ticks_labels=(100, 1000), emph_t=(0, 200, 1000),
+                     inset_loc=(0.75, 0.1, 0.03, 0.8), alpha=0.5,
+                     y_label='Absorbance', x_label=WL_LABEL, x_lim=(230, 600),
+                     LED_source: list = None, add_wavenumber_axis=True, D_mul_factor=1):
+    t = times
+
+    set_main_axis(ax, x_label=x_label, y_label=y_label, xlim=x_lim, x_minor_locator=None, y_minor_locator=None)
+    if add_wavenumber_axis:
+        setup_wavenumber_axis(ax)
+
+    cmap = cm.get_cmap(cmap)
+    norm = mpl.colors.SymLogNorm(vmin=t[0], vmax=t[-1], linscale=linscale, linthresh=linthresh, base=10, clip=True)
+
+    tsb_idxs = find_nearest_idx(t, emph_t)
+    ts_real = np.round(t[tsb_idxs])
+
+    x_space = np.linspace(0, 1, n_spectra, endpoint=True, dtype=np.float64)
+
+    t_idx_space = find_nearest_idx(t, norm.inverse(x_space))
+    t_idx_space = np.sort(np.asarray(list(set(t_idx_space).union(set(tsb_idxs)))))
+
+    for i in t_idx_space:
+        x_real = norm(t[i])
+        x_real = 0 if np.ma.is_masked(x_real) else x_real
+        ax.plot(wavelengths, D_mul_factor * D[i], color=cmap(x_real),
+                lw=1.5 if i in tsb_idxs else lw,
+                alpha=1 if i in tsb_idxs else alpha,
+                zorder=1 if i in tsb_idxs else 0)
+
+    cbaxes = ax.inset_axes(inset_loc)
+
+    sm = plt.cm.ScalarMappable(cmap=cmap, norm=norm)
+    sm.set_array([])
+    cbar = plt.colorbar(sm, cax=cbaxes, orientation='vertical',
+                        format=mpl.ticker.ScalarFormatter(),
+                        label=f'Time / {time_unit}')
+
+    cbaxes.invert_yaxis()
+
+    minor_ticks = [10, 20, 30, 40, 50, 60, 70, 80, 90, 200, 300, 400, 500, 600, 700, 800, 900] + list(
+        np.arange(2e3, t[-1], 1e3))
+    cbaxes.yaxis.set_ticks(cbar._locate(minor_ticks), minor=True)
+
+    major_ticks = np.sort(np.hstack((np.asarray([100, 1000]), ts_real)))
+    major_ticks_labels = np.sort(np.hstack((np.asarray(major_ticks_labels), ts_real)))
+
+    cbaxes.yaxis.set_ticks(cbar._locate(major_ticks), minor=False)
+    cbaxes.set_yticklabels([(f'{num:0.0f}' if num in major_ticks_labels else "") for num in major_ticks])
+
+    for ytick, ytick_label, _t in zip(cbaxes.yaxis.get_major_ticks(), cbaxes.get_yticklabels(), major_ticks):
+        if _t in ts_real:
+            color = cmap(norm(_t))
+            ytick_label.set_color(color)
+            ytick_label.set_fontweight('bold')
+            ytick.tick2line.set_color(color)
+            ytick.tick2line.set_markersize(5)
+            # ytick.tick2line.set_markeredgewidth(2)
+
+    if LED_source is not None:
+        ax_sec = setup_twin_x_axis(ax, ylim=(None, LED_source[1].max() * 3), y_label="",
+                                   y_major_locator=FixedLocator([]))
+        ax_sec.fill(LED_source[0], LED_source[1], facecolor='gray', alpha=0.5)
+        ax_sec.plot(LED_source[0], LED_source[1], color='black', ls='dotted', lw=1)
+
+
+    #
+    #
+    #
+    # _D = D * D_mul_factor
+    #
+    # if zero_reg[0] is not None:
+    #     cut_idxs = find_nearest_idx(wavelengths, zero_reg)
+    #     _D[:, cut_idxs[0]:cut_idxs[1]] = np.nan
+    #
+    # set_main_axis(ax, y_label=z_unit, xlim=(wavelengths[0], wavelengths[-1]),
+    #               x_minor_locator=AutoMinorLocator(10), x_major_locator=MultipleLocator(100), y_minor_locator=None)
+    # _ = setup_wavenumber_axis(ax, x_major_locator=MultipleLocator(0.5))
+    #
+    # t_idxs = find_nearest_idx(times, selected_times)
+    #
+    # _cmap = cm.get_cmap(cmap, t_idxs.shape[0])
+    # ax.axhline(0, wavelengths[0], wavelengths[-1], ls='--', color='black', lw=1)
+    #
+    # for i in range(t_idxs.shape[0]):
+    #     if colors is None:
+    #         color = np.asarray(c.to_rgb(_cmap(i))) * darkens_factor_cmap
+    #         color[color > 1] = 1
+    #     else:
+    #         color = colors[i]
+    #
+    #     ax.plot(wavelengths, _D[t_idxs[i]], color=color, lw=lw, label=f'{label_prefix}${selected_times[i]:.3g}$ {time_unit}')
+    #
+    # l = ax.legend(loc=legend_loc, frameon=False, labelspacing=legend_spacing, ncol=legend_ncol,
+    #               # handlelength=0, handletextpad=0,
+    #               columnspacing=columnspacing)
+    # for i, text in enumerate(l.get_texts()):
+    #     # text.set_ha('right')
+    #     text.set_color(_cmap(i))
+    #
+    # ax.set_axisbelow(False)
+    # ax.yaxis.set_ticks_position('both')
 
 
 def plot_data_ax(fig, ax, matrix, times, wavelengths, symlog=True, t_unit='ps',

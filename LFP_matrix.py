@@ -13,7 +13,7 @@ from sklearn.decomposition import FastICA
 from numpy import ma
 
 from matplotlib.ticker import *
-from mpl_plotter import plot_data_ax, plot_SADS_ax, plot_spectra_ax, plot_traces_onefig_ax, dA_unit, MinorSymLogLocator
+from mpl_plotter import plot_data_ax, plot_SADS_ax, plot_spectra_ax, plot_traces_onefig_ax, dA_unit, MinorSymLogLocator, plot_kinetics_ax
 
 
 def get_mu(wls, parmu=(1, 0, 0), lambda_c=433):
@@ -844,17 +844,15 @@ class LFP_matrix(object):
         else:
             plt.show()
 
+
+
     def plot_fit_no_2Dmap(self, symlog=False, t_unit='ps', z_unit='$\\Delta A$', cmap='jet', z_lim=(None, None),
                   w_lim=(None, None),  x_dim_name='Time',
-                  linthresh=1, linscale=1.5, D_mul_factor=1,
-                  # y_major_formatter=ScalarFormatter(), x_minor_locator=AutoMinorLocator(10),
-                  # add_wn_axis=True, t_lim=(None, None),
-                  wls_fit=(355, 400, 450, 500, 550), selected_times=(0, 100),  marker_size=10, marker_linewidth=1,
+                  linthresh=1, linscale=1.5, D_mul_factor=1, n_spectra=50,
+                  wls_fit=(355, 400, 450, 500, 550),  marker_size=10, marker_linewidth=1,
                   marker_facecolor='none', alpha_traces=1, legend_spacing=0.2, lw_traces=1.5, lw_spectra=1.5,
-                  legend_loc_traces='lower right',
-                  n_lin_bins=10, n_log_bins=10,
-                  spectra_colors=None, spectra_lw=1.5, darkens_factor_cmap=1, columnspacing=2,
-                  legend_loc_spectra='lower right', legend_ncol_spectra=1, label_prefix='t = ',
+                  legend_loc_traces='lower right', inset_loc=(0.75, 0.1, 0.03, 0.8), LED_source=None,
+                  n_lin_bins=10, n_log_bins=10, major_ticks_labels=(100, 1000), emph_t=(0, 200, 1000),
                   fig_size=(15, 4.5), dpi=500, filepath=None, transparent=True, hatched_wls=(None, None)):
 
         if self.D_fit is None:
@@ -876,11 +874,16 @@ class LFP_matrix(object):
         COLORS = ['blue', 'red', 'green', 'orange', 'purple', 'black', 'gray']
         fig, axes = plt.subplots(1, 3, figsize=fig_size)
 
-        plot_spectra_ax(axes[0], _D, times, wavelengths, selected_times=selected_times, zero_reg=hatched_wls,
-                        z_unit=z_unit, D_mul_factor=D_mul_factor, legend_spacing=legend_spacing, colors=spectra_colors,
-                        lw=spectra_lw, darkens_factor_cmap=darkens_factor_cmap, columnspacing=columnspacing,
-                        legend_loc=legend_loc_spectra, legend_ncol=legend_ncol_spectra, label_prefix=label_prefix,
-                        time_unit=t_unit, cmap=cmap, ylim=z_lim)
+        plot_kinetics_ax(axes[0], _D, times, wavelengths, D_mul_factor=D_mul_factor, time_unit=t_unit, n_spectra=n_spectra,
+                         linscale=linscale, linthresh=linthresh, cmap='jet_r', major_ticks_labels=major_ticks_labels,
+                         emph_t=emph_t, inset_loc=inset_loc, alpha=0.5, LED_source=LED_source, x_lim=w_lim)
+
+
+        # plot_spectra_ax(axes[0], _D, times, wavelengths, selected_times=selected_times, zero_reg=hatched_wls,
+        #                 z_unit=z_unit, D_mul_factor=D_mul_factor, legend_spacing=legend_spacing, colors=spectra_colors,
+        #                 lw=spectra_lw, darkens_factor_cmap=darkens_factor_cmap, columnspacing=columnspacing,
+        #                 legend_loc=legend_loc_spectra, legend_ncol=legend_ncol_spectra, label_prefix=label_prefix,
+        #                 time_unit=t_unit, cmap=cmap, ylim=z_lim)
 
         plot_SADS_ax(axes[1], self.wavelengths, self.ST_fit.T, zero_reg=hatched_wls, colors=COLORS,
                      D_mul_factor=D_mul_factor, z_unit=z_unit, lw=lw_spectra, w_lim=w_lim)
