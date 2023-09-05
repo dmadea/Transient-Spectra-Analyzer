@@ -20,7 +20,7 @@ import matplotlib.pyplot as plt
 from settings import Settings
 
 from genericinputdialog import GenericInputDialog
-from PyQt6.QtWidgets import QPushButton, QCheckBox, QComboBox, QSpinBox, QDoubleSpinBox
+from PyQt6.QtWidgets import QPushButton, QCheckBox, QComboBox, QSpinBox, QDoubleSpinBox, QLineEdit
 from target_model import TargetModel
 import glob, os
 import scipy.constants as sc
@@ -798,13 +798,33 @@ class _Photokinetic_Model(_Model):
 
         method_comboBox.setCurrentIndex(curr_idx_method)
 
+        nn_spectra = QCheckBox("Non-negative spectra")
+        nn_spectra.setChecked(self.res_func_params['non_negative_spectra'])
+        nn_spectra_amplitude = QLineEdit()
+        nn_spectra_amplitude.setText(str(self.res_func_params['non_negative_spectra_amplitude']))
+
+        norm_residuals_cb = QCheckBox("Normalize residuals and spectra to its l2 norm")
+        norm_residuals_cb.setChecked(self.res_func_params['norm_residuals'])
+
         widgets = [['LED for irradiation (maximum):', led_comboBox],
                    ['', btn_show_LED],
-                   ['Fitting method:', method_comboBox]]
+                   ['Fitting method:', method_comboBox],
+                   ["Residual function setting for RFA method", None],
+                   ['', nn_spectra],
+                   ['Non-negative spectra amplitude:', nn_spectra_amplitude],
+                   ['', norm_residuals_cb]]
 
         def set_result():
             self.selected_LED = int(led_comboBox.currentIndex())
             self.method = self.fit_methods[int(method_comboBox.currentIndex())]['abbr']
+            self.res_func_params['non_negative_spectra'] = nn_spectra.isChecked()
+
+            try:
+                self.res_func_params['non_negative_spectra_amplitude'] = float(nn_spectra_amplitude.text())
+            except Exception:
+                self.res_func_params['non_negative_spectra_amplitude'] = 1
+
+            self.res_func_params['norm_residuals'] = norm_residuals_cb.isChecked()
             self.init_params()
 
         self.model_settigs_dialog = GenericInputDialog(widget_list=widgets, label_text="",
@@ -982,6 +1002,8 @@ class _Photokinetic_Model(_Model):
         if self.res_func_params['norm_residuals']:
             R /= (D * D).sum()
 
+        R *= W
+
         if self.res_func_params['non_negative_spectra']:
             spec = self.ST * (self.ST < 0) * self.res_func_params['non_negative_spectra_amplitude']
             if self.res_func_params['norm_residuals']:
@@ -990,7 +1012,7 @@ class _Photokinetic_Model(_Model):
 
             R = np.vstack((R, spec))
 
-        return R * W, _C_opt
+        return R, _C_opt
 
 
 class PumpProbeCrossCorrelation(_Femto):

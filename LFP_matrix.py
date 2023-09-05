@@ -846,7 +846,7 @@ class LFP_matrix(object):
 
 
 
-    def plot_fit_no_2Dmap(self, symlog=False, t_unit='ps', z_unit='$\\Delta A$', cmap='jet', z_lim=(None, None),
+    def plot_fit_no_2Dmap(self, symlog=False, t_unit='s', z_unit_spectra='$\\Delta A$', z_unit_traces = 'A',cmap='jet', z_lim=(None, None),
                   w_lim=(None, None),  x_dim_name='Time',
                   linthresh=1, linscale=1.5, D_mul_factor=1, n_spectra=50,
                   wls_fit=(355, 400, 450, 500, 550),  marker_size=10, marker_linewidth=1,
@@ -886,7 +886,7 @@ class LFP_matrix(object):
         #                 time_unit=t_unit, cmap=cmap, ylim=z_lim)
 
         plot_SADS_ax(axes[1], self.wavelengths, self.ST_fit.T, zero_reg=hatched_wls, colors=COLORS,
-                     D_mul_factor=D_mul_factor, z_unit=z_unit, lw=lw_spectra, w_lim=w_lim)
+                     D_mul_factor=D_mul_factor, z_unit=z_unit_spectra, lw=lw_spectra, w_lim=w_lim)
 
         plot_traces_onefig_ax(axes[-1], _D, _D_fit, times, wavelengths, y_lim=z_lim,
                               wls=wls_fit, marker_size=marker_size, alpha=alpha_traces,
@@ -894,7 +894,7 @@ class LFP_matrix(object):
                               marker_linewidth=marker_linewidth, colors=COLORS,
                               linscale=linscale, linthresh=linthresh,
                               x_label=x_dim_name if t_unit == '' else f'{x_dim_name} / {t_unit}',
-                              legend_spacing=legend_spacing, y_label=z_unit,
+                              legend_spacing=legend_spacing, y_label=z_unit_traces,
                               lw=lw_traces, legend_loc=legend_loc_traces, D_mul_factor=D_mul_factor,
                               symlog=symlog)
 

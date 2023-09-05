@@ -60,6 +60,10 @@ class GenericInputDialog(QtWidgets.QDialog):
             if isinstance(label, str):
                 # self.label_list.append(QLabel(label))
                 label = QLabel(label)
+                if widget is None:
+                    font = label.font()
+                    font.setUnderline(True)
+                    label.setFont(font)
             if widget is not None:
                 self.widget_list.append(widget)
                 self.grid_layout.addWidget(widget, i, 1)
