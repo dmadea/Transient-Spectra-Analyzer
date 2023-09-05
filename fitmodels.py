@@ -720,6 +720,11 @@ class _Photokinetic_Model(_Model):
 
         self.ST = ST
         self.interp_kind = 'quadratic'
+        self.res_func_params = {
+            'non_negative_spectra': True,
+            'non_negative_spectra_amplitude': 1,
+            'norm_residuals': True,
+        }
 
         self.D = None  # original data
 
@@ -972,7 +977,20 @@ class _Photokinetic_Model(_Model):
         _C_opt = self.calc_C(params)
         W = self.get_weights()
 
-        return (_C_opt @ self.ST - D) * W, _C_opt
+        R = _C_opt @ self.ST - D
+
+        if self.res_func_params['norm_residuals']:
+            R /= (D * D).sum()
+
+        if self.res_func_params['non_negative_spectra']:
+            spec = self.ST * (self.ST < 0) * self.res_func_params['non_negative_spectra_amplitude']
+            if self.res_func_params['norm_residuals']:
+                norm_ST = (self.ST * self.ST).sum(axis=0, keepdims=True)
+                spec /= norm_ST
+
+            R = np.vstack((R, spec))
+
+        return R * W, _C_opt
 
 
 class PumpProbeCrossCorrelation(_Femto):
