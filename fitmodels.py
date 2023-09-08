@@ -721,7 +721,7 @@ class _Photokinetic_Model(_Model):
         self.ST = ST
         self.interp_kind = 'quadratic'
         self.res_func_params = {
-            'non_negative_spectra': True,
+            'non_negative_spectra': False,
             'non_negative_spectra_amplitude': 1,
             'norm_residuals': True,
         }
@@ -2739,7 +2739,7 @@ class SingletOxygenSelfDegradation(_Photokinetic_Model):
             T = np.exp(-ln10 * A)  # transmittance
             Ieff = spectral_flux * (1 - R) * (1 + R * T)
 
-            q_A = np.trapz(F * Ieff * self.ST[0] * l)  # absorbed photons by first species
+            q_A = np.trapz(F * Ieff * p_A[0] * l)  # absorbed photons by first species
 
             ret = Phi_Delta * k_r * c[0] * q_A / (k_d + k_r * c[0])
 
