@@ -529,6 +529,20 @@ class MainDisplayDockArea(DockArea):
 
         self.plot_matrices(self.matrices)
 
+
+    def stack_matrices(self):
+        # performs the vertical stack of matrices
+
+        t_new = np.hstack([m.times for m in self.matrices])
+        D_new = np.vstack([m.D for m in self.matrices])
+
+        m = LFP_matrix.from_value_matrix(D_new, t_new,
+                                         self.matrices[0].wavelengths.copy(),
+                                         filename=self.matrices[0].filepath,
+                                         name=self.matrices[0].name)
+
+        self.plot_matrices([m])
+
     def average_matrices(self, apply_mask=True):
         if self.matrices is None:
             return
@@ -606,6 +620,13 @@ class MainDisplayDockArea(DockArea):
             m.update_D()
 
         self.plot_matrices(self.matrices)
+
+    def transpose(self):
+        for m in self.matrices:
+            m.transpose()
+
+        self.plot_matrices(self.matrices)
+
 
     # def MS_remove_scan_at(self, t=5, index=None):
     #     inds = range(len(self.matrices)) if index is None else [index]
