@@ -490,6 +490,15 @@ class Fitter:
         self.minimizer = lmfit.Minimizer(residuals, self.c_model.params,
                                          iter_cb=lambda params, iter, resid, *args, **kws: self.is_interruption_requested())
         self.kwds.update(kwargs)
+
+        # bus error on mac M1/M2, caused by np.linalg.inv function in calculation of uncertainties in scipy.least_squares after fitting
+        # possible solution here https://stackoverflow.com/questions/73072612/why-does-np-linalg-solve-raise-bus-error-when-running-on-its-own-thread-mac-m1
+
+        # quick fix, options in terminal
+        #export MKL_NUM_THREADS=1
+        #export NUMEXPR_NUM_THREADS=1
+        #export OMP_NUM_THREADS=1
+
         self.last_result = self.minimizer.minimize(method=self.fit_alg, **self.kwds)  # minimize the residuals
 
         self.c_model.params = self.last_result.params
