@@ -100,14 +100,15 @@ def fast_erfc(x):
 
 
 @vectorize(nopython=True, fastmath=False)
-def fold_exp(t, k, fwhm):
+def fold_exp(t, k, fwhm, t0):
 
     w = fwhm / (2 * np.sqrt(np.log(2)))  # width
+    tt = t - t0
 
     if w > 0:
-        return 0.5 * np.exp(k * (k * w * w / 4.0 - t)) * math_erfc(w * k / 2.0 - t / w)
+        return 0.5 * np.exp(k * (k * w * w / 4.0 - tt)) * math_erfc(w * k / 2.0 - tt / w)
     else:
-        return np.exp(-t * k) if t >= 0 else 0
+        return np.exp(-tt * k) if tt >= 0 else 0
 
 #
 # def fold_exp_numpy(t, k, fwhm):
@@ -473,11 +474,11 @@ class _Femto(_Model):
 
         if mu is not None:  # TODO !!! pořešit, ať je to obecne
             # C = _Femto.conv_exp(t[None, :, None] - mu[:, None, None], -L[None, None, :], _tau)
-            C = fold_exp(t[None, :, None] - mu[:, None, None], -L[None, None, :], _tau)
+            C = fold_exp(t[None, :, None] - mu[:, None, None], -L[None, None, :], _tau, 0)
 
         else:
             # C = _Femto.conv_exp(t[:, None], -L[None, :], fwhm)
-            C = fold_exp(t[:, None], -L[None, :], fwhm)
+            C = fold_exp(t[:, None], -L[None, :], fwhm, 0)
 
         return C.dot(A2_T.T)
 
@@ -1077,7 +1078,7 @@ class Global_Analysis_Femto(_Femto):
 
         else:  # for DADS
             _tau = fwhm[:, None, None] if isinstance(fwhm, np.ndarray) else fwhm
-            self.C = fold_exp(self.times[None, :, None] - mu[:, None, None], ks[None, None, :], _tau)
+            self.C = fold_exp(self.times[None, :, None] - mu[:, None, None], ks[None, None, :], _tau, 0)
 
         return self.get_conc_matrix(C_out, self._connectivity)
 
@@ -1241,28 +1242,74 @@ class Target_Analysis_Z_Femto(_Femto):
         return self.get_conc_matrix(C_out, self._connectivity)
 
 
-class First_Order_Sequential_Model(_Model):
-
-    name = 'Sequential model (1st order)'
+class Firt_Order_Model_Nano(_Model):
+    name = 'Sequential/parallel model (1st order)'
     _class = 'Nano'
+
+    def __init__(self, times=None, connectivity=(0, 1, 2), wavelengths=None, C=None):
+        super(Firt_Order_Model_Nano, self).__init__(times, connectivity, wavelengths, C)
+
+        self.use_irf = False
+        self.irf_types = ['Gaussian']
+        self.irf_type = self.irf_types[0]
+        self.models = ['Sequential', 'Parallel']
+        self.model_type = self.models[0]
+
+    def open_model_settings(self, show_target_model=False):
+        if GenericInputDialog.if_opened_activate():
+            return
+
+        cbuse_irf = QCheckBox('Use IRF (instrument response function)')
+        cbuse_irf.setChecked(self.use_irf)
+
+        cbIRF_type = QComboBox()
+        cbIRF_type.addItems(self.irf_types)
+        cbIRF_type.setCurrentIndex(self.irf_types.index(self.irf_type))
+
+        cbmodel_type = QComboBox()
+        cbmodel_type.addItems(self.models)
+        cbmodel_type.setCurrentIndex(self.models.index(self.model_type))
+
+        widgets = [[cbuse_irf, None],
+                   ['IRF type:', cbIRF_type],
+                   ["Used kinetic model:", cbmodel_type],
+                   ]
+
+        def set_result():
+            self.use_irf = cbuse_irf.isChecked()
+            self.irf_type = self.irf_types[cbIRF_type.currentIndex()]
+            self.model_type = self.models[cbmodel_type.currentIndex()]
+            self.init_params()
+
+        self.model_settigs_dialog = GenericInputDialog(widget_list=widgets, label_text="",
+                                                       title=f'{self.name} settings',
+                                                       set_result=set_result)
+        self.model_settigs_dialog.show()
+        self.model_settigs_dialog.exec()
 
     def init_model_params(self):
         params = Parameters()
         params.add('c0', value=1, min=0, max=np.inf, vary=False)
+        params.add('t0', value=0, min=-np.inf, max=np.inf)  # time zero
+
+        if self.use_irf and self.irf_type == 'Gaussian':
+            params.add('IRF_FWHM', value=0.2, min=0, max=np.inf)
 
         for i in range(self.n):
-            sec_label = self.species_names[i+1] if i < self.n - 1 else ""
-            params.add(f'tau_{self.species_names[i]}{sec_label}', value=1+i**2, min=0, max=np.inf)
+            sec_label = self.species_names[i + 1] if i < self.n - 1 else ""
+            params.add(f'tau_{self.species_names[i]}{sec_label}', value=1 + i ** 2, min=0, max=np.inf)
 
         return params
 
     @staticmethod
-    def get_EAS(t, ks):
+    def get_EAS(ks, C_base):
         # based on Ivo H.M. van Stokkum equation in doi:10.1016/j.bbabio.2004.04.011
         # c_l = sum_{j=1}^l  b_jl * exp(-k_j * t)
         # for j < l: b_jl = b_{j, l-1} * k_{l-1} / (k_l - k_j)
         n = ks.shape[0]
-        C = np.exp(-t[:, None] * ks[None, :])
+        # C = np.exp(-t[:, None] * ks[None, :])
+        if n == 1:
+            return C_base
 
         bjl = np.triu(np.ones((n, n)))  # make triangular upper matrix
 
@@ -1275,86 +1322,21 @@ class First_Order_Sequential_Model(_Model):
 
         bjl *= k_mat
 
-        return C.dot(bjl)
+        return C_base.dot(bjl)
 
     def calc_C(self, params=None, C_out=None):
-        super(First_Order_Sequential_Model, self).calc_C(params, C_out)
+        super(Firt_Order_Model_Nano, self).calc_C(params, C_out)
 
-        c0, *taus = [par[1].value for par in self.params.items()]
+        if self.use_irf:
+            c0, t0, irf_fwhm, *taus = [par[1].value for par in self.params.items()]
+        else:
+            c0, t0, *taus = [par[1].value for par in self.params.items()]
 
-        self.C = self.get_EAS(self.times, 1 / np.asarray(taus)) * np.heaviside(self.times[:, None], 1)
-
-        return self.get_conc_matrix(C_out, self._connectivity)
-
-
-class First_Order_Sequential_IRF_Model(_Model):
-
-    name = 'Sequential model (1st order) with known IRF'
-    _class = 'Nano'
-
-    def __init__(self, times=None, connectivity=(0, 1, 2), wavelengths=None, C=None):
-        super(First_Order_Sequential_IRF_Model, self).__init__(times, connectivity, wavelengths, C)
-
-        self.IRF = None
-        fname = r'C:\Users\dominik\Documents\RealTimeSync\Projects\2020- Bilirubin & dipyrrinones\Mechanism of 3Z oxidation\Fluorimetr\IRF 400 nm.csv'
-        self.IRF_times, self.IRF = np.loadtxt(fname, dtype=np.float64, skiprows=1, delimiter=',').T
-        self.IRF = self.IRF / np.trapz(self.IRF, self.IRF_times)
-
-    def init_model_params(self):
-        params = Parameters()
-        params.add('c0', value=1, min=0, max=np.inf, vary=False)
-
-        for i in range(self.n):
-            sec_label = self.species_names[i+1] if i < self.n - 1 else ""
-            params.add(f'tau_{self.species_names[i]}{sec_label}', value=1+i**2, min=0, max=np.inf)
-
-        return params
-
-    def calc_C(self, params=None, C_out=None):
-        super(First_Order_Sequential_IRF_Model, self).calc_C(params, C_out)
-
-        c0, *taus = [par[1].value for par in self.params.items()]
-
-        K = np.zeros((self.n, self.n))
-
-        for i in range(self.n):
-            K[i, i] = -1/taus[i]
-            if i < self.n - 1:
-                K[i+1, i] = 1/taus[i]
-
-        def dc_dt(c, t):
-            tidx = find_nearest_idx(self.times, t)
-            j = np.zeros_like(c)
-            j[0] = self.IRF[tidx]
-            return K.dot(c) + j
-
-        init = np.zeros(self.n)
-        self.C = odeint(dc_dt, init, self.times)
-
-        return self.get_conc_matrix(C_out, self._connectivity)
-
-
-class First_Order_Parallel_Model(_Model):
-
-    name = 'Parallel model (1st order)'
-    _class = 'Nano'
-
-    def init_model_params(self):
-        params = Parameters()
-        params.add('c0', value=1, min=0, max=np.inf, vary=False)
-
-        for i in range(self.n):
-            self.params.add(f'tau_{self.species_names[i]}', value=1+i**2, min=0, max=np.inf)
-
-        return params
-
-    def calc_C(self, params=None, C_out=None):
-        super(First_Order_Parallel_Model, self).calc_C(params, C_out)
-
-        c0, *taus = [par[1].value for par in self.params.items()]
         ks = 1 / np.asarray(taus)
 
-        self.C = c0 * np.exp(-self.times[:, None] * ks[None, :]) * np.heaviside(self.times[:, None], 1)
+        self.C = c0 * fold_exp(self.times[:, None], ks[None, :], irf_fwhm if self.use_irf else 0, t0)
+        if self.model_type == 'Sequential':
+            self.C = self.get_EAS(ks, self.C)
 
         return self.get_conc_matrix(C_out, self._connectivity)
 
@@ -1658,39 +1640,39 @@ class AB_mixed12_Model(_Model):
 
         return self.get_conc_matrix(C_out, self._connectivity)
 
-
-class ABDE_Model(_Model):
-    """ABDE kinetic model, first order."""
-
-    n = 4
-    name = 'TA-2 species: A→B, C→D (1st order)'
-    _class = 'Nano'
-
-    def __init__(self, times=None):
-        super(ABDE_Model, self).__init__(times)
-
-        # self.species_names = np.array(list('ABCD'), dtype=str)
-
-        self.description = "TODOchange++++Simple A->B->C model of 1st order. d[A]/dt = -k1[A] - k2[A]^2, [A]_0 = c_0"
-
-    def init_params(self):
-        self.params = Parameters()
-        self.params.add('c0', value=1, min=0, max=np.inf, vary=False)
-        self.params.add('c1', value=1, min=0, max=np.inf, vary=False)
-        self.params.add('k1', value=0.9, min=0, max=np.inf)
-        self.params.add('k2', value=0.7, min=0, max=np.inf)
-
-    def calc_C(self, params=None, C_out=None):
-        super(ABDE_Model, self).calc_C(params)
-
-        c0, c1, k1, k2 = [par[1].value for par in self.params.items()]
-
-        self.C[:, 0] = np.heaviside(self.times, 1) * c0 * np.exp(-self.times * k1)
-        self.C[:, 1] = np.heaviside(self.times, 1) * c0 * (1 - np.exp(-self.times * k1))
-        self.C[:, 2] = np.heaviside(self.times, 1) * c0 * np.exp(-self.times * k2)
-        self.C[:, 3] = np.heaviside(self.times, 1) * c0 * (1 - np.exp(-self.times * k2))
-
-        return self.get_conc_matrix(C_out, self._connectivity)
+#
+# class ABDE_Model(_Model):
+#     """ABDE kinetic model, first order."""
+#
+#     n = 4
+#     name = 'TA-2 species: A→B, C→D (1st order)'
+#     _class = 'Nano'
+#
+#     def __init__(self, times=None):
+#         super(ABDE_Model, self).__init__(times)
+#
+#         # self.species_names = np.array(list('ABCD'), dtype=str)
+#
+#         self.description = "TODOchange++++Simple A->B->C model of 1st order. d[A]/dt = -k1[A] - k2[A]^2, [A]_0 = c_0"
+#
+#     def init_params(self):
+#         self.params = Parameters()
+#         self.params.add('c0', value=1, min=0, max=np.inf, vary=False)
+#         self.params.add('c1', value=1, min=0, max=np.inf, vary=False)
+#         self.params.add('k1', value=0.9, min=0, max=np.inf)
+#         self.params.add('k2', value=0.7, min=0, max=np.inf)
+#
+#     def calc_C(self, params=None, C_out=None):
+#         super(ABDE_Model, self).calc_C(params)
+#
+#         c0, c1, k1, k2 = [par[1].value for par in self.params.items()]
+#
+#         self.C[:, 0] = np.heaviside(self.times, 1) * c0 * np.exp(-self.times * k1)
+#         self.C[:, 1] = np.heaviside(self.times, 1) * c0 * (1 - np.exp(-self.times * k1))
+#         self.C[:, 2] = np.heaviside(self.times, 1) * c0 * np.exp(-self.times * k2)
+#         self.C[:, 3] = np.heaviside(self.times, 1) * c0 * (1 - np.exp(-self.times * k2))
+#
+#         return self.get_conc_matrix(C_out, self._connectivity)
 
 #
 # class ABC_Model(_Model):
@@ -1723,61 +1705,61 @@ class ABDE_Model(_Model):
 #
 #         return self.get_conc_matrix(C_out, self._connectivity)
 
-
-class ABC_zero_Model(_Model):
-    """ABC kinetic model, first order. then zero"""
-
-    n = 3
-    name = 'zero, A→B→C (1st, zero order)'
-    _class = 'Nano'
-
-    def __init__(self, times=None):
-        super(ABC_zero_Model, self).__init__(times)
-
-        # self.species_names = np.array(list('ABC'), dtype=str)
-
-        self.description = "Simple A->B->C model of 1st order. d[A]/dt = -k1[A] - k2[A]^2, [A]_0 = c_0"
-
-    def init_params(self):
-        self.params = Parameters()
-        self.params.add('c0', value=1, min=0, max=np.inf, vary=False)
-        self.params.add('t0', value=11, min=0, max=np.inf)
-        self.params.add('k1', value=0.03, min=0, max=np.inf)
-        self.params.add('k2', value=0.4, min=0, max=np.inf)
-        self.params.add('k3', value=0.0003, min=0, max=np.inf)
-        self.params.add('k4', value=0.005, min=0, max=np.inf)
-
-
-
-    def calc_C(self, params=None, C_out=None):
-        super(ABC_zero_Model, self).calc_C(params)
-
-        c0, t0, k1, k2, k3, k4 = [par[1].value for par in self.params.items()]
-
-        def dc_dt(c, t):
-            cA, cB, cC = c
-
-            dA_dt = -k1 * cA / (k2 + cA)
-            dB_dt = k1 * cA / (k2 + cA) - k3 * cB / (k4 + cB)
-            dC_dt = k3 * cB / (k4 + cB)
-
-            ret = np.asarray([dA_dt, dB_dt, dC_dt])
-
-            return ret if t >= t0 else np.zeros_like(ret)
-
-        x0 = np.linspace(0, self.times[0], num=100)
-        _init_x = odeint(dc_dt, [c0, 0, 0], x0)[-1, :]  # take the row in the result matrix
-        result = odeint(dc_dt, _init_x, self.times)
-
-        result *= (result >= 0)
-
-        self.C = result
-
-        # self.C[:, 0] = np.heaviside(self.times, 1) * np.exp(-self.times * k1)
-        # self.C[:, 1] = np.heaviside(self.times, 1) * self.cB(self.times, c0, k1, k2)
-        # self.C[:, 2] = np.heaviside(self.times, 1) * (c0 - self.C[:, 0] - self.C[:, 1])
-
-        return self.get_conc_matrix(C_out, self._connectivity)
+#
+# class ABC_zero_Model(_Model):
+#     """ABC kinetic model, first order. then zero"""
+#
+#     n = 3
+#     name = 'zero, A→B→C (1st, zero order)'
+#     _class = 'Nano'
+#
+#     def __init__(self, times=None):
+#         super(ABC_zero_Model, self).__init__(times)
+#
+#         # self.species_names = np.array(list('ABC'), dtype=str)
+#
+#         self.description = "Simple A->B->C model of 1st order. d[A]/dt = -k1[A] - k2[A]^2, [A]_0 = c_0"
+#
+#     def init_params(self):
+#         self.params = Parameters()
+#         self.params.add('c0', value=1, min=0, max=np.inf, vary=False)
+#         self.params.add('t0', value=11, min=0, max=np.inf)
+#         self.params.add('k1', value=0.03, min=0, max=np.inf)
+#         self.params.add('k2', value=0.4, min=0, max=np.inf)
+#         self.params.add('k3', value=0.0003, min=0, max=np.inf)
+#         self.params.add('k4', value=0.005, min=0, max=np.inf)
+#
+#
+#
+#     def calc_C(self, params=None, C_out=None):
+#         super(ABC_zero_Model, self).calc_C(params)
+#
+#         c0, t0, k1, k2, k3, k4 = [par[1].value for par in self.params.items()]
+#
+#         def dc_dt(c, t):
+#             cA, cB, cC = c
+#
+#             dA_dt = -k1 * cA / (k2 + cA)
+#             dB_dt = k1 * cA / (k2 + cA) - k3 * cB / (k4 + cB)
+#             dC_dt = k3 * cB / (k4 + cB)
+#
+#             ret = np.asarray([dA_dt, dB_dt, dC_dt])
+#
+#             return ret if t >= t0 else np.zeros_like(ret)
+#
+#         x0 = np.linspace(0, self.times[0], num=100)
+#         _init_x = odeint(dc_dt, [c0, 0, 0], x0)[-1, :]  # take the row in the result matrix
+#         result = odeint(dc_dt, _init_x, self.times)
+#
+#         result *= (result >= 0)
+#
+#         self.C = result
+#
+#         # self.C[:, 0] = np.heaviside(self.times, 1) * np.exp(-self.times * k1)
+#         # self.C[:, 1] = np.heaviside(self.times, 1) * self.cB(self.times, c0, k1, k2)
+#         # self.C[:, 2] = np.heaviside(self.times, 1) * (c0 - self.C[:, 0] - self.C[:, 1])
+#
+#         return self.get_conc_matrix(C_out, self._connectivity)
 
 # class ABCD_Model(_Model):
 #     """ABCD kinetic model, first order."""
@@ -1982,45 +1964,45 @@ class Delayed_Fl(_Model):
 
         return self.get_conc_matrix(C_out, self._connectivity)
 
-
-class ABC_DEF_Model(_Model):
-    """Two independent ABC kinetics, first order."""
-
-    n = 6
-    name = 'A→B→C, D→E→F (1st order)'
-    _class = 'Nano'
-
-    def __init__(self, times=None, visible=None):
-        super(ABC_DEF_Model, self).__init__(times, visible)
-
-        self.species_names = np.array(list('ABCDEF'), dtype=str)
-
-        # self.description = "Simple A->B->C model of 1st order. d[A]/dt = -k1[A] - k2[A]^2, [A]_0 = c_0"
-
-    def init_params(self):
-        self.params = Parameters()
-        self.params.add('c01', value=1, min=0, max=np.inf, vary=False)
-        self.params.add('c02', value=1, min=0, max=np.inf, vary=False)
-        self.params.add('k1', value=1, min=0, max=np.inf)
-        self.params.add('k2', value=0.5, min=0, max=np.inf)
-        self.params.add('k3', value=1.1, min=0, max=np.inf)
-        self.params.add('k4', value=0.6, min=0, max=np.inf)
-
-    def calc_C(self, params=None, C_out=None):
-        super(ABC_DEF_Model, self).calc_C(params)
-
-        c01, c02, k1, k2, k3, k4 = self.params['c01'].value, self.params['c02'].value, self.params['k1'].value, \
-                                   self.params['k2'].value, self.params['k3'].value, self.params['k4'].value
-
-        self.C[:, 0] = np.heaviside(self.times, 1) * c01 * np.exp(-self.times * k1)
-        self.C[:, 1] = self.cB(self.times, c01, k1, k2)
-        self.C[:, 2] = np.heaviside(self.times, 1) * (c01 - self.C[:, 0] - self.C[:, 1])
-
-        self.C[:, 3] = np.heaviside(self.times, 1) * c02 * np.exp(-self.times * k3)
-        self.C[:, 4] = self.cB(self.times, c02, k3, k4)
-        self.C[:, 5] = np.heaviside(self.times, 1) * (c02 - self.C[:, 3] - self.C[:, 4])
-
-        return self.get_conc_matrix(C_out, self._connectivity)
+#
+# class ABC_DEF_Model(_Model):
+#     """Two independent ABC kinetics, first order."""
+#
+#     n = 6
+#     name = 'A→B→C, D→E→F (1st order)'
+#     _class = 'Nano'
+#
+#     def __init__(self, times=None, visible=None):
+#         super(ABC_DEF_Model, self).__init__(times, visible)
+#
+#         self.species_names = np.array(list('ABCDEF'), dtype=str)
+#
+#         # self.description = "Simple A->B->C model of 1st order. d[A]/dt = -k1[A] - k2[A]^2, [A]_0 = c_0"
+#
+#     def init_params(self):
+#         self.params = Parameters()
+#         self.params.add('c01', value=1, min=0, max=np.inf, vary=False)
+#         self.params.add('c02', value=1, min=0, max=np.inf, vary=False)
+#         self.params.add('k1', value=1, min=0, max=np.inf)
+#         self.params.add('k2', value=0.5, min=0, max=np.inf)
+#         self.params.add('k3', value=1.1, min=0, max=np.inf)
+#         self.params.add('k4', value=0.6, min=0, max=np.inf)
+#
+#     def calc_C(self, params=None, C_out=None):
+#         super(ABC_DEF_Model, self).calc_C(params)
+#
+#         c01, c02, k1, k2, k3, k4 = self.params['c01'].value, self.params['c02'].value, self.params['k1'].value, \
+#                                    self.params['k2'].value, self.params['k3'].value, self.params['k4'].value
+#
+#         self.C[:, 0] = np.heaviside(self.times, 1) * c01 * np.exp(-self.times * k1)
+#         self.C[:, 1] = self.cB(self.times, c01, k1, k2)
+#         self.C[:, 2] = np.heaviside(self.times, 1) * (c01 - self.C[:, 0] - self.C[:, 1])
+#
+#         self.C[:, 3] = np.heaviside(self.times, 1) * c02 * np.exp(-self.times * k3)
+#         self.C[:, 4] = self.cB(self.times, c02, k3, k4)
+#         self.C[:, 5] = np.heaviside(self.times, 1) * (c02 - self.C[:, 3] - self.C[:, 4])
+#
+#         return self.get_conc_matrix(C_out, self._connectivity)
 
 
 class Photosens_Model_Aug(_Model):
@@ -2094,50 +2076,50 @@ class Photosens_Model_Aug(_Model):
 
         return self.get_conc_matrix(C_out, self._connectivity)
 
-
-class ABC_NR(_Model):
-    """ABCD kinetic model, first order."""
-
-    n = 3
-    name = 'A→B, A→C→B (1st order)'
-    _class = 'Nano'
-
-    def __init__(self, times=None, visible=None):
-        super(ABC_NR, self).__init__(times, visible)
-
-        self.species_names = np.array(list('ABC'), dtype=str)
-
-        # self.description = "Simple A->B->C model of 1st order. d[A]/dt = -k1[A] - k2[A]^2, [A]_0 = c_0"
-
-    def init_params(self):
-        self.params = Parameters()
-        self.params.add('c0', value=1, min=0, max=np.inf, vary=False)
-        self.params.add('k_A', value=0.02, min=0, max=np.inf)
-        self.params.add('p_B', value=0.5, min=0, max=1)
-        self.params.add('k_CB', value=0.2, min=0, max=np.inf)
-
-    def calc_C(self, params=None, C_out=None):
-        super(ABC_NR, self).calc_C(params)
-
-        c0, k_A, p_B, k_CB = [par[1].value for par in self.params.items()]
-
-        K = np.asarray([[-k_A, 0, 0],
-                        [p_B * k_A, 0, k_CB],
-                        [(1 - p_B) * k_A, 0, -k_CB]])
-
-        def dc_dt(c, t):
-            return np.dot(K, c)
-
-        # initial conditiona, cC(t=0) = 0, cD(t=0) = 0
-        x0 = np.linspace(0, self.times[0], num=100)
-        _init_x = odeint(dc_dt, [c0, 0, 0], x0)[-1, :]  # take the row in the result matrix
-        result = odeint(dc_dt, _init_x, self.times)
-
-        self.C[:, 0] = np.heaviside(self.times, 1) * result[:, 0]
-        self.C[:, 1] = np.heaviside(self.times, 1) * result[:, 1]
-        self.C[:, 2] = np.heaviside(self.times, 1) * result[:, 2]
-
-        return self.get_conc_matrix(C_out, self._connectivity)
+#
+# class ABC_NR(_Model):
+#     """ABCD kinetic model, first order."""
+#
+#     n = 3
+#     name = 'A→B, A→C→B (1st order)'
+#     _class = 'Nano'
+#
+#     def __init__(self, times=None, visible=None):
+#         super(ABC_NR, self).__init__(times, visible)
+#
+#         self.species_names = np.array(list('ABC'), dtype=str)
+#
+#         # self.description = "Simple A->B->C model of 1st order. d[A]/dt = -k1[A] - k2[A]^2, [A]_0 = c_0"
+#
+#     def init_params(self):
+#         self.params = Parameters()
+#         self.params.add('c0', value=1, min=0, max=np.inf, vary=False)
+#         self.params.add('k_A', value=0.02, min=0, max=np.inf)
+#         self.params.add('p_B', value=0.5, min=0, max=1)
+#         self.params.add('k_CB', value=0.2, min=0, max=np.inf)
+#
+#     def calc_C(self, params=None, C_out=None):
+#         super(ABC_NR, self).calc_C(params)
+#
+#         c0, k_A, p_B, k_CB = [par[1].value for par in self.params.items()]
+#
+#         K = np.asarray([[-k_A, 0, 0],
+#                         [p_B * k_A, 0, k_CB],
+#                         [(1 - p_B) * k_A, 0, -k_CB]])
+#
+#         def dc_dt(c, t):
+#             return np.dot(K, c)
+#
+#         # initial conditiona, cC(t=0) = 0, cD(t=0) = 0
+#         x0 = np.linspace(0, self.times[0], num=100)
+#         _init_x = odeint(dc_dt, [c0, 0, 0], x0)[-1, :]  # take the row in the result matrix
+#         result = odeint(dc_dt, _init_x, self.times)
+#
+#         self.C[:, 0] = np.heaviside(self.times, 1) * result[:, 0]
+#         self.C[:, 1] = np.heaviside(self.times, 1) * result[:, 1]
+#         self.C[:, 2] = np.heaviside(self.times, 1) * result[:, 2]
+#
+#         return self.get_conc_matrix(C_out, self._connectivity)
 
 
 class Bridge_Splitting(_Model):

@@ -193,7 +193,7 @@ class FitWidget(QWidget, Ui_Form):
 
         self.cbClass.setCurrentIndex(2)
         self.model_class_changed()
-        self.cbModel.setCurrentIndex(7)
+        self.cbModel.setCurrentIndex(4)
         self.model_changed()
         self.sbN_value_changed()
 
