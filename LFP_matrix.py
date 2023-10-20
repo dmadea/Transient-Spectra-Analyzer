@@ -374,27 +374,23 @@ class LFP_matrix(object):
         plt.tight_layout()
         plt.show()
 
-    def save_factored_matrix(self, output_dir='.\\', delimiter='\t',  extension='txt', encoding='utf8', t0=None, t1=None, w0=None, w1=None):
-        if self.filepath is None:
-            return
+    def save_factored_matrix(self, filepath='file.txt', delimiter='\t', encoding='utf8', t0=None, t1=None, w0=None, w1=None):
 
-        _, fname = os.path.split(self.filepath)
-        name, ext = os.path.splitext(fname)
+        # _, fname = os.path.split(self.filepath)
+        # name, ext = os.path.splitext(fname)
 
-        fpath = os.path.join(output_dir, f'{name}_factored.{extension}')
+        # fpath = os.path.join(output_dir, f'{name}_factored.{extension}')
 
-        self._save_matrix(self.D, fname=fpath, delimiter=delimiter, encoding=encoding, t0=t0, t1=t1, w0=w0, w1=w1)
+        self._save_matrix(self.D, fname=filepath, delimiter=delimiter, encoding=encoding, t0=t0, t1=t1, w0=w0, w1=w1)
 
-    def save_original_matrix(self, output_dir='.\\', delimiter='\t', extension='txt', encoding='utf8', t0=None, t1=None, w0=None, w1=None):
-        if self.filepath is None:
-            return
+    def save_original_matrix(self, filepath='file.txt', delimiter='\t', encoding='utf8', t0=None, t1=None, w0=None, w1=None):
 
-        _, fname = os.path.split(self.filepath)
-        name, ext = os.path.splitext(fname)
+        # _, fname = os.path.split(self.filepath)
+        # name, ext = os.path.splitext(fname)
+        #
+        # fpath = os.path.join(output_dir, f'{name}.{extension}')
 
-        fpath = os.path.join(output_dir, f'{name}.{extension}')
-
-        self._save_matrix(self.Y, fname=fpath, delimiter=delimiter, encoding=encoding, t0=t0, t1=t1, w0=w0, w1=w1)
+        self._save_matrix(self.Y, fname=filepath, delimiter=delimiter, encoding=encoding, t0=t0, t1=t1, w0=w0, w1=w1)
 
     def _save_matrix(self, D=None, fname='output.txt', delimiter='\t', encoding='utf8', t0=None, t1=None, w0=None, w1=None):
         # cut data if necessary
