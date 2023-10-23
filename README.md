@@ -1,5 +1,6 @@
 # Transient-Spectra-Analyzer
 
+This repository is no longer maintained. New version of the software ([pyTSA](https://github.com/dmadea/pyTSA)) is now under development with separated python backend and js/html frontend. 
 
 ### Packages Required
 
@@ -11,4 +12,4 @@
 * qtconsole
 * numba
 
-Works on Python 3.9 and 3.10.
+Works on Python 3.9-3.11.
