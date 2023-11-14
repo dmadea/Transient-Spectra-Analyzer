@@ -164,11 +164,14 @@ class MainDisplayDockArea(DockArea):
         # self.data_panel.txb_n_spectra.focus_lost.connect(self.txb_n_spectra_focus_lost)
         # self.data_panel.txb_n_spectra.returnPressed.connect(self.txb_n_spectra_focus_lost)
         # self.data_panel.btn_redraw_spectra.clicked.connect(self.update_spectra)
+
+        # self.svdFilter = getattr(self.data_panel, f"txb_SVD_filter{i}")
+        # print(self.svdFilter)
         #
         # self.data_panel.txb_SVD_filter.focus_lost.connect(self.txb_SVD_filter_changed)
         # self.data_panel.txb_SVD_filter.returnPressed.connect(self.txb_SVD_filter_changed)
         # self.data_panel.cb_SVD_filter.toggled.connect(self.cb_SVD_filter_toggled)
-        #
+        # #
         # self.data_panel.txb_ICA_filter.focus_lost.connect(self.txb_ICA_filter_changed)
         # self.data_panel.txb_ICA_filter.returnPressed.connect(self.txb_ICA_filter_changed)
         # self.data_panel.cb_ICA_filter.toggled.connect(self.cb_ICA_filter_toggled)
@@ -280,30 +283,37 @@ class MainDisplayDockArea(DockArea):
         self.plot_matrices(self.matrices, center_lines=False, keep_ranges=False, keep_fits=True)
 
     def cb_SVD_filter_toggled(self):
-        if self.matrix is None:
+        if self.matrices is None:
             return
 
-        self.matrix.SVD_filter = self.data_panel.cb_SVD_filter.isChecked()
-        # self.plot_matrix(self.matrix, center_lines=False, keep_range=True)
-        if self.data_panel.cb_SVD_filter.isChecked():
+        cb_SVD_filter = getattr(self.data_panel, 'cb_SVD_filter0')
+
+        self.matrices[0].SVD_filter = cb_SVD_filter.isChecked()
+        if cb_SVD_filter.isChecked():
             self.txb_SVD_filter_changed()
         else:
-            self.plot_matrices(self.matrix, center_lines=False, keep_range=True, keep_fits=True)
+            self.replot()
 
     def cb_ICA_filter_toggled(self):
-        if self.matrix is None:
+        if self.matrices is None:
             return
 
-        self.matrix.ICA_filter = self.data_panel.cb_ICA_filter.isChecked()
-        if self.data_panel.cb_ICA_filter.isChecked():
+        cb_ICA_filter = getattr(self.data_panel, 'cb_ICA_filter0')
+
+        self.matrices[0].ICA_filter = cb_ICA_filter.isChecked()
+        if cb_ICA_filter.isChecked():
             self.txb_ICA_filter_changed()
         else:
-            self.plot_matrices(self.matrix, center_lines=False, keep_range=True, keep_fits=True)
+            self.replot()
 
     def txb_ICA_filter_changed(self):
-        if self.matrix is None:
+        if self.matrices is None:
             return
-        r_text = self.data_panel.txb_ICA_filter.text()
+
+        txb_ICA_filter = getattr(self.data_panel, 'txb_ICA_filter0')
+        cb_ICA_filter = getattr(self.data_panel, 'cb_ICA_filter0')
+
+        r_text = txb_ICA_filter.text()
         vals = list(filter(None, r_text.split(',')))  # splits by comma and removes empty entries
         int_vals = []
 
@@ -326,19 +336,25 @@ class MainDisplayDockArea(DockArea):
                 continue
 
         n_comp = int(SVDDockArea.instance.data_panel.sb_n_ICA.value())
-
         result = sorted(list(filter(lambda item: 0 <= item < n_comp, int_vals)))
-        self.matrix.set_ICA_filter(result, n_components=n_comp)
 
-        if self.data_panel.cb_ICA_filter.isChecked():
-            self.plot_matrices(self.matrix, center_lines=False, keep_range=True, keep_fits=True)
+        if len(result) == 0:
+            return
+
+        self.matrices[0].set_ICA_filter(result, n_components=n_comp)
+
+        if cb_ICA_filter.isChecked():
+            self.replot()
 
     def txb_SVD_filter_changed(self):
 
-        if self.matrix is None:
+        if self.matrices is None:
             return
 
-        r_text = self.data_panel.txb_SVD_filter.text()
+        txb_SVD_filter = getattr(self.data_panel, 'txb_SVD_filter0')
+        cb_SVD_filter = getattr(self.data_panel, 'cb_SVD_filter0')
+
+        r_text = txb_SVD_filter.text()
 
         # format - values separated by comma, eg. '1, 2, 3', '1-4, -3'
 
@@ -372,10 +388,10 @@ class MainDisplayDockArea(DockArea):
         result = sorted(list(set(int_vals) - set(remove_vals)))
 
         if not(result is None or len(result) == 0):
-            self.matrix.set_SVD_filter(result)
+            self.matrices[0].set_SVD_filter(result)
 
-        if self.data_panel.cb_SVD_filter.isChecked():
-            self.plot_matrices(self.matrix, center_lines=False, keep_range=True, keep_fits=True)
+        if cb_SVD_filter.isChecked():
+            self.replot()
 
     def txb_n_spectra_focus_lost(self):
         try:
@@ -913,6 +929,7 @@ class MainDisplayDockArea(DockArea):
     def plot_matrices(self, matrices, center_lines=True, keep_ranges=False, keep_fits=False):
 
         self.fit_matrix = None
+        replotting = len(matrices) == len(self.matrices)
 
         # w_range, t_range = self.heat_map_widget.heat_map_plot.getViewBox().viewRange()
         # z_range = self.heat_map_widget.get_z_range()
@@ -1008,13 +1025,28 @@ class MainDisplayDockArea(DockArea):
             self.heatmap_v_line_changed(h)
             self.heatmap_h_line_changed(h)
 
-        self.data_panel.initialize(self.matrices)
+        if not replotting:
+            self.data_panel.initialize(self.matrices)
+            # connects signals
 
-        # connects signals
+            for i in range(len(self.matrices)):
+                getattr(self.data_panel, f"cb_show_cp_{i}").toggled.connect(self.cb_show_roi_checkstate_changed)
+                getattr(self.data_panel, f"btn_fit_cp_{i}").clicked.connect(self.fit_chirp_params)
 
-        for i in range(len(self.matrices)):
-            getattr(self.data_panel, f"cb_show_cp_{i}").toggled.connect(self.cb_show_roi_checkstate_changed)
-            getattr(self.data_panel, f"btn_fit_cp_{i}").clicked.connect(self.fit_chirp_params)
+                if i == 0:
+                    txb_SVD_filter = getattr(self.data_panel, f"txb_SVD_filter{i}")
+                    cb_SVD_filter = getattr(self.data_panel, f"cb_SVD_filter{i}")
+                    txb_ICA_filter = getattr(self.data_panel, f"txb_ICA_filter{i}")
+                    cb_ICA_filter = getattr(self.data_panel, f"cb_ICA_filter{i}")
+
+                    txb_SVD_filter.focus_lost.connect(self.txb_SVD_filter_changed)
+                    txb_SVD_filter.returnPressed.connect(self.txb_SVD_filter_changed)
+                    cb_SVD_filter.toggled.connect(self.cb_SVD_filter_toggled)
+
+                    txb_ICA_filter.focus_lost.connect(self.txb_ICA_filter_changed)
+                    txb_ICA_filter.returnPressed.connect(self.txb_ICA_filter_changed)
+                    cb_ICA_filter.toggled.connect(self.cb_ICA_filter_toggled)
+                    txb_SVD_filter.setText("1-5")
 
         self.heat_map_widget.autoscale()
         self.update_trace_and_spectrum()

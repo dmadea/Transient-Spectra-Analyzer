@@ -524,11 +524,11 @@ class LFP_matrix(object):
         plt.show()
 
     def run_ICA(self, random_state=0, max_iter=1e4):
-        pass
-        # ica = FastICA(n_components=self.ICA_components, random_state=random_state, max_iter=int(max_iter))
-        #
-        # self.C_ICA = ica.fit_transform(self.Y)
-        # self.ST_ICA = ica.mixing_.T
+        # pass
+        ica = FastICA(n_components=self.ICA_components, random_state=random_state, max_iter=int(max_iter))
+
+        self.C_ICA = ica.fit_transform(self.Y)
+        self.ST_ICA = ica.mixing_.T
 
     def set_ICA_filter(self, l_comp=(), n_components=5):
         """Subtracts components in l_comp = [0, 1, 5, ...] list/tuple."""
@@ -542,6 +542,8 @@ class LFP_matrix(object):
 
         comps = np.zeros(n_components)
         comps[l_comp] = 1
+
+        print(l_comp, n_components)
 
         self.ICA_subtr_mat = self.C_ICA @ np.diag(comps) @ self.ST_ICA  # outer product
 
