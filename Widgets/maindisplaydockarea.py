@@ -20,7 +20,7 @@ from Widgets.svddockarea import SVDDockArea
 from pyqtgraphmodif.dock_modif import DockLabel, DockDisplayMode
 
 from scipy.linalg import lstsq
-from scipy.integrate import cumtrapz
+from scipy.integrate import cumulative_trapezoid as cumtrapz
 
 from scipy.interpolate import interp2d
 from settings import Settings
