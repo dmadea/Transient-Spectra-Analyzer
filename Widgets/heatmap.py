@@ -436,13 +436,17 @@ class Heatmap(GenericPlotLayout):
         self.plot_chirp_points()
 
     def get_xpos(self):
-        return self.vline.pos()[0]
+        # return self.vline.pos()[0]
+        return self.vline.pos().x()
+    
 
     def set_xpos(self, value):
         self.vline.setPos(value)
 
     def get_ypos(self):
-        return self.hline.pos()[1]
+        # return self.hline.pos()[1]
+        return self.hline.pos().y()
+    
 
     def set_ypos(self, value):
         self.hline.setPos(value)

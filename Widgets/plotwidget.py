@@ -177,7 +177,8 @@ class PlotLayout(GenericPlotLayout):
         self.vline.setBounds((xmin, xmax))
 
     def get_xpos(self):
-        return self.vline.pos()[0]
+        # return self.vline.pos()[0]
+        return self.vline.pos().x()
 
     def set_xpos(self, value):
         self.vline.setPos(value)

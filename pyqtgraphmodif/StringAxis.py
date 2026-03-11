@@ -1,24 +1,36 @@
-import pyqtgraph as pg
 import numpy as np
 from settings import Settings
+from pyqtgraph.graphicsItems.AxisItem import AxisItem
 
 
 ## help from https://stackoverflow.com/questions/31775468/show-string-values-on-x-axis-in-pyqtgraph
-class StringAxis(pg.AxisItem):
+class StringAxis(AxisItem):
     """AxisItem subclass for correctly labeling ticks on heatmap, this is necessary for nonlinearly-spaced data."""
-    def __init__(self, orientation='left', pen=None, textPen=None, tickPen = None, linkView=None, parent=None, maxTickLength=-5, showValues=True,
-                 text='', units='', unitPrefix='', transform=None, keep_constant_space=False, **args):
 
-        super(StringAxis, self).__init__(orientation, pen, textPen, tickPen, linkView, parent, maxTickLength, showValues, text, units, unitPrefix, **args)
+    def __init__(
+            self,
+            orientation: str,
+            pen=None,
+            textPen=None,
+            tickPen = None,
+            linkView=None,
+            parent=None,
+            maxTickLength=-5,
+            showValues=True,
+            transform=None, 
+            keep_constant_space=False,
+            **args,
+    ):
+        super(StringAxis, self).__init__(orientation, pen, textPen, tickPen, linkView, parent, maxTickLength, showValues, **args)
+
+        # ADDED
         self.transform = transform  # transform function
         self.keep_constant_space = keep_constant_space
 
+        # ADDED
         if self.keep_constant_space:
             self.style['autoExpandTextSpace'] = False
             self.style['tickTextWidth'] = 35
-
-        # self.direction = ">" if orientation == 'left' else "<"
-        # self.digits = "7"
 
     def tickStrings(self, values, scale, spacing):
         if self.transform is None:
