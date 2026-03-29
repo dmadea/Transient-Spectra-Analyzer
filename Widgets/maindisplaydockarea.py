@@ -22,7 +22,7 @@ from pyqtgraphmodif.dock_modif import DockLabel, DockDisplayMode
 from scipy.linalg import lstsq
 from scipy.integrate import cumulative_trapezoid as cumtrapz
 
-from scipy.interpolate import interp2d
+from scipy.interpolate import interp2d, RectBivariateSpline
 from settings import Settings
 
 from LFP_matrix import LFP_matrix
@@ -221,8 +221,10 @@ class MainDisplayDockArea(DockArea):
         y = ms.times[idxs]
         mat2interp = ms.Y[idxs, :]
 
-        f = interp2d(ms.wavelengths, y, mat2interp, kind='linear', copy=True)
-        D_interp = f(ms.wavelengths, ms.times)
+        f = RectBivariateSpline(ms.wavelengths, y, mat2interp.T)
+
+        # f = interp2d(ms.wavelengths, y, mat2interp, kind='linear', copy=True)
+        D_interp = f(ms.wavelengths, ms.times).T
 
         # baseline correct
         # D_new = ms.Y - D_interp
@@ -426,7 +428,7 @@ class MainDisplayDockArea(DockArea):
         self.heatmap_range_lock = False
 
     def get_selected_range(self):
-        if self.matrix is None:
+        if self.matrices[0] is None:
             return
 
         try:

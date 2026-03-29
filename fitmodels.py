@@ -2886,6 +2886,7 @@ class Z3_Photokinetics(_Photokinetic_Model):
         params.add('tau1', value=96, min=0, max=np.inf, vary=True)  # Concentration of DPBF
         params.add('tau2', value=300, min=0, max=np.inf, vary=True)  # Concentration of DPBF
         params.add('tau3', value=16373, min=0, max=np.inf, vary=True)  # Concentration of DPBF
+        params.add('c0_3Z', value=4.53e-5, min=0, max=np.inf, vary=False)  # Concentration of DPBF
 
         return params
 
@@ -2897,7 +2898,7 @@ class Z3_Photokinetics(_Photokinetic_Model):
 
         R = 0.036  # Cuvette reflectivity
 
-        I, V, k_r, k_d, Phi_Delta, alpha, tau1, tau2, tau3 = [par[1].value for par in self.params.items()]
+        I, V, k_r, k_d, Phi_Delta, alpha, tau1, tau2, tau3, c0_3Z = [par[1].value for par in self.params.items()]
 
         irr_source = self.get_LED_source()
         q_rel = self.get_q_rel()
@@ -2931,8 +2932,6 @@ class Z3_Photokinetics(_Photokinetic_Model):
             vec[2] = -decay * (1 - alpha)  # rise of hydroperoxide
 
             return K.dot(c) + vec
-
-        c0_3Z = 6.45e-5
 
         self.C = odeint(dc_dt, np.asarray([c0_3Z, 0, 0, 0]), self.times).squeeze()
 

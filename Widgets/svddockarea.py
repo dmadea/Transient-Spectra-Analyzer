@@ -153,7 +153,7 @@ class SVDDockArea(DockArea):
 
         from Widgets.maindisplaydockarea import MainDisplayDockArea
         wwtt = MainDisplayDockArea.instance.get_selected_range() if self.data_panel.cb_SVD.isChecked() else None
-        self.set_data(self.matrix, wwtt=wwtt)
+        self.set_data(self.matrices[0], wwtt=wwtt)
 
     def redraw_plots(self):  # left and right singular values
         if self.matrix is None:
